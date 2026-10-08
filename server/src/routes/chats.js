@@ -16,6 +16,14 @@ import {
   audit,
 } from '../chats.js';
 
+function formatDuration(secs) {
+  const fa = (n) => n.toLocaleString('fa-IR');
+  if (secs % 86400 === 0) return `${fa(secs / 86400)} روز`;
+  if (secs % 3600 === 0) return `${fa(secs / 3600)} ساعت`;
+  if (secs % 60 === 0) return `${fa(secs / 60)} دقیقه`;
+  return `${fa(secs)} ثانیه`;
+}
+
 const isRoom = (chat) => chat.type === 'group' || chat.type === 'channel';
 
 // Loads chat + caller's membership, failing unless the caller is a member
@@ -141,9 +149,20 @@ export default async function chatRoutes(app) {
 
   app.patch('/api/chats/:id', async (req) => {
     const { chat, member } = requireChat(req, req.params.id, { allowModerator: true });
-    if (!isRoom(chat)) fail(400, 'این گفتگو قابل ویرایش نیست');
-    if (!hasChatPerm(req.user, member, 'edit_info')) fail(403, 'دسترسی ویرایش ندارید');
     const b = req.body || {};
+    const isPrivate = chat.type === 'dm' || chat.type === 'saved';
+    if (isPrivate && member && Object.keys(b).every((k) => k === 'autoDelete')) {
+      // Either side of a private chat may set its auto-delete timer.
+    } else {
+      if (!isRoom(chat)) fail(400, 'این گفتگو قابل ویرایش نیست');
+      if (!hasChatPerm(req.user, member, 'edit_info')) fail(403, 'دسترسی ویرایش ندارید');
+    }
+    if (b.autoDelete !== undefined) {
+      const secs = Math.max(0, Math.min(30 * 86400, Number(b.autoDelete) || 0));
+      run('UPDATE chats SET auto_delete = ? WHERE id = ?', secs, chat.id);
+      const label = secs ? `پیام‌های جدید پس از ${formatDuration(secs)} خودکار حذف می‌شوند` : 'حذف خودکار پیام‌ها خاموش شد';
+      if (chat.type !== 'saved') systemMessage(chat.id, `${req.user.display_name}: ${label}`);
+    }
     if (b.title !== undefined) {
       const t = String(b.title).trim().slice(0, 100);
       if (!t) fail(400, 'عنوان خالی است');

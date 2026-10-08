@@ -11,6 +11,7 @@ import {
   toFa,
   copyText,
   compressImage,
+  AUTO_DELETE_OPTIONS,
 } from '../util';
 import { Modal, UserSearch } from './Modals';
 import Avatar from './Avatar';
@@ -169,12 +170,15 @@ function EditChat({ chat }) {
     isPublic: chat.isPublic,
     slowMode: chat.slowMode,
     locked: chat.locked,
+    autoDelete: chat.autoDelete || 0,
   });
 
   async function save(e) {
     e.preventDefault();
     try {
-      await api('PATCH', `/chats/${chat.id}`, f);
+      // Only send autoDelete when it changed: the server posts a notice about it.
+      const { autoDelete, ...rest } = f;
+      await api('PATCH', `/chats/${chat.id}`, autoDelete !== (chat.autoDelete || 0) ? f : rest);
       showToast('ذخیره شد');
       setOpen(false);
     } catch (err) {
@@ -204,6 +208,7 @@ function EditChat({ chat }) {
           عمومی (در بخش کاوش نمایش داده شود)
         </label>
       )}
+      {!chat.isEmergency && <AutoDeleteSelect value={f.autoDelete} onChange={(v) => setF({ ...f, autoDelete: v })} />}
       {chat.type === 'group' && (
         <>
           <label>
@@ -424,7 +429,25 @@ function MemberRow({ m, chat, me, isOwner, run }) {
   );
 }
 
+function AutoDeleteSelect({ value, onChange }) {
+  const known = AUTO_DELETE_OPTIONS.some(([v]) => v === value);
+  return (
+    <label>
+      ⏱ حذف خودکار پیام‌های جدید
+      <select value={value} onChange={(e) => onChange(Number(e.target.value))}>
+        {AUTO_DELETE_OPTIONS.map(([v, label]) => (
+          <option key={v} value={v}>
+            {label}
+          </option>
+        ))}
+        {!known && <option value={value}>{toFa(value)} ثانیه</option>}
+      </select>
+    </label>
+  );
+}
+
 function PeerProfile({ chat, onClose }) {
+  const showToast = useStore((s) => s.showToast);
   const [user, setUser] = useState(null);
   const online = useStore((s) => isUserOnline(s, chat.peer));
   useEffect(() => {
@@ -446,6 +469,16 @@ function PeerProfile({ chat, onClose }) {
         <p className="muted">{online ? 'آنلاین' : formatLastSeen(u.lastSeen)}</p>
         {user?.bio && <p>{user.bio}</p>}
         {user?.role && user.role !== 'user' && <span className="role-badge">{ROLE_LABELS[user.role]} سرور</span>}
+      </div>
+      <div className="form">
+        <AutoDeleteSelect
+          value={chat.autoDelete || 0}
+          onChange={(v) =>
+            api('PATCH', `/chats/${chat.id}`, { autoDelete: v })
+              .then(() => showToast('ذخیره شد'))
+              .catch((e) => showToast(e.message))
+          }
+        />
       </div>
     </Modal>
   );

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { MessageResults, openMessage } from './Modals';
 import { useStore } from '../store';
 import { api } from '../api';
 import { disconnectSocket } from '../socket';
@@ -15,6 +16,18 @@ export default function Sidebar() {
   const openModal = useStore((s) => s.openModal);
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(false);
+  const [found, setFound] = useState(null);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) return setFound(null);
+    const t = setTimeout(() => {
+      api('GET', `/search?q=${encodeURIComponent(q)}`)
+        .then((r) => setFound(r.messages))
+        .catch(() => {});
+    }, 350);
+    return () => clearTimeout(t);
+  }, [query]);
 
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -102,7 +115,13 @@ export default function Sidebar() {
             </li>
           );
         })}
-        {!list.length && <li className="muted center pad">گفتگویی پیدا نشد</li>}
+        {!list.length && !found?.length && <li className="muted center pad">گفتگویی پیدا نشد</li>}
+        {found?.length > 0 && (
+          <li>
+            <div className="list-section">پیام‌ها</div>
+            <MessageResults messages={found} onPick={openMessage} />
+          </li>
+        )}
       </ul>
       <button className="fab" aria-label="گفتگوی جدید" onClick={() => openModal('newChat')}>
         ✏️
@@ -112,4 +131,4 @@ export default function Sidebar() {
 }
 
 const hasAnyAdminPerm = (me) =>
-  ['manage_users', 'manage_invites', 'manage_settings', 'manage_chats', 'view_audit'].some((p) => hasSitePerm(me, p));
+  ['manage_users', 'manage_invites', 'manage_settings', 'manage_chats', 'view_audit', 'handle_reports'].some((p) => hasSitePerm(me, p));

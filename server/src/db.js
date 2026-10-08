@@ -152,6 +152,48 @@ const migrations = [
     created_at INTEGER NOT NULL
   );
   `,
+  // v2: media processing, reactions, reports, forwarding, auto-delete, full-text search
+  `
+  ALTER TABLE files ADD COLUMN status TEXT NOT NULL DEFAULT 'ready';
+  ALTER TABLE files ADD COLUMN variants TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE files ADD COLUMN thumb TEXT;
+  ALTER TABLE files ADD COLUMN waveform TEXT;
+  ALTER TABLE files ADD COLUMN purged INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE files ADD COLUMN max_quality TEXT;
+  ALTER TABLE messages ADD COLUMN forwarded_from TEXT;
+  ALTER TABLE messages ADD COLUMN expires_at INTEGER;
+  CREATE INDEX messages_expires ON messages(expires_at) WHERE expires_at IS NOT NULL;
+  ALTER TABLE chats ADD COLUMN auto_delete INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE reactions (
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    emoji TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (message_id, user_id, emoji)
+  );
+  CREATE TABLE reports (
+    id INTEGER PRIMARY KEY,
+    message_id INTEGER NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    reporter_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open',
+    handled_by INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX reports_status ON reports(status);
+  CREATE VIRTUAL TABLE messages_fts USING fts5(text, content='messages', content_rowid='id', tokenize='unicode61 remove_diacritics 2');
+  CREATE TRIGGER messages_fts_ai AFTER INSERT ON messages BEGIN
+    INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+  END;
+  CREATE TRIGGER messages_fts_ad AFTER DELETE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
+  END;
+  CREATE TRIGGER messages_fts_au AFTER UPDATE OF text ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, text) VALUES ('delete', old.id, old.text);
+    INSERT INTO messages_fts(rowid, text) VALUES (new.id, new.text);
+  END;
+  INSERT INTO messages_fts(messages_fts) VALUES ('rebuild');
+  `,
 ];
 
 const current = db.prepare('PRAGMA user_version').get().user_version;

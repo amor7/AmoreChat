@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
-import { hasSitePerm, SITE_PERM_LABELS, ROLE_LABELS, formatDateTime, formatSize, formatLastSeen, toFa, copyText } from '../util';
+import { hasSitePerm, SITE_PERM_LABELS, ROLE_LABELS, formatDateTime, formatSize, formatLastSeen, toFa, copyText, messagePreview } from '../util';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
 
 const TABS = [
   ['stats', '📊 آمار', 'view_audit'],
+  ['reports', '🚩 گزارش‌ها', 'handle_reports'],
   ['users', '👥 کاربران', 'manage_users'],
   ['invites', '🎟 کدهای دعوت', 'manage_invites'],
   ['chats', '💬 گروه‌ها', 'manage_chats'],
@@ -29,6 +30,7 @@ export default function Admin({ onClose }) {
         ))}
       </div>
       {tab === 'stats' && <Stats />}
+      {tab === 'reports' && <Reports />}
       {tab === 'users' && <Users />}
       {tab === 'invites' && <Invites />}
       {tab === 'chats' && <Chats onClose={onClose} />}
@@ -41,9 +43,12 @@ export default function Admin({ onClose }) {
 function useLoad(url) {
   const showToast = useStore((s) => s.showToast);
   const [data, setData] = useState(null);
+  const latest = useRef(url);
+  latest.current = url;
+  // Ignore responses for a URL we've since moved away from (fast tab/filter switching).
   const load = () =>
     api('GET', url)
-      .then(setData)
+      .then((d) => latest.current === url && setData(d))
       .catch((e) => showToast(e.message));
   useEffect(() => {
     load();
@@ -71,6 +76,8 @@ function Stats() {
     ['رم برنامه', formatSize(s.memory.process)],
     ['بار CPU', `${s.load.map((l) => l.toLocaleString('fa-IR', { maximumFractionDigits: 2 })).join(' / ')} (${toFa(s.cpus)} هسته)`],
     ['مدت روشن بودن', `${toFa(Math.floor(s.uptime / 3600))} ساعت`],
+    ['پردازش ویدیو (ffmpeg)', s.ffmpeg ? '✅ فعال' : '❌ نصب نیست'],
+    ['گزارش‌های باز', toFa(s.openReports)],
   ];
   const diskLow = s.disk && s.disk.free / s.disk.total < 0.1;
   return (
@@ -343,8 +350,67 @@ function Settings() {
         سهمیه فضای هر کاربر (مگابایت، ۰ = نامحدود)
         <input type="number" min="0" value={f.user_quota_mb} onChange={(e) => setF({ ...f, user_quota_mb: e.target.value })} />
       </label>
+      <label>
+        حذف خودکار عکس، ویدیو و فایل‌های قدیمی‌تر از (روز، ۰ = هرگز)
+        <input type="number" min="0" value={f.media_retention_days} onChange={(e) => setF({ ...f, media_retention_days: e.target.value })} />
+      </label>
+      <p className="hint">برای وقتی دیسک سرور کوچک است. پیام‌ها می‌مانند، فقط فایل‌هایشان حذف می‌شود. عکس پروفایل‌ها حذف نمی‌شوند.</p>
       <button className="btn primary">ذخیره تنظیمات</button>
     </form>
+  );
+}
+
+function Reports() {
+  const showToast = useStore((s) => s.showToast);
+  const [status, setStatus] = useState('open');
+  const [data, load] = useLoad(`/admin/reports?status=${status}`);
+
+  const act = (id, action) =>
+    api('POST', `/admin/reports/${id}`, { action })
+      .then(() => {
+        showToast(action === 'delete' ? 'پیام حذف شد' : 'گزارش بسته شد');
+        load();
+      })
+      .catch((e) => showToast(e.message));
+
+  return (
+    <>
+      <div className="segmented">
+        <button className={status === 'open' ? 'active' : ''} onClick={() => setStatus('open')}>
+          باز
+        </button>
+        <button className={status === 'closed' ? 'active' : ''} onClick={() => setStatus('closed')}>
+          بسته‌شده
+        </button>
+      </div>
+      {data?.reports.length === 0 && <p className="muted pad">گزارشی وجود ندارد 🎉</p>}
+      <ul className="audit">
+        {data?.reports.map((r) => (
+          <li key={r.id} className="report">
+            <small>{formatDateTime(r.createdAt)}</small>
+            <b>{r.reporter}</b> پیامی از <b>{r.message?.sender?.displayName || '?'}</b> در «{r.chat.title}» را گزارش کرد
+            {r.reason && <div className="report-reason">دلیل: {r.reason}</div>}
+            <blockquote className="report-msg" dir="auto">
+              {r.message?.type === 'deleted' ? <i>پیام حذف شده</i> : messagePreview(r.message)}
+            </blockquote>
+            {status === 'open' ? (
+              <div className="inline-form">
+                {r.message?.type !== 'deleted' && (
+                  <button className="btn sm danger" onClick={() => act(r.id, 'delete')}>
+                    حذف پیام
+                  </button>
+                )}
+                <button className="btn sm" onClick={() => act(r.id, 'dismiss')}>
+                  رد گزارش
+                </button>
+              </div>
+            ) : (
+              <span className="tag">{r.status === 'deleted' ? 'پیام حذف شد' : 'رد شد'}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -365,6 +431,8 @@ const ACTION_LABELS = {
   'chat.ban': 'مسدود کردن عضو',
   'chat.unban': 'رفع مسدودیت عضو',
   'message.delete': 'حذف پیام دیگران',
+  'report.delete': 'حذف پیام گزارش‌شده',
+  'report.dismiss': 'رد گزارش',
 };
 
 function Audit() {

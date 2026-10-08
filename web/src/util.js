@@ -54,6 +54,7 @@ export function formatSize(bytes) {
 
 export function messagePreview(m) {
   if (!m) return '';
+  if (m.file?.purged) return '⌛ فایل منقضی شده';
   switch (m.type) {
     case 'deleted':
       return 'پیام حذف شد';
@@ -77,7 +78,67 @@ export const SITE_PERM_LABELS = {
   manage_chats: 'نظارت بر همه گروه‌ها و کانال‌ها',
   view_audit: 'مشاهده گزارش فعالیت و آمار',
   broadcast: 'ارسال در کانال اطلاع‌رسانی',
+  handle_reports: 'رسیدگی به پیام‌های گزارش‌شده',
 };
+
+// Per-device preferences (not critical, so storage failures are ignored).
+const PREFS_KEY = 'ac_prefs';
+export function getPrefs() {
+  try {
+    return { dataSaver: false, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') };
+  } catch {
+    return { dataSaver: false };
+  }
+}
+export function setPrefs(patch) {
+  const next = { ...getPrefs(), ...patch };
+  try {
+    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+  } catch {
+    /* private mode */
+  }
+  return next;
+}
+
+export function formatClock(sec) {
+  if (!Number.isFinite(sec)) return '۰:۰۰';
+  const s = Math.max(0, Math.round(sec));
+  const m = Math.floor(s / 60);
+  return `${toFa(m)}:${toFa(s % 60).padStart(2, '۰')}`;
+}
+
+export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🔥', '👎'];
+
+export const AUTO_DELETE_OPTIONS = [
+  [0, 'خاموش'],
+  [3600, '۱ ساعت'],
+  [86400, '۱ روز'],
+  [7 * 86400, '۱ هفته'],
+  [30 * 86400, '۱ ماه'],
+];
+
+// Downsample recorded audio to `bars` peaks encoded as base-32 digits (what the server stores).
+export async function computeWaveform(blob, bars = 48) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audio = await ctx.decodeAudioData(await blob.arrayBuffer());
+    ctx.close();
+    const data = audio.getChannelData(0);
+    const step = Math.max(1, Math.floor(data.length / bars));
+    const peaks = [];
+    for (let i = 0; i < bars; i++) {
+      let max = 0;
+      for (let j = i * step; j < Math.min(data.length, (i + 1) * step); j++) max = Math.max(max, Math.abs(data[j]));
+      peaks.push(max);
+    }
+    const top = Math.max(...peaks, 0.01);
+    return { waveform: peaks.map((p) => Math.round((p / top) * 31).toString(32)).join(''), duration: audio.duration };
+  } catch {
+    return { waveform: null, duration: null };
+  }
+}
+
+export const decodeWaveform = (s) => (s ? [...s].map((c) => parseInt(c, 32) / 31) : null);
 
 export const CHAT_PERM_LABELS = {
   edit_info: 'ویرایش اطلاعات',

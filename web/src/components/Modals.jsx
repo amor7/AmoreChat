@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import { api, fileUrl } from '../api';
-import { toFa } from '../util';
+import { toFa, postBlockReason, messagePreview, formatListTime } from '../util';
 import Avatar from './Avatar';
 import NewChat from './NewChat';
 import Profile from './Profile';
@@ -167,6 +167,115 @@ function JoinInvite({ code, onClose }) {
   );
 }
 
+function Forward({ message, onClose }) {
+  const me = useStore((s) => s.me);
+  const chats = useStore((s) => s.chats);
+  const showToast = useStore((s) => s.showToast);
+  const [q, setQ] = useState('');
+  const [picked, setPicked] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  const list = Object.values(chats)
+    .filter((c) => !postBlockReason(me, c))
+    .filter((c) => !q.trim() || c.title.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => (a.type === 'saved' ? -1 : b.type === 'saved' ? 1 : (b.lastMessage?.id || 0) - (a.lastMessage?.id || 0)));
+
+  async function send() {
+    setBusy(true);
+    try {
+      const { sent } = await api('POST', `/messages/${message.id}/forward`, { chatIds: picked });
+      showToast(`به ${toFa(sent.length)} گفتگو فوروارد شد`);
+      onClose();
+    } catch (e) {
+      showToast(e.message);
+    }
+    setBusy(false);
+  }
+
+  return (
+    <Modal title="فوروارد به…" onClose={onClose}>
+      <input placeholder="جستجو" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+      <ul className="user-list">
+        {list.map((c) => (
+          <li key={c.id}>
+            <label className="row-item check-row">
+              <input
+                type="checkbox"
+                checked={picked.includes(c.id)}
+                onChange={(e) => setPicked(e.target.checked ? [...picked, c.id] : picked.filter((x) => x !== c.id))}
+                disabled={!picked.includes(c.id) && picked.length >= 20}
+              />
+              <Avatar id={c.id} name={c.title} file={c.avatar} saved={c.type === 'saved'} size={36} />
+              <span className="grow">{c.title}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <div className="actions sticky-actions">
+        <button className="btn primary" disabled={!picked.length || busy} onClick={send}>
+          ارسال به {toFa(picked.length)} گفتگو
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// Full-text search across all chats, or one chat when chatId is given.
+export function MessageResults({ messages, onPick }) {
+  const chats = useStore((s) => s.chats);
+  return (
+    <ul className="user-list">
+      {messages.map((m) => {
+        const chat = chats[m.chatId];
+        return (
+          <li key={m.id}>
+            <button onClick={() => onPick(m)}>
+              <Avatar id={m.sender?.id} name={m.sender?.displayName} file={m.sender?.avatar} size={36} />
+              <span className="grow">
+                <b>
+                  {m.sender?.displayName}
+                  {chat && chat.type !== 'dm' ? ` · ${chat.title}` : ''}
+                </b>
+                <small className="preview">{messagePreview(m)}</small>
+              </span>
+              <small className="muted">{formatListTime(m.createdAt)}</small>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+export function openMessage(m) {
+  useStore.setState({ jumpTo: { chatId: m.chatId, messageId: m.id }, modal: null });
+  location.hash = `#/chat/${m.chatId}`;
+}
+
+function Search({ chatId, onClose }) {
+  const chatTitle = useStore((s) => s.chats[chatId]?.title);
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState(null);
+
+  useEffect(() => {
+    if (q.trim().length < 2) return setResults(null);
+    const t = setTimeout(() => {
+      api('GET', `/search?q=${encodeURIComponent(q.trim())}${chatId ? `&chatId=${chatId}` : ''}`)
+        .then((r) => setResults(r.messages))
+        .catch(() => {});
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, chatId]);
+
+  return (
+    <Modal title={chatId ? `جستجو در «${chatTitle}»` : 'جستجوی پیام‌ها'} onClose={onClose}>
+      <input placeholder="حداقل ۲ حرف…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+      {results?.length === 0 && <p className="muted pad">نتیجه‌ای پیدا نشد</p>}
+      {results && <MessageResults messages={results} onPick={openMessage} />}
+    </Modal>
+  );
+}
+
 function ImageViewer({ fileId, onClose }) {
   return (
     <div className="lightbox" onClick={onClose}>
@@ -197,6 +306,10 @@ export default function Modals() {
       return <Admin onClose={close} />;
     case 'image':
       return <ImageViewer fileId={modal.fileId} onClose={close} />;
+    case 'forward':
+      return <Forward message={modal.message} onClose={close} />;
+    case 'search':
+      return <Search chatId={modal.chatId} onClose={close} />;
     default:
       return null;
   }

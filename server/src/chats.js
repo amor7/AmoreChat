@@ -15,7 +15,8 @@ const MSG_SELECT = `
   SELECT m.*,
     u.display_name AS sender_name, u.username AS sender_username, u.avatar_file_id AS sender_avatar,
     f.mime AS f_mime, f.size AS f_size, f.name AS f_name, f.kind AS f_kind,
-    f.width AS f_w, f.height AS f_h, f.duration AS f_dur,
+    f.width AS f_w, f.height AS f_h, f.duration AS f_dur, f.status AS f_status,
+    f.variants AS f_variants, f.thumb AS f_thumb, f.waveform AS f_wave, f.purged AS f_purged,
     r.text AS r_text, r.type AS r_type, r.deleted AS r_deleted, ru.display_name AS r_sender
   FROM messages m
   LEFT JOIN users u ON u.id = m.sender_id
@@ -23,7 +24,29 @@ const MSG_SELECT = `
   LEFT JOIN messages r ON r.id = m.reply_to
   LEFT JOIN users ru ON ru.id = r.sender_id`;
 
-export function serializeMessage(m) {
+// Reactions grouped per emoji: [{ emoji, users: [userId, ...] }]
+function reactionsFor(ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const rows = all(
+    'SELECT message_id, emoji, user_id FROM reactions WHERE message_id IN (SELECT value FROM json_each(?)) ORDER BY created_at',
+    JSON.stringify(ids),
+  );
+  for (const r of rows) {
+    if (!out.has(r.message_id)) out.set(r.message_id, new Map());
+    const byEmoji = out.get(r.message_id);
+    if (!byEmoji.has(r.emoji)) byEmoji.set(r.emoji, []);
+    byEmoji.get(r.emoji).push(r.user_id);
+  }
+  return new Map([...out].map(([id, m]) => [id, [...m].map(([emoji, users]) => ({ emoji, users }))]));
+}
+
+function withReactions(rows) {
+  const reactions = reactionsFor(rows.filter((m) => !m.deleted).map((m) => m.id));
+  return rows.map((m) => serializeMessage(m, reactions.get(m.id)));
+}
+
+export function serializeMessage(m, reactions = []) {
   if (!m) return null;
   const deleted = !!m.deleted;
   return {
@@ -45,8 +68,16 @@ export function serializeMessage(m) {
             width: m.f_w,
             height: m.f_h,
             duration: m.f_dur,
+            status: m.f_status,
+            purged: !!m.f_purged,
+            thumb: !!m.f_thumb,
+            waveform: m.f_wave,
+            variants: parseJSON(m.f_variants, []).map((v) => ({ q: v.q, size: v.size })),
           }
         : null,
+    reactions: deleted ? [] : reactions,
+    forwardedFrom: m.forwarded_from,
+    expiresAt: m.expires_at,
     replyTo: m.reply_to
       ? {
           id: m.reply_to,
@@ -61,14 +92,31 @@ export function serializeMessage(m) {
   };
 }
 
-export const loadMessage = (id) => serializeMessage(get(`${MSG_SELECT} WHERE m.id = ?`, id));
-
-export function loadMessages(chatId, beforeId, limit) {
-  const rows = beforeId
-    ? all(`${MSG_SELECT} WHERE m.chat_id = ? AND m.id < ? ORDER BY m.id DESC LIMIT ?`, chatId, beforeId, limit)
-    : all(`${MSG_SELECT} WHERE m.chat_id = ? ORDER BY m.id DESC LIMIT ?`, chatId, limit);
-  return rows.reverse().map(serializeMessage);
+export function loadMessage(id) {
+  const row = get(`${MSG_SELECT} WHERE m.id = ?`, id);
+  return row ? withReactions([row])[0] : null;
 }
+
+// Pages of a chat's history. `before`: older than id; `after`: newer than id; `around`: centred on id.
+export function loadMessages(chatId, { before, after, around, limit }) {
+  let rows;
+  if (around) {
+    const half = Math.floor(limit / 2);
+    const older = all(`${MSG_SELECT} WHERE m.chat_id = ? AND m.id <= ? ORDER BY m.id DESC LIMIT ?`, chatId, around, half + 1);
+    const newer = all(`${MSG_SELECT} WHERE m.chat_id = ? AND m.id > ? ORDER BY m.id ASC LIMIT ?`, chatId, around, half);
+    rows = [...older.reverse(), ...newer];
+  } else if (after) {
+    rows = all(`${MSG_SELECT} WHERE m.chat_id = ? AND m.id > ? ORDER BY m.id ASC LIMIT ?`, chatId, after, limit);
+  } else if (before) {
+    rows = all(`${MSG_SELECT} WHERE m.chat_id = ? AND m.id < ? ORDER BY m.id DESC LIMIT ?`, chatId, before, limit).reverse();
+  } else {
+    rows = all(`${MSG_SELECT} WHERE m.chat_id = ? ORDER BY m.id DESC LIMIT ?`, chatId, limit).reverse();
+  }
+  return withReactions(rows);
+}
+
+export const loadMessagesByIds = (ids) =>
+  ids.length ? withReactions(all(`${MSG_SELECT} WHERE m.id IN (SELECT value FROM json_each(?)) ORDER BY m.id DESC`, JSON.stringify(ids))) : [];
 
 const SUMMARY_SELECT = `
   SELECT c.*, cm.role AS my_role, cm.perms AS my_perms, cm.last_read, cm.muted_until,
@@ -90,6 +138,7 @@ function formatSummary(c, userId) {
     isEmergency: !!c.is_emergency,
     slowMode: c.slow_mode,
     locked: !!c.locked,
+    autoDelete: c.auto_delete,
     memberCount: c.member_count,
     myRole: c.my_role,
     myPerms: parseJSON(c.my_perms, []),
@@ -128,17 +177,20 @@ export function listChats(userId) {
   return all(SUMMARY_SELECT, userId).map((c) => formatSummary(c, userId));
 }
 
-export function postMessage({ chatId, senderId = null, type = 'text', text = '', fileId = null, replyTo = null }) {
+export function postMessage({ chatId, senderId = null, type = 'text', text = '', fileId = null, replyTo = null, forwardedFrom = null }) {
   const t = now();
+  const autoDelete = type === 'system' ? 0 : get('SELECT auto_delete FROM chats WHERE id = ?', chatId)?.auto_delete;
   const id = tx(() => {
     const r = run(
-      'INSERT INTO messages (chat_id, sender_id, type, text, file_id, reply_to, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO messages (chat_id, sender_id, type, text, file_id, reply_to, forwarded_from, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       chatId,
       senderId,
       type,
       text,
       fileId,
       replyTo,
+      forwardedFrom,
+      autoDelete ? t + autoDelete * 1000 : null,
       t,
     );
     const msgId = Number(r.lastInsertRowid);

@@ -5,7 +5,11 @@ import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import rateLimit from '@fastify/rate-limit';
-import { db, get, run, now, UPLOAD_DIR } from './db.js';
+import { db, get, all, run, now, UPLOAD_DIR } from './db.js';
+import { startSweeper } from './sweeper.js';
+import { mediaReady, onMediaUpdate, resumePendingMedia } from './media.js';
+import { toChat } from './realtime.js';
+import { loadMessage } from './chats.js';
 import { hasAnyUser } from './settings.js';
 import { userFromToken, SESSION_COOKIE, randomCode } from './auth.js';
 import { ensureEmergencyChannel } from './chats.js';
@@ -117,6 +121,15 @@ if (!hasAnyUser()) {
 setupSocket(app);
 await app.listen({ port: PORT, host: HOST });
 scheduleBackups(app.log);
+startSweeper(app.log);
+// When a video finishes processing, refresh every message that shows it.
+onMediaUpdate((fileId) => {
+  for (const m of all('SELECT id, chat_id FROM messages WHERE file_id = ? AND deleted = 0', fileId)) {
+    toChat(m.chat_id, 'message:edit', loadMessage(m.id));
+  }
+});
+resumePendingMedia();
+mediaReady.then((ok) => !ok && app.log.warn('ffmpeg not found: voice/video conversion disabled'));
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => {

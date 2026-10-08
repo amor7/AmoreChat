@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, upload } from '../api';
 import { useStore } from '../store';
-import { compressImage, ROLE_LABELS } from '../util';
+import { compressImage, formatSize, ROLE_LABELS } from '../util';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
 
@@ -12,6 +12,15 @@ export default function Profile({ onClose }) {
   const [pw, setPw] = useState({ current: '', next: '' });
   const [notif, setNotif] = useState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const fileRef = useRef(null);
+  const prefs = useStore((s) => s.prefs);
+  const setPrefs = useStore((s) => s.setPrefs);
+  const [usage, setUsage] = useState(null);
+
+  useEffect(() => {
+    api('GET', '/me/usage')
+      .then(setUsage)
+      .catch(() => {});
+  }, []);
 
   async function save(body) {
     try {
@@ -81,6 +90,18 @@ export default function Profile({ onClose }) {
         </label>
         <button className="btn primary">ذخیره</button>
       </form>
+
+      <h4>مصرف اینترنت</h4>
+      <label className="check">
+        <input type="checkbox" checked={prefs.dataSaver} onChange={(e) => setPrefs({ dataSaver: e.target.checked })} />
+        حالت کم‌مصرف: عکس‌ها فقط با لمس بارگذاری شوند و ویدیوها با کمترین کیفیت پخش شوند
+      </label>
+      {usage && (
+        <p className="muted">
+          فضای استفاده‌شده توسط شما: {formatSize(usage.usedBytes)}
+          {usage.quotaMb > 0 && ` از ${formatSize(usage.quotaMb * 1024 * 1024)}`}
+        </p>
+      )}
 
       <h4>اعلان‌ها</h4>
       {notif === 'granted' && <p className="muted">اعلان‌ها فعال هستند (وقتی برنامه باز یا در پس‌زمینه است).</p>}

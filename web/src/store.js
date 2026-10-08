@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from './api';
+import { getPrefs, setPrefs } from './util';
 
 const PAGE = 50;
 
@@ -21,6 +22,8 @@ export const useStore = create((set, get) => ({
   connected: true,
   replyTo: null,
   editing: null,
+  prefs: getPrefs(),
+  setPrefs: (patch) => set({ prefs: setPrefs(patch) }),
 
   openModal: (type, props = {}) => set({ modal: { type, ...props } }),
   closeModal: () => set({ modal: null }),
@@ -66,15 +69,42 @@ export const useStore = create((set, get) => ({
     set((s) => ({
       messages: { ...s.messages, [chatId]: older ? [...messages, ...(s.messages[chatId] || [])] : messages },
       hasMore: { ...s.hasMore, [chatId]: messages.length === PAGE },
+      ...(older ? {} : { hasNewer: { ...s.hasNewer, [chatId]: false } }),
     }));
     return messages.length;
   },
+  // Load a window centred on one message (search results, reply quotes far up the history).
+  async loadAround(chatId, messageId) {
+    const { messages } = await api('GET', `/chats/${chatId}/messages?limit=${PAGE}&around=${messageId}`);
+    const latest = get().chats[chatId]?.lastMessage?.id;
+    set((s) => ({
+      messages: { ...s.messages, [chatId]: messages },
+      hasMore: { ...s.hasMore, [chatId]: true },
+      hasNewer: { ...s.hasNewer, [chatId]: !!latest && messages.at(-1)?.id < latest },
+    }));
+  },
+  async loadNewer(chatId) {
+    const cur = get().messages[chatId];
+    if (!cur?.length || !get().hasNewer[chatId]) return 0;
+    const { messages } = await api('GET', `/chats/${chatId}/messages?limit=${PAGE}&after=${cur.at(-1).id}`);
+    set((s) => {
+      const known = new Set((s.messages[chatId] || []).map((m) => m.id));
+      return {
+        messages: { ...s.messages, [chatId]: [...(s.messages[chatId] || []), ...messages.filter((m) => !known.has(m.id))] },
+        hasNewer: { ...s.hasNewer, [chatId]: messages.length === PAGE },
+      };
+    });
+    return messages.length;
+  },
+  hasNewer: {}, // chatId -> true when the loaded window doesn't reach the latest message
+  jumpTo: null, // { chatId, messageId } requested by search / forward links
 
   addMessage(m) {
     set((s) => {
       const list = s.messages[m.chatId];
       const exists = list?.some((x) => x.id === m.id);
-      const messages = list && !exists ? { ...s.messages, [m.chatId]: [...list, m] } : s.messages;
+      // While viewing an older window, don't append: the user will load newer pages on scroll.
+      const messages = list && !exists && !s.hasNewer[m.chatId] ? { ...s.messages, [m.chatId]: [...list, m] } : s.messages;
       const chat = s.chats[m.chatId];
       if (!chat || exists) return { messages };
       const mine = m.sender?.id === s.me?.id;

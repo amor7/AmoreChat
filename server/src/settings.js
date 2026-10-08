@@ -9,6 +9,8 @@ export const DEFAULTS = {
   max_upload_mb: '100',
   // Total upload quota per user in MB; 0 = unlimited.
   user_quota_mb: '0',
+  // Delete uploaded media older than this many days; 0 = keep forever.
+  media_retention_days: '0',
 };
 
 let cache = null;

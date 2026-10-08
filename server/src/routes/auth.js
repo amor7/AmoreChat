@@ -13,6 +13,7 @@ import {
 } from '../auth.js';
 import { fail, addMember, ensureEmergencyChannel, ensureSavedChat, audit } from '../chats.js';
 import { isOnline } from '../realtime.js';
+import { mediaReady } from '../media.js';
 
 const authLimit = { rateLimit: { max: 10, timeWindow: '1 minute' } };
 
@@ -29,6 +30,7 @@ export default async function authRoutes(app) {
     siteName: getSetting('site_name'),
     registrationMode: getSetting('registration_mode'),
     allowUserGroups: getSetting('allow_user_groups') === '1',
+    videoProcessing: await mediaReady,
     needsSetup: !hasAnyUser(),
   }));
 

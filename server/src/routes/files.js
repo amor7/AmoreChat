@@ -5,6 +5,7 @@ import { pipeline } from 'node:stream/promises';
 import { get, run, now, UPLOAD_DIR } from '../db.js';
 import { settingNumber } from '../settings.js';
 import { fail } from '../chats.js';
+import { mediaReady, processVoice, queueVideo, fileVariants } from '../media.js';
 
 // Only these types are ever served inline; everything else is a forced
 // download, so an uploaded HTML/SVG file can never run script on our origin.
@@ -60,23 +61,41 @@ export default async function fileRoutes(app) {
 
     const size = fs.statSync(abs).size;
     const mime = String(part.mimetype || 'application/octet-stream').toLowerCase().split(';')[0];
+    const kind = kindOf(mime);
     const q = req.query || {};
+    // Voice waveform: up to 128 bars, each a base-32 digit (0-v).
+    const waveform = /^[0-9a-v]{1,128}$/.test(q.wave || '') ? q.wave : null;
+    const maxQuality = ['360', '720', 'original'].includes(q.q) ? q.q : '720';
+    const processVideo = kind === 'video' && (await mediaReady);
     const r = run(
-      'INSERT INTO files (owner_id, path, mime, size, name, kind, width, height, duration, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      `INSERT INTO files (owner_id, path, mime, size, name, kind, width, height, duration, waveform, status, max_quality, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       req.user.id,
       rel,
       mime,
       size,
       String(part.filename || 'file').slice(0, 200),
-      kindOf(mime),
+      kind,
       num(q.w),
       num(q.h),
       num(q.dur),
+      waveform,
+      processVideo ? 'processing' : 'ready',
+      kind === 'video' ? maxQuality : null,
       now(),
     );
+    const id = Number(r.lastInsertRowid);
+    if (kind === 'audio' && q.voice === '1') await processVoice(id);
+    if (processVideo) queueVideo(id, maxQuality);
+    const f = get('SELECT * FROM files WHERE id = ?', id);
     reply.code(201);
-    return { file: { id: Number(r.lastInsertRowid), mime, size, kind: kindOf(mime), name: part.filename } };
+    return { file: { id, mime: f.mime, size: f.size, kind, name: f.name, status: f.status } };
   });
+
+  app.get('/api/me/usage', async (req) => ({
+    usedBytes: get('SELECT IFNULL(SUM(size), 0) AS s FROM files WHERE owner_id = ?', req.user.id).s,
+    quotaMb: settingNumber('user_quota_mb'),
+  }));
 
   app.get('/api/files/:id', async (req, reply) => {
     const f = get('SELECT * FROM files WHERE id = ?', Number(req.params.id));
@@ -94,14 +113,30 @@ export default async function fileRoutes(app) {
         uid,
       );
     if (!allowed) fail(403, 'دسترسی ندارید');
+    if (f.purged) fail(410, 'این فایل منقضی و حذف شده است');
 
-    const inline = INLINE_TYPES.has(f.mime) && req.query.download !== '1';
-    reply.header('Content-Type', inline ? f.mime : 'application/octet-stream');
+    let rel = f.path;
+    let mime = f.mime;
+    if (req.query.thumb === '1') {
+      if (!f.thumb) fail(404, 'پیش‌نمایش ندارد');
+      rel = f.thumb;
+      mime = 'image/jpeg';
+    } else if (req.query.v) {
+      const v = fileVariants(f).find((x) => String(x.q) === String(req.query.v));
+      if (v) {
+        rel = v.path;
+        mime = 'video/mp4';
+      }
+    }
+
+    const inline = INLINE_TYPES.has(mime) && req.query.download !== '1';
+    reply.header('Content-Type', inline ? mime : 'application/octet-stream');
     reply.header(
       'Content-Disposition',
       `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(f.name || 'file')}`,
     );
-    reply.header('Cache-Control', 'private, max-age=31536000, immutable');
-    return reply.sendFile(f.path, UPLOAD_DIR, { contentType: false });
+    // Not immutable: a video's main file is replaced once processing finishes.
+    reply.header('Cache-Control', f.status === 'ready' ? 'private, max-age=86400' : 'no-store');
+    return reply.sendFile(rel, UPLOAD_DIR, { contentType: false });
   });
 }

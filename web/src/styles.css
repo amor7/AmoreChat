@@ -620,9 +620,19 @@ code {
   flex-shrink: 0;
   order: 2;
 }
+.bubble-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: min(560px, 78%);
+  min-width: 0;
+}
+.msg-row.mine .bubble-col {
+  align-items: flex-start;
+}
 .bubble {
   position: relative;
-  max-width: min(560px, 78%);
+  max-width: 100%;
   background: var(--bubble-in);
   border-radius: 14px;
   padding: 6px 10px 4px;
@@ -817,6 +827,7 @@ video.media {
   padding: 9px 14px;
   max-height: 160px;
   line-height: 1.5;
+  overflow-y: hidden;
 }
 .send-btn {
   width: 42px;
@@ -1201,7 +1212,7 @@ details.boxed summary {
   .messages {
     padding: 8px 8px;
   }
-  .bubble {
+  .bubble-col {
     max-width: 85%;
   }
   .modal-backdrop {
@@ -1216,4 +1227,258 @@ details.boxed summary {
   .member-actions {
     padding-inline-start: 12px;
   }
+}
+
+/* ---------- Phase 2: media, reactions, recorder ---------- */
+.voice-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 260px;
+  max-width: 100%;
+  padding: 2px 0;
+}
+.play-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.voice-body {
+  flex: 1;
+  min-width: 0;
+}
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  cursor: pointer;
+}
+.wave span {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+.wave span.on {
+  background: var(--accent);
+}
+.msg-row.mine .wave span.on {
+  background: color-mix(in srgb, var(--accent) 80%, #000);
+}
+.voice-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.speed {
+  border: 0;
+  background: color-mix(in srgb, var(--muted) 20%, transparent);
+  border-radius: 8px;
+  font-size: 11px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+.media-placeholder,
+.video-processing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--muted) 20%, transparent);
+}
+.video-processing {
+  cursor: default;
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid color-mix(in srgb, var(--muted) 40%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.video-poster {
+  position: relative;
+  background: #000;
+}
+.video-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.play-overlay {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+.video-info {
+  position: absolute;
+  bottom: 6px;
+  inset-inline-start: 6px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  border-radius: 8px;
+  padding: 1px 8px;
+  font-size: 12px;
+}
+.video-wrap {
+  position: relative;
+}
+.quality-select {
+  position: absolute;
+  top: 6px;
+  inset-inline-start: 6px;
+  width: auto;
+  padding: 2px 6px;
+  font-size: 12px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.6);
+  color: #fff;
+  border: 0;
+}
+.expired {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 0;
+}
+.forwarded {
+  font-size: 12px;
+  color: var(--accent);
+  margin-bottom: 2px;
+}
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.reaction {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: 14px;
+  padding: 1px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.reaction.mine {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.quick-reactions {
+  display: flex;
+  gap: 2px;
+  padding: 2px 2px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  flex-wrap: nowrap;
+}
+.menu .quick-reactions button {
+  font-size: 19px;
+  padding: 3px;
+  border-radius: 8px;
+}
+.to-bottom {
+  position: absolute;
+  bottom: 84px;
+  inset-inline-end: 20px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  font-size: 18px;
+  z-index: 5;
+}
+.to-bottom .badge {
+  position: absolute;
+  top: -8px;
+  inset-inline-start: -4px;
+}
+.send-btn.mic {
+  transform: none;
+  font-size: 18px;
+}
+.recorder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  justify-content: space-between;
+}
+.rec-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.rec-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--danger);
+  transition: transform 0.08s;
+}
+.list-section {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 10px 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 6px;
+}
+.check-row {
+  cursor: pointer;
+}
+.sticky-actions {
+  position: sticky;
+  bottom: -16px;
+  background: var(--panel);
+  padding: 10px 0;
+}
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.report-reason {
+  color: var(--danger);
+  font-size: 13px;
+}
+.report-msg {
+  margin: 4px 0;
+  padding: 6px 10px;
+  border-inline-start: 3px solid var(--border);
+  background: var(--panel-2);
+  border-radius: 6px;
+  white-space: pre-wrap;
 }

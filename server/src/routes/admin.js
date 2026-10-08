@@ -6,7 +6,9 @@ import { DEFAULTS, getAllSettings, setSetting } from '../settings.js';
 import { hasSitePerm, cleanPerms, SITE_PERMS } from '../perms.js';
 import { hashPassword, randomCode, publicUser } from '../auth.js';
 import { online, isOnline, disconnectUser } from '../realtime.js';
-import { fail, audit } from '../chats.js';
+import { fail, audit, loadMessage } from '../chats.js';
+import { ffmpegAvailable } from '../media.js';
+import { deleteMessage } from '../sweeper.js';
 
 const need = (req, perm) => {
   if (!hasSitePerm(req.user, perm)) fail(403, 'دسترسی ندارید');
@@ -134,7 +136,9 @@ export default async function adminRoutes(app) {
       let v = String(b[key]);
       if (key === 'registration_mode' && !['open', 'invite', 'closed'].includes(v)) fail(400, 'حالت ثبت‌نام نامعتبر');
       if (key === 'allow_user_groups') v = v === '1' || v === 'true' ? '1' : '0';
-      if (key === 'max_upload_mb' || key === 'user_quota_mb') v = String(Math.max(0, Math.min(100000, Number(v) || 0)));
+      if (['max_upload_mb', 'user_quota_mb', 'media_retention_days'].includes(key)) {
+        v = String(Math.max(0, Math.min(100000, Math.floor(Number(v)) || 0)));
+      }
       if (key === 'site_name') v = v.trim().slice(0, 50) || DEFAULTS.site_name;
       setSetting(key, v);
     }
@@ -186,7 +190,55 @@ export default async function adminRoutes(app) {
       load: os.loadavg(),
       cpus: os.cpus().length,
       uptime: process.uptime(),
+      ffmpeg: ffmpegAvailable,
+      openReports: count("SELECT COUNT(*) AS n FROM reports WHERE status = 'open'"),
     };
+  });
+
+  // --- Reported messages ---
+  app.get('/api/admin/reports', async (req) => {
+    need(req, 'handle_reports');
+    const status = req.query.status === 'closed' ? 'closed' : 'open';
+    const rows = all(
+      `SELECT r.*, u.display_name AS reporter_name, c.title AS chat_title, c.type AS chat_type, m.chat_id
+       FROM reports r
+       JOIN users u ON u.id = r.reporter_id
+       JOIN messages m ON m.id = r.message_id
+       JOIN chats c ON c.id = m.chat_id
+       WHERE ${status === 'open' ? "r.status = 'open'" : "r.status != 'open'"}
+       ORDER BY r.id DESC LIMIT 200`,
+    );
+    return {
+      reports: rows.map((r) => ({
+        id: r.id,
+        reason: r.reason,
+        status: r.status,
+        createdAt: r.created_at,
+        reporter: r.reporter_name,
+        chat: { id: r.chat_id, title: r.chat_type === 'dm' ? 'پیام خصوصی' : r.chat_title, type: r.chat_type },
+        message: loadMessage(r.message_id),
+      })),
+    };
+  });
+
+  app.post('/api/admin/reports/:id', async (req) => {
+    need(req, 'handle_reports');
+    const r = get('SELECT * FROM reports WHERE id = ?', Number(req.params.id));
+    if (!r) fail(404, 'گزارش پیدا نشد');
+    const action = req.body?.action === 'delete' ? 'delete' : 'dismiss';
+    if (action === 'delete') {
+      const m = get('SELECT * FROM messages WHERE id = ?', r.message_id);
+      if (m && !m.deleted) deleteMessage(m);
+    }
+    // Close every open report about the same message at once.
+    run(
+      "UPDATE reports SET status = ?, handled_by = ? WHERE message_id = ? AND status = 'open'",
+      action === 'delete' ? 'deleted' : 'dismissed',
+      req.user.id,
+      r.message_id,
+    );
+    audit(req.user.id, action === 'delete' ? 'report.delete' : 'report.dismiss', r.message_id);
+    return { ok: true };
   });
 
   app.get('/api/admin/chats', async (req) => {

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore, isUserOnline } from '../store';
 import { api } from '../api';
-import { formatDay, formatLastSeen, sameDay, toFa, hasChatPerm, messagePreview, copyText } from '../util';
+import { formatDay, formatLastSeen, sameDay, toFa, hasChatPerm, messagePreview, copyText, QUICK_REACTIONS } from '../util';
 import Avatar from './Avatar';
 import Message from './Message';
 import Composer from './Composer';
@@ -10,34 +10,55 @@ export default function ChatView({ chatId }) {
   const chat = useStore((s) => s.chats[chatId]);
   const messages = useStore((s) => s.messages[chatId]);
   const hasMore = useStore((s) => s.hasMore[chatId]);
+  const hasNewer = useStore((s) => s.hasNewer[chatId]);
+  const jumpTo = useStore((s) => s.jumpTo);
   const me = useStore((s) => s.me);
   const st = useStore.getState;
   const listRef = useRef(null);
   const atBottom = useRef(true);
   const olderAnchor = useRef(null);
-  const [loadingOlder, setLoadingOlder] = useState(false);
+  const pendingFlash = useRef(null);
+  const loading = useRef(false);
+  const [showDown, setShowDown] = useState(false);
   const [menu, setMenu] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [droppedFile, setDroppedFile] = useState(null);
 
   useEffect(() => {
-    if (chat) st().loadMessages(chatId).catch((e) => st().showToast(e.message));
+    if (!chat) return;
+    // A search result may have asked to open this chat at a specific message.
+    const target = st().jumpTo;
+    if (target?.chatId === chatId) {
+      useStore.setState({ jumpTo: null });
+      goTo(target.messageId);
+    } else {
+      st().loadMessages(chatId).catch((e) => st().showToast(e.message));
+    }
   }, [chatId, !!chat]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (jumpTo?.chatId === chatId && messages) {
+      useStore.setState({ jumpTo: null });
+      goTo(jumpTo.messageId);
+    }
+  }, [jumpTo]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep pinned to the bottom when new messages arrive, and keep position when older ones load.
   useLayoutEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    if (olderAnchor.current != null) {
+    if (pendingFlash.current && flash(pendingFlash.current)) {
+      pendingFlash.current = null;
+    } else if (olderAnchor.current != null) {
       el.scrollTop = el.scrollHeight - olderAnchor.current;
       olderAnchor.current = null;
-    } else if (atBottom.current) {
+    } else if (atBottom.current && !hasNewer) {
       el.scrollTop = el.scrollHeight;
     }
-  }, [messages]);
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const mark = () => !document.hidden && st().markRead(chatId);
+    const mark = () => !document.hidden && !st().hasNewer[chatId] && st().markRead(chatId);
     mark();
     document.addEventListener('visibilitychange', mark);
     return () => document.removeEventListener('visibilitychange', mark);
@@ -45,17 +66,55 @@ export default function ChatView({ chatId }) {
 
   async function onScroll() {
     const el = listRef.current;
-    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (el.scrollTop < 300 && hasMore && !loadingOlder) {
-      setLoadingOlder(true);
+    const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    atBottom.current = fromBottom < 120;
+    setShowDown(fromBottom > 600 || !!st().hasNewer[chatId]);
+    if (loading.current) return;
+    if (el.scrollTop < 300 && hasMore) {
+      loading.current = true;
       olderAnchor.current = el.scrollHeight - el.scrollTop;
       try {
         if (!(await st().loadMessages(chatId, true))) olderAnchor.current = null;
       } catch {
         olderAnchor.current = null;
       }
-      setLoadingOlder(false);
+      loading.current = false;
+    } else if (fromBottom < 300 && hasNewer) {
+      loading.current = true;
+      await st()
+        .loadNewer(chatId)
+        .catch(() => {});
+      loading.current = false;
     }
+  }
+
+  function flash(id) {
+    const el = document.getElementById(`msg-${id}`);
+    if (!el) return false;
+    el.scrollIntoView({ block: 'center' });
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1400);
+    return true;
+  }
+
+  async function goTo(id) {
+    if (flash(id)) return;
+    pendingFlash.current = id;
+    atBottom.current = false;
+    try {
+      await st().loadAround(chatId, id);
+    } catch (e) {
+      pendingFlash.current = null;
+      st().showToast(e.message);
+    }
+  }
+
+  async function toBottom() {
+    if (st().hasNewer[chatId]) await st().loadMessages(chatId);
+    atBottom.current = true;
+    const el = listRef.current;
+    el.scrollTop = el.scrollHeight;
+    setShowDown(false);
   }
 
   if (!chat) {
@@ -69,22 +128,23 @@ export default function ChatView({ chatId }) {
     );
   }
 
-  function jumpTo(id) {
-    const el = document.getElementById(`msg-${id}`);
-    if (!el) return st().showToast('این پیام هنوز بارگذاری نشده');
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.classList.add('flash');
-    setTimeout(() => el.classList.remove('flash'), 1200);
-  }
-
-  async function act(action, m) {
+  async function act(action, m, extra) {
     setMenu(null);
     try {
+      if (action === 'react') await api('POST', `/messages/${m.id}/react`, { emoji: extra });
       if (action === 'reply') useStore.setState({ replyTo: m, editing: null });
       if (action === 'edit') useStore.setState({ editing: m, replyTo: null });
       if (action === 'copy') (await copyText(m.text)) && st().showToast('کپی شد');
+      if (action === 'forward') st().openModal('forward', { message: m });
       if (action === 'pin' || action === 'unpin') await api('POST', `/messages/${m.id}/pin`, { pinned: action === 'pin' });
       if (action === 'delete' && confirm('این پیام برای همه حذف شود؟')) await api('DELETE', `/messages/${m.id}`);
+      if (action === 'report') {
+        const reason = prompt('دلیل گزارش این پیام (اختیاری):');
+        if (reason !== null) {
+          await api('POST', `/messages/${m.id}/report`, { reason });
+          st().showToast('گزارش برای مدیران ارسال شد');
+        }
+      }
     } catch (e) {
       st().showToast(e.message);
     }
@@ -111,9 +171,9 @@ export default function ChatView({ chatId }) {
       onDrop={onDrop}
     >
       <ChatHeader chat={chat} />
-      <PinnedBar chat={chat} messages={messages} onJump={jumpTo} />
+      <PinnedBar chat={chat} messages={messages} onJump={goTo} />
       <div className="messages" ref={listRef} onScroll={onScroll}>
-        {loadingOlder && <div className="muted center pad">…</div>}
+        {hasMore && messages?.length > 0 && <div className="muted center pad">…</div>}
         {!messages && <div className="muted center pad">در حال بارگذاری…</div>}
         {messages?.length === 0 && <div className="muted center pad">هنوز پیامی نیست. اولین پیام را بفرستید!</div>}
         {messages?.map((m, i) => {
@@ -128,20 +188,26 @@ export default function ChatView({ chatId }) {
                 chat={chat}
                 mine={m.sender?.id === me.id}
                 grouped={grouped}
-                onJump={jumpTo}
+                onJump={goTo}
                 onMenu={(x, y) => setMenu({ m, x, y })}
               />
             </Fragment>
           );
         })}
       </div>
+      {(showDown || hasNewer) && (
+        <button className="to-bottom" onClick={toBottom} aria-label="رفتن به آخرین پیام">
+          ↓{chat.unread > 0 && <span className="badge">{toFa(chat.unread)}</span>}
+        </button>
+      )}
       {menu && (
         <MessageMenu
           {...menu}
           mine={menu.m.sender?.id === me.id}
           canPin={canPin}
           canDelete={menu.m.sender?.id === me.id || canDeleteOthers}
-          onAction={(a) => act(a, menu.m)}
+          canReport={menu.m.sender?.id !== me.id && chat.type !== 'saved'}
+          onAction={(a, extra) => act(a, menu.m, extra)}
           onClose={() => setMenu(null)}
         />
       )}
@@ -181,9 +247,14 @@ function ChatHeader({ chat }) {
       <button className="chat-head-info" onClick={() => chat.type !== 'saved' && openModal('chatInfo', { chatId: chat.id })}>
         <Avatar id={chat.id} name={chat.title} file={chat.avatar} saved={chat.type === 'saved'} size={40} />
         <div>
-          <div className="title">{chat.title}</div>
+          <div className="title">
+            {chat.title} {chat.autoDelete > 0 && <span title="حذف خودکار فعال است">⏱</span>}
+          </div>
           <div className={`subtitle ${typers.length || (chat.type === 'dm' && online) ? 'accent' : ''}`}>{subtitle}</div>
         </div>
+      </button>
+      <button className="icon-btn" aria-label="جستجو در این گفتگو" onClick={() => openModal('search', { chatId: chat.id })}>
+        🔍
       </button>
     </header>
   );
@@ -219,7 +290,7 @@ function PinnedBar({ chat, messages, onJump }) {
   );
 }
 
-function MessageMenu({ m, x, y, mine, canPin, canDelete, onAction, onClose }) {
+function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, onAction, onClose }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ left: x, top: y });
 
@@ -236,10 +307,21 @@ function MessageMenu({ m, x, y, mine, canPin, canDelete, onAction, onClose }) {
     <>
       <div className="menu-backdrop" onClick={onClose} onContextMenu={(e) => (e.preventDefault(), onClose())} />
       <div className="menu floating" ref={ref} style={pos}>
+        {!deleted && (
+          <div className="quick-reactions">
+            {QUICK_REACTIONS.map((e) => (
+              <button key={e} onClick={() => onAction('react', e)}>
+                {e}
+              </button>
+            ))}
+          </div>
+        )}
         {!deleted && <button onClick={() => onAction('reply')}>↩️ پاسخ</button>}
+        {!deleted && <button onClick={() => onAction('forward')}>↪️ فوروارد</button>}
         {!deleted && m.text && <button onClick={() => onAction('copy')}>📋 کپی متن</button>}
-        {!deleted && mine && m.type !== 'system' && <button onClick={() => onAction('edit')}>✏️ ویرایش</button>}
+        {!deleted && mine && <button onClick={() => onAction('edit')}>✏️ ویرایش</button>}
         {!deleted && canPin && <button onClick={() => onAction(m.pinned ? 'unpin' : 'pin')}>📌 {m.pinned ? 'برداشتن سنجاق' : 'سنجاق کردن'}</button>}
+        {!deleted && canReport && <button onClick={() => onAction('report')}>🚩 گزارش</button>}
         {!deleted && canDelete && (
           <button className="danger" onClick={() => onAction('delete')}>
             🗑 حذف
