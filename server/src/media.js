@@ -26,7 +26,12 @@ function ffmpeg(args) {
       stderr = (stderr + d).slice(-20000);
     });
     p.on('error', reject);
-    p.on('exit', (code) => (code === 0 ? resolve(stderr) : reject(new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`))));
+    p.on('exit', (code) => {
+      if (code === 0) return resolve(stderr);
+      const err = new Error(`ffmpeg exited ${code}: ${stderr.slice(-500)}`);
+      err.stderr = stderr;
+      reject(err);
+    });
   });
 }
 
@@ -36,10 +41,10 @@ async function probe(abs) {
   try {
     info = await ffmpeg(['-hide_banner', '-i', abs]);
   } catch (e) {
-    info = e.message;
+    info = e.stderr || '';
   }
   const dur = info.match(/Duration: (\d+):(\d+):(\d+(?:\.\d+)?)/);
-  const vid = info.match(/Video: [^\n]*?(\d{2,5})x(\d{2,5})/);
+  const vid = info.match(/Video: [^\n]*?\b(\d{2,5})x(\d{2,5})\b/);
   const rot = info.match(/rotation of (-?\d+)/) || info.match(/rotate\s*:\s*(-?\d+)/);
   let [width, height] = vid ? [Number(vid[1]), Number(vid[2])] : [null, null];
   if (rot && Math.abs(Number(rot[1])) === 90 && width) [width, height] = [height, width];
