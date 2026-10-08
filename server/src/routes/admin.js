@@ -1,0 +1,203 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { get, all, run, now, parseJSON, DATA_DIR } from '../db.js';
+import { DEFAULTS, getAllSettings, setSetting } from '../settings.js';
+import { hasSitePerm, cleanPerms, SITE_PERMS } from '../perms.js';
+import { hashPassword, randomCode, publicUser } from '../auth.js';
+import { online, isOnline, disconnectUser } from '../realtime.js';
+import { fail, audit } from '../chats.js';
+
+const need = (req, perm) => {
+  if (!hasSitePerm(req.user, perm)) fail(403, 'دسترسی ندارید');
+};
+
+const targetUser = (id) => {
+  const u = get('SELECT * FROM users WHERE id = ?', Number(id));
+  if (!u) fail(404, 'کاربر پیدا نشد');
+  return u;
+};
+
+// Admins can act on regular users; only the owner can act on admins.
+const assertOutranks = (actor, target) => {
+  if (target.role === 'owner' || (target.role === 'admin' && actor.role !== 'owner')) {
+    fail(403, 'روی این کاربر دسترسی ندارید');
+  }
+};
+
+export default async function adminRoutes(app) {
+  app.get('/api/admin/users', async (req) => {
+    need(req, 'manage_users');
+    const q = String(req.query.q || '').trim();
+    const like = `%${q}%`;
+    const rows = all(
+      `SELECT * FROM users WHERE (? = '' OR username LIKE ? OR display_name LIKE ?)
+       ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, id DESC LIMIT 500`,
+      q,
+      like,
+      like,
+    );
+    return {
+      users: rows.map((u) => ({
+        ...publicUser(u),
+        adminPerms: parseJSON(u.admin_perms, []),
+        banned: !!u.banned,
+        createdAt: u.created_at,
+        online: isOnline(u.id),
+      })),
+    };
+  });
+
+  app.patch('/api/admin/users/:id', async (req) => {
+    if (req.user.role !== 'owner') fail(403, 'فقط مالک می‌تواند نقش‌ها را تغییر دهد');
+    const u = targetUser(req.params.id);
+    if (u.id === req.user.id) fail(400, 'نقش خودتان را نمی‌توانید تغییر دهید');
+    const role = req.body?.role === 'admin' ? 'admin' : 'user';
+    const perms = role === 'admin' ? cleanPerms(req.body?.adminPerms, SITE_PERMS) : [];
+    run('UPDATE users SET role = ?, admin_perms = ? WHERE id = ?', role, JSON.stringify(perms), u.id);
+    audit(req.user.id, 'user.role', u.id, { role, perms });
+    return { ok: true };
+  });
+
+  app.post('/api/admin/users/:id/ban', async (req) => {
+    need(req, 'manage_users');
+    const u = targetUser(req.params.id);
+    assertOutranks(req.user, u);
+    const banned = req.body?.banned !== false;
+    run('UPDATE users SET banned = ? WHERE id = ?', banned ? 1 : 0, u.id);
+    if (banned) {
+      run('DELETE FROM sessions WHERE user_id = ?', u.id);
+      disconnectUser(u.id);
+    }
+    audit(req.user.id, banned ? 'user.ban' : 'user.unban', u.id, { username: u.username });
+    return { ok: true };
+  });
+
+  app.post('/api/admin/users/:id/reset-password', async (req) => {
+    need(req, 'manage_users');
+    const u = targetUser(req.params.id);
+    assertOutranks(req.user, u);
+    const password = randomCode(8);
+    run('UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(password), u.id);
+    run('DELETE FROM sessions WHERE user_id = ?', u.id);
+    disconnectUser(u.id);
+    audit(req.user.id, 'user.reset_password', u.id, { username: u.username });
+    return { password };
+  });
+
+  // --- Signup invites ---
+  app.get('/api/admin/invites', async (req) => {
+    need(req, 'manage_invites');
+    return {
+      invites: all(
+        `SELECT i.*, u.display_name AS creator FROM invites i LEFT JOIN users u ON u.id = i.created_by
+         ORDER BY i.created_at DESC LIMIT 500`,
+      ),
+    };
+  });
+
+  app.post('/api/admin/invites', async (req) => {
+    need(req, 'manage_invites');
+    const { maxUses, expiresInHours, note } = req.body || {};
+    const code = randomCode(9);
+    run(
+      'INSERT INTO invites (code, created_by, max_uses, expires_at, note, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      code,
+      req.user.id,
+      Number(maxUses) > 0 ? Number(maxUses) : null,
+      Number(expiresInHours) > 0 ? now() + Number(expiresInHours) * 3600 * 1000 : null,
+      String(note || '').slice(0, 200),
+      now(),
+    );
+    audit(req.user.id, 'invite.create', code);
+    return { invite: get('SELECT * FROM invites WHERE code = ?', code) };
+  });
+
+  app.delete('/api/admin/invites/:id', async (req) => {
+    need(req, 'manage_invites');
+    run('DELETE FROM invites WHERE id = ?', Number(req.params.id));
+    audit(req.user.id, 'invite.delete', req.params.id);
+    return { ok: true };
+  });
+
+  // --- Settings ---
+  app.get('/api/admin/settings', async (req) => {
+    need(req, 'manage_settings');
+    return { settings: getAllSettings() };
+  });
+
+  app.patch('/api/admin/settings', async (req) => {
+    need(req, 'manage_settings');
+    const b = req.body || {};
+    for (const key of Object.keys(b)) {
+      if (!(key in DEFAULTS)) continue;
+      let v = String(b[key]);
+      if (key === 'registration_mode' && !['open', 'invite', 'closed'].includes(v)) fail(400, 'حالت ثبت‌نام نامعتبر');
+      if (key === 'allow_user_groups') v = v === '1' || v === 'true' ? '1' : '0';
+      if (key === 'max_upload_mb' || key === 'user_quota_mb') v = String(Math.max(0, Math.min(100000, Number(v) || 0)));
+      if (key === 'site_name') v = v.trim().slice(0, 50) || DEFAULTS.site_name;
+      setSetting(key, v);
+    }
+    audit(req.user.id, 'settings.update', '', b);
+    return { settings: getAllSettings() };
+  });
+
+  // --- Audit log & stats ---
+  app.get('/api/admin/audit', async (req) => {
+    need(req, 'view_audit');
+    const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
+    return {
+      entries: all(
+        `SELECT a.*, u.display_name AS actor_name, u.username AS actor_username
+         FROM audit_log a LEFT JOIN users u ON u.id = a.actor_id
+         WHERE a.id < ? ORDER BY a.id DESC LIMIT 100`,
+        before,
+      ),
+    };
+  });
+
+  app.get('/api/admin/stats', async (req) => {
+    need(req, 'view_audit');
+    let disk = null;
+    try {
+      const s = fs.statfsSync(DATA_DIR);
+      disk = { total: s.blocks * s.bsize, free: s.bavail * s.bsize };
+    } catch {
+      /* statfs not supported on this platform */
+    }
+    let dbSize = 0;
+    for (const f of ['amorechat.db', 'amorechat.db-wal']) {
+      try {
+        dbSize += fs.statSync(path.join(DATA_DIR, f)).size;
+      } catch {
+        /* file may not exist */
+      }
+    }
+    const count = (sql) => get(sql).n;
+    return {
+      users: count('SELECT COUNT(*) AS n FROM users'),
+      online: [...online.values()].filter((n) => n > 0).length,
+      chats: count("SELECT COUNT(*) AS n FROM chats WHERE type IN ('group', 'channel')"),
+      messages: count('SELECT COUNT(*) AS n FROM messages'),
+      uploadsBytes: get('SELECT IFNULL(SUM(size), 0) AS n FROM files').n,
+      dbBytes: dbSize,
+      disk,
+      memory: { total: os.totalmem(), free: os.freemem(), process: process.memoryUsage().rss },
+      load: os.loadavg(),
+      cpus: os.cpus().length,
+      uptime: process.uptime(),
+    };
+  });
+
+  app.get('/api/admin/chats', async (req) => {
+    need(req, 'manage_chats');
+    return {
+      chats: all(
+        `SELECT c.id, c.type, c.title, c.is_public AS isPublic, c.is_emergency AS isEmergency, c.created_at AS createdAt,
+           (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id = c.id) AS memberCount,
+           (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id) AS messageCount
+         FROM chats c WHERE c.type IN ('group', 'channel') ORDER BY c.id DESC LIMIT 500`,
+      ),
+    };
+  });
+}

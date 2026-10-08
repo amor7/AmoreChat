@@ -1,0 +1,107 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { pipeline } from 'node:stream/promises';
+import { get, run, now, UPLOAD_DIR } from '../db.js';
+import { settingNumber } from '../settings.js';
+import { fail } from '../chats.js';
+
+// Only these types are ever served inline; everything else is a forced
+// download, so an uploaded HTML/SVG file can never run script on our origin.
+const INLINE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'image/avif',
+  'video/mp4',
+  'video/webm',
+  'video/ogg',
+  'video/quicktime',
+  'audio/mpeg',
+  'audio/ogg',
+  'audio/webm',
+  'audio/mp4',
+  'audio/aac',
+  'audio/wav',
+  'audio/x-m4a',
+]);
+
+function kindOf(mime) {
+  if (/^image\/(jpeg|png|gif|webp|avif)$/.test(mime)) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return 'audio';
+  return 'file';
+}
+
+const num = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : null);
+
+export default async function fileRoutes(app) {
+  app.post('/api/upload', async (req, reply) => {
+    const maxBytes = settingNumber('max_upload_mb') * 1024 * 1024;
+    const quotaMb = settingNumber('user_quota_mb');
+    if (quotaMb > 0) {
+      const used = get('SELECT IFNULL(SUM(size), 0) AS s FROM files WHERE owner_id = ?', req.user.id).s;
+      if (used >= quotaMb * 1024 * 1024) fail(413, 'سهمیه فضای شما پر شده است');
+    }
+
+    const part = await req.file({ limits: { fileSize: maxBytes, files: 1 } });
+    if (!part) fail(400, 'فایلی ارسال نشده');
+
+    const month = new Date().toISOString().slice(0, 7);
+    const rel = path.posix.join(month, crypto.randomBytes(16).toString('hex'));
+    const abs = path.join(UPLOAD_DIR, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    await pipeline(part.file, fs.createWriteStream(abs));
+    if (part.file.truncated) {
+      fs.rmSync(abs, { force: true });
+      fail(413, `حداکثر حجم فایل ${settingNumber('max_upload_mb')} مگابایت است`);
+    }
+
+    const size = fs.statSync(abs).size;
+    const mime = String(part.mimetype || 'application/octet-stream').toLowerCase().split(';')[0];
+    const q = req.query || {};
+    const r = run(
+      'INSERT INTO files (owner_id, path, mime, size, name, kind, width, height, duration, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      req.user.id,
+      rel,
+      mime,
+      size,
+      String(part.filename || 'file').slice(0, 200),
+      kindOf(mime),
+      num(q.w),
+      num(q.h),
+      num(q.dur),
+      now(),
+    );
+    reply.code(201);
+    return { file: { id: Number(r.lastInsertRowid), mime, size, kind: kindOf(mime), name: part.filename } };
+  });
+
+  app.get('/api/files/:id', async (req, reply) => {
+    const f = get('SELECT * FROM files WHERE id = ?', Number(req.params.id));
+    if (!f) fail(404, 'فایل پیدا نشد');
+    const uid = req.user.id;
+    const allowed =
+      f.owner_id === uid ||
+      get(
+        `SELECT 1 AS ok WHERE
+           EXISTS (SELECT 1 FROM users WHERE avatar_file_id = ?1)
+           OR EXISTS (SELECT 1 FROM chats WHERE avatar_file_id = ?1)
+           OR EXISTS (SELECT 1 FROM messages m JOIN chat_members cm ON cm.chat_id = m.chat_id AND cm.user_id = ?2
+                      WHERE m.file_id = ?1 AND m.deleted = 0)`,
+        f.id,
+        uid,
+      );
+    if (!allowed) fail(403, 'دسترسی ندارید');
+
+    const inline = INLINE_TYPES.has(f.mime) && req.query.download !== '1';
+    reply.header('Content-Type', inline ? f.mime : 'application/octet-stream');
+    reply.header(
+      'Content-Disposition',
+      `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(f.name || 'file')}`,
+    );
+    reply.header('Cache-Control', 'private, max-age=31536000, immutable');
+    return reply.sendFile(f.path, UPLOAD_DIR, { contentType: false });
+  });
+}

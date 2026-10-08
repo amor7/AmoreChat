@@ -1,0 +1,33 @@
+name: release
+# Builds the Docker image and an offline bundle (app + Caddy images) that can be
+# copied to a server with no Docker Hub / npm access and loaded with install.sh.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t amorechat:latest .
+      - name: Create offline bundle
+        run: |
+          docker pull caddy:2-alpine
+          docker save amorechat:latest caddy:2-alpine | gzip > amorechat-offline-amd64.tar.gz
+          git archive --format=tar.gz --prefix=amorechat/ -o amorechat-source.tar.gz HEAD
+          ls -lh *.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amorechat-offline
+          path: '*.tar.gz'
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: '*.tar.gz'
