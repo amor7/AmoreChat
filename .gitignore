@@ -8,3 +8,5 @@ offline-bundle/
 data-test/
 data-test.log
 .claude/
+/Caddyfile
+certs/

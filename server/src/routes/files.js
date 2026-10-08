@@ -53,7 +53,13 @@ export default async function fileRoutes(app) {
     const rel = path.posix.join(month, crypto.randomBytes(16).toString('hex'));
     const abs = path.join(UPLOAD_DIR, rel);
     fs.mkdirSync(path.dirname(abs), { recursive: true });
-    await pipeline(part.file, fs.createWriteStream(abs));
+    try {
+      await pipeline(part.file, fs.createWriteStream(abs));
+    } catch (e) {
+      // Client cancelled or the connection dropped mid-upload: don't leave partial files behind.
+      fs.rmSync(abs, { force: true });
+      throw e;
+    }
     if (part.file.truncated) {
       fs.rmSync(abs, { force: true });
       fail(413, `حداکثر حجم فایل ${settingNumber('max_upload_mb')} مگابایت است`);

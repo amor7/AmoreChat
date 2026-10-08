@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { fileUrl } from '../api';
 import { useStore } from '../store';
 import { formatSize, formatClock, decodeWaveform } from '../util';
+import { startDownload, cancelDownload } from '../download';
 
 // Only one voice note / video plays at a time.
 let current = null;
@@ -92,7 +93,7 @@ export function ImageMessage({ file }) {
     );
   }
   return (
-    <button className="media" style={{ aspectRatio: ratio }} onClick={() => openModal('image', { fileId: file.id })}>
+    <button className="media" style={{ aspectRatio: ratio }} onClick={() => openModal('image', { fileId: file.id, name: file.name })}>
       <img src={fileUrl(file.id)} alt="" loading="lazy" />
     </button>
   );
@@ -129,14 +130,23 @@ export function VideoMessage({ file }) {
   if (!started) {
     const current = options.find((o) => o.q === quality);
     return (
-      <button className="media video-poster" style={{ aspectRatio: ratio }} onClick={() => setStarted(true)}>
+      <div
+        className="media video-poster"
+        role="button"
+        tabIndex={0}
+        aria-label="پخش ویدیو"
+        style={{ aspectRatio: ratio }}
+        onClick={() => setStarted(true)}
+        onKeyDown={(e) => e.key === 'Enter' && setStarted(true)}
+      >
         {file.thumb && !dataSaver && <img src={`${fileUrl(file.id)}?thumb=1`} alt="" loading="lazy" />}
         <span className="play-overlay">▶</span>
         <small className="video-info">
           {file.duration ? formatClock(file.duration) + ' · ' : ''}
           {formatSize(current?.size)}
         </small>
-      </button>
+        <DownloadButton fileId={file.id} name={file.name} variant={quality} className="on-media" />
+      </div>
     );
   }
 
@@ -160,6 +170,7 @@ export function VideoMessage({ file }) {
           }
         }}
       />
+      <DownloadButton fileId={file.id} name={file.name} variant={quality} className="on-media" />
       {options.length > 1 && (
         <select
           className="quality-select"
@@ -181,16 +192,61 @@ export function VideoMessage({ file }) {
   );
 }
 
-export function FileCard({ file }) {
+const dlKey = (fileId, variant) => `${fileId}:${variant || 'orig'}`;
+const dlUrl = (fileId, variant) => fileUrl(fileId, true) + (variant && variant !== 'orig' ? `&v=${variant}` : '');
+function dlName(name, variant) {
+  if (!variant || variant === 'orig') return name;
+  return (name || 'video').replace(/\.\w+$/, '') + `-${variant}p.mp4`;
+}
+
+function Ring({ progress }) {
+  const r = 16;
+  const c = 2 * Math.PI * r;
   return (
-    <a className="file-card" href={fileUrl(file.id, true)} download={file.name}>
-      <span className="file-icon">📄</span>
+    <svg className={`ring ${progress == null ? 'indeterminate' : ''}`} viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r={r} className="ring-track" />
+      <circle cx="20" cy="20" r={r} className="ring-bar" strokeDasharray={c} strokeDashoffset={c * (1 - (progress ?? 0.25))} />
+    </svg>
+  );
+}
+
+// ⬇ when idle; progress ring with ✕ (tap to cancel) while downloading.
+export function DownloadButton({ fileId, name, variant, className = '' }) {
+  const key = dlKey(fileId, variant);
+  const dl = useStore((s) => s.downloads[key]);
+  const onClick = (e) => {
+    e.stopPropagation();
+    if (dl) cancelDownload(key);
+    else startDownload(key, dlUrl(fileId, variant), dlName(name, variant));
+  };
+  return (
+    <button className={`dl-btn ${dl ? 'active' : ''} ${className}`} onClick={onClick} aria-label={dl ? 'لغو دانلود' : 'دانلود'} title={dl ? 'لغو دانلود' : 'دانلود'}>
+      {dl && <Ring progress={dl.progress} />}
+      <span>{dl ? '✕' : '⬇'}</span>
+    </button>
+  );
+}
+
+export function FileCard({ file }) {
+  const key = dlKey(file.id);
+  const dl = useStore((s) => s.downloads[key]);
+  const start = () => (dl ? cancelDownload(key) : startDownload(key, dlUrl(file.id), file.name));
+  return (
+    <div className="file-card" role="button" tabIndex={0} onClick={start} onKeyDown={(e) => e.key === 'Enter' && start()}>
+      <span className={`file-icon ${dl ? 'active' : ''}`}>
+        {dl && <Ring progress={dl.progress} />}
+        <span>{dl ? '✕' : '⬇'}</span>
+      </span>
       <span>
         <span className="file-name" dir="auto">
           {file.name}
         </span>
-        <small>{formatSize(file.size)}</small>
+        <small>
+          {dl
+            ? `${formatSize(dl.received)} از ${formatSize(file.size)} — برای لغو بزنید`
+            : formatSize(file.size)}
+        </small>
       </span>
-    </a>
+    </div>
   );
 }

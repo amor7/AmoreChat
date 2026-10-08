@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { api, fileUrl } from '../api';
 import { toFa, postBlockReason, messagePreview, formatListTime } from '../util';
 import Avatar from './Avatar';
+import { DownloadButton } from './Media';
 import NewChat from './NewChat';
 import Profile from './Profile';
 import ChatInfo from './ChatInfo';
@@ -276,13 +277,11 @@ function Search({ chatId, onClose }) {
   );
 }
 
-function ImageViewer({ fileId, onClose }) {
+function ImageViewer({ fileId, name, onClose }) {
   return (
     <div className="lightbox" onClick={onClose}>
       <img src={fileUrl(fileId)} alt="" />
-      <a className="btn lightbox-dl" href={fileUrl(fileId, true)} onClick={(e) => e.stopPropagation()}>
-        ⬇ دانلود
-      </a>
+      <DownloadButton fileId={fileId} name={name || 'image.jpg'} className="lightbox-dl" />
     </div>
   );
 }
@@ -305,7 +304,7 @@ export default function Modals() {
     case 'admin':
       return <Admin onClose={close} />;
     case 'image':
-      return <ImageViewer fileId={modal.fileId} onClose={close} />;
+      return <ImageViewer fileId={modal.fileId} name={modal.name} onClose={close} />;
     case 'forward':
       return <Forward message={modal.message} onClose={close} />;
     case 'search':

@@ -23,7 +23,7 @@ services:
     environment:
       - DOMAIN=${DOMAIN}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./certs:/certs:ro
       - caddy_data:/data
       - caddy_config:/config

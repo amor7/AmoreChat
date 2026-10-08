@@ -3,7 +3,7 @@
 
 	# Automatic HTTPS (Let's Encrypt) needs international internet to issue and renew.
 	# For long shutdowns you can use your own certificate instead: put cert.pem and
-	# key.pem in ./certs and uncomment the next line.
+	# key.pem in ./certs and uncomment the next line (edit ./Caddyfile, not deploy/Caddyfile).
 	# tls /certs/cert.pem /certs/key.pem
 
 	reverse_proxy app:3000

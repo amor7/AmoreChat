@@ -13,6 +13,7 @@ export default function Profile({ onClose }) {
   const [notif, setNotif] = useState(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const fileRef = useRef(null);
   const prefs = useStore((s) => s.prefs);
+  const version = useStore((s) => s.config.version);
   const setPrefs = useStore((s) => s.setPrefs);
   const [usage, setUsage] = useState(null);
 
@@ -119,6 +120,7 @@ export default function Profile({ onClose }) {
         <input type="password" placeholder="رمز جدید (حداقل ۸ کاراکتر)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required minLength={8} dir="ltr" autoComplete="new-password" />
         <button className="btn">تغییر رمز</button>
       </form>
+      <p className="muted center version" dir="ltr">AmoreChat v{version}</p>
     </Modal>
   );
 }

@@ -30,10 +30,14 @@ export async function api(method, url, body) {
 export const fileUrl = (id, download = false) => `/api/files/${id}${download ? '?download=1' : ''}`;
 
 // XHR instead of fetch so we get upload progress.
-export function upload(blob, { name, meta = {}, onProgress } = {}) {
+export const CANCELLED = -1;
+
+export function upload(blob, { name, meta = {}, onProgress, signal } = {}) {
   return new Promise((resolve, reject) => {
     const qs = new URLSearchParams(Object.entries(meta).filter(([, v]) => v != null)).toString();
     const xhr = new XMLHttpRequest();
+    signal?.addEventListener('abort', () => xhr.abort());
+    xhr.onabort = () => reject(new ApiError('ارسال لغو شد', CANCELLED));
     xhr.open('POST', '/api/upload' + (qs ? '?' + qs : ''));
     xhr.setRequestHeader('x-requested-with', 'amorechat');
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);

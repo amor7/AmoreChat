@@ -19,12 +19,14 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if [ ! -f .env ]; then
-  read -rp "Domain pointing to this server (e.g. chat.example.ir): " DOMAIN
+  read -rp "Domain pointing to this server (e.g. chat.example.ir): " DOMAIN </dev/tty
   sed "s/^DOMAIN=.*/DOMAIN=${DOMAIN}/" .env.example > .env
   echo ">> Wrote .env"
 fi
 
 mkdir -p data certs
+# Your own copy of the Caddy config: updates never overwrite it.
+[ -f Caddyfile ] || cp deploy/Caddyfile Caddyfile
 # The app runs as uid 1000 (user "node") inside the container.
 chown -R 1000:1000 data
 
@@ -39,6 +41,8 @@ else
   docker compose up -d --build
 fi
 
+bash deploy/install-command.sh .
+
 sleep 5
 docker compose ps
 echo
@@ -48,3 +52,4 @@ if docker compose logs app 2>/dev/null | grep -q "SETUP CODE"; then
 else
   echo "Done. Open https://$(grep ^DOMAIN= .env | cut -d= -f2)"
 fi
+echo "To update later run: sudo amorechat-update   (or a version: sudo amorechat-update v0.2.0)"

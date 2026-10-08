@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, upload } from '../api';
+import { api, upload, CANCELLED } from '../api';
 import { useStore } from '../store';
 import { emitTyping } from '../socket';
 import { postBlockReason, messagePreview, compressImage, imageSize, formatSize, formatClock, toFa, computeWaveform } from '../util';
@@ -276,13 +276,17 @@ function SendFileDialog({ file, chat, onClose }) {
   const [caption, setCaption] = useState('');
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
+  const abort = useRef(null);
   const [preview] = useState(() => (isImage || isVideo ? URL.createObjectURL(file) : null));
 
   useEffect(() => () => preview && URL.revokeObjectURL(preview), [preview]);
+  // Closing the dialog mid-upload also cancels it.
+  useEffect(() => () => abort.current?.abort(), []);
 
   async function send() {
     setError('');
     setProgress(0);
+    abort.current = new AbortController();
     try {
       let blob = file;
       let meta = {};
@@ -300,7 +304,7 @@ function SendFileDialog({ file, chat, onClose }) {
         meta = { q: videoQ };
       }
       const name = isImage && compress ? file.name.replace(/\.\w+$/, '') + '.jpg' : file.name;
-      const uploaded = await upload(blob, { name, meta, onProgress: setProgress });
+      const uploaded = await upload(blob, { name, meta, onProgress: setProgress, signal: abort.current.signal });
       const { message } = await api('POST', `/chats/${chat.id}/messages`, {
         fileId: uploaded.id,
         type,
@@ -311,8 +315,11 @@ function SendFileDialog({ file, chat, onClose }) {
       useStore.setState({ replyTo: null });
       onClose();
     } catch (e) {
-      setError(e.message);
       setProgress(null);
+      if (e.status === CANCELLED) return;
+      setError(e.message);
+    } finally {
+      abort.current = null;
     }
   }
 
@@ -370,9 +377,15 @@ function SendFileDialog({ file, chat, onClose }) {
         )}
         {error && <div className="error">{error}</div>}
         <div className="actions">
-          <button className="btn" onClick={onClose} disabled={progress !== null}>
-            انصراف
-          </button>
+          {progress !== null ? (
+            <button className="btn danger" onClick={() => abort.current?.abort()}>
+              لغو ارسال
+            </button>
+          ) : (
+            <button className="btn" onClick={onClose}>
+              انصراف
+            </button>
+          )}
           <button className="btn primary" onClick={send} disabled={progress !== null}>
             ارسال
           </button>

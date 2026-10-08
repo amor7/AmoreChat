@@ -65,6 +65,7 @@ function Stats() {
   if (!s) return <p className="muted">…</p>;
   const memUsed = s.memory.total - s.memory.free;
   const cards = [
+    ['نسخه', 'v' + useStore.getState().config.version],
     ['کاربران', toFa(s.users)],
     ['آنلاین', toFa(s.online)],
     ['گروه و کانال', toFa(s.chats)],

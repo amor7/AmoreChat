@@ -26,8 +26,14 @@ jobs:
         with:
           name: amorechat-offline
           path: '*.tar.gz'
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v tag="## ${GITHUB_REF_NAME}" '$0==tag{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
+          printf '\n**Update:** `sudo amorechat-update %s`\n' "${GITHUB_REF_NAME}" >> notes.md
+          cat notes.md
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           files: '*.tar.gz'
+          body_path: notes.md

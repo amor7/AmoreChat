@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { get, all, run, now, tx } from '../db.js';
 import { getSetting, hasAnyUser } from '../settings.js';
 import {
@@ -15,7 +16,9 @@ import { fail, addMember, ensureEmergencyChannel, ensureSavedChat, audit } from 
 import { isOnline } from '../realtime.js';
 import { mediaReady } from '../media.js';
 
-const authLimit = { rateLimit: { max: 10, timeWindow: '1 minute' } };
+const VERSION = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).version;
+
+const authLimit ={ rateLimit: { max: 10, timeWindow: '1 minute' } };
 
 function checkInvite(code) {
   const inv = get('SELECT * FROM invites WHERE code = ?', String(code || '').trim());
@@ -27,6 +30,7 @@ function checkInvite(code) {
 
 export default async function authRoutes(app) {
   app.get('/api/config', { config: { public: true } }, async () => ({
+    version: VERSION,
     siteName: getSetting('site_name'),
     registrationMode: getSetting('registration_mode'),
     allowUserGroups: getSetting('allow_user_groups') === '1',

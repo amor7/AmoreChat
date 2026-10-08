@@ -4,7 +4,7 @@
 
 پیام‌رسان فارسی و self-hosted برای روزهای قطعی اینترنت بین‌الملل. روی یک سرور داخل ایران نصب می‌شود و **هیچ وابستگی به سرویس‌های خارجی ندارد**؛ تا وقتی شبکه داخلی وصل است، کار می‌کند.
 
-## امکانات (نسخه ۰.۲ — فاز ۱ و ۲)
+## امکانات (نسخه ۰.۲.۱ — فاز ۱ و ۲)
 
 - 💬 چت خصوصی، گروه، کانال و «پیام‌های ذخیره‌شده»
 - 📢 **کانال اطلاع‌رسانی اضطراری**: همه کاربران عضو آن هستند و پیام‌های آن به‌صورت بنر قرمز برای همه آنلاین‌ها نمایش داده می‌شود
@@ -48,29 +48,26 @@
 
 > ⚠️ **DNS دامنه:** اگر DNS دامنه روی سرویس خارجی (مثل Cloudflare) باشد، در زمان قطعی دامنه باز نمی‌شود. DNS را روی یک سرویس داخلی (مثل ابر آروان) بگذارید.
 
-### روش ۱: با بسته آفلاین (پیشنهادی)
-Docker Hub برای IPهای ایران مسدود است، پس بهترین راه استفاده از بسته آماده است:
-
-1. از صفحه **Releases** همین مخزن، فایل‌های `amorechat-source.tar.gz` و `amorechat-offline-amd64.tar.gz` را دانلود کنید.
-2. هر دو را به سرور منتقل کنید (مثلاً با `scp`).
-3. روی سرور:
+### روش ۱: نصب یک‌خطی (پیشنهادی)
+آخرین نسخه را با بسته آماده (بدون نیاز به Docker Hub) در پوشه `amorechat` نصب می‌کند:
 
 ```bash
-tar xzf amorechat-source.tar.gz
-mv amorechat-offline-amd64.tar.gz amorechat/
-cd amorechat
-sudo bash deploy/install.sh
+curl -fsSL https://raw.githubusercontent.com/amor7/AmoreChat/main/deploy/get.sh | sudo bash
 ```
 
-اسکریپت دامنه را می‌پرسد، Docker را از مخازن اوبونتو نصب می‌کند، ایمیج‌ها را از بسته بارگذاری می‌کند و برنامه را بالا می‌آورد.
+نصب یک **نسخه مشخص**:
+```bash
+curl -fsSL https://raw.githubusercontent.com/amor7/AmoreChat/main/deploy/get.sh | sudo bash -s -- v0.2.0
+```
 
-### روش ۲: ساخت مستقیم روی سرور
-اگر سرور به Docker Hub و npm دسترسی دارد (یا میرور داخلی تنظیم کرده‌اید):
+### روش ۲: سرور بدون دسترسی به گیت‌هاب
+از صفحه **Releases** فایل‌های `amorechat-source.tar.gz` و `amorechat-offline-amd64.tar.gz` را دانلود و به سرور منتقل کنید (مثلاً با `scp`)، سپس:
 
 ```bash
-git clone https://github.com/amor7/AmoreChat.git && cd AmoreChat
-sudo bash deploy/install.sh
+tar xzf amorechat-source.tar.gz && mv amorechat-offline-amd64.tar.gz amorechat/ && cd amorechat && sudo bash deploy/install.sh
 ```
+
+اسکریپت دامنه را می‌پرسد، Docker را از مخازن اوبونتو نصب می‌کند و برنامه را بالا می‌آورد.
 
 ### راه‌اندازی اولیه
 در پایان نصب یک **کد راه‌اندازی (SETUP CODE)** چاپ می‌شود. سایت را باز کنید و با این کد اولین حساب را بسازید؛ این حساب **مالک** سرور می‌شود. بعد از پنل مدیریت کد دعوت بسازید و برای بقیه بفرستید.
@@ -86,7 +83,7 @@ docker compose logs app | grep "SETUP CODE"
 
 - [ ] سرور داخل ایران است و DNS دامنه روی سرویس داخلی است
 - [ ] برنامه نصب و تست شده و کاربران حساب ساخته‌اند و **PWA را روی گوشی نصب کرده‌اند**
-- [ ] گواهی SSL تازه است (Caddy خودکار تمدید می‌کند؛ اعتبار حدود ۹۰ روز). برای قطعی‌های طولانی می‌توانید گواهی یک‌ساله بخرید، `cert.pem` و `key.pem` را در پوشه `certs/` بگذارید و خط `tls` را در `deploy/Caddyfile` فعال کنید
+- [ ] گواهی SSL تازه است (Caddy خودکار تمدید می‌کند؛ اعتبار حدود ۹۰ روز). برای قطعی‌های طولانی می‌توانید گواهی یک‌ساله بخرید، `cert.pem` و `key.pem` را در پوشه `certs/` بگذارید و خط `tls` را در فایل `Caddyfile` (پوشه اصلی برنامه) فعال کنید
 - [ ] IP سرور را هم به کاربران بدهید (برای روزی که DNS مشکل داشت)
 - [ ] فضای دیسک کافی است (پنل مدیریت ← آمار)
 
@@ -99,17 +96,24 @@ docker compose logs app | grep "SETUP CODE"
 
 ## ⬆️ به‌روزرسانی
 
-دو فایل نسخه جدید را از صفحه Releases دانلود کنید و در پوشه **بالای** پوشه `amorechat` بگذارید، سپس:
-
 ```bash
-tar xzf amorechat-source.tar.gz            # فقط کد را جایگزین می‌کند؛ data و .env دست نمی‌خورند
-mv amorechat-offline-amd64.tar.gz amorechat/
-cd amorechat
-rm -f $(ls -t amorechat-offline-*.tar.gz | tail -n +2)   # بسته‌های قدیمی را پاک کن
-sudo bash deploy/install.sh
+sudo amorechat-update            # آخرین نسخه
+sudo amorechat-update v0.2.0     # یک نسخه مشخص (بالاتر یا پایین‌تر)
 ```
 
-دیتابیس هنگام شروع به‌طور خودکار به نسخه جدید ارتقا پیدا می‌کند. قبل از ارتقا یک بکاپ دستی هم بگیرید.
+قبل از به‌روزرسانی خودکار بکاپ گرفته می‌شود. `data/`، `.env`، `Caddyfile` و `certs/` دست نمی‌خورند و دیتابیس خودکار ارتقا پیدا می‌کند. برگشت به نسخه قدیمی‌تر قبل از اجرا تأیید می‌گیرد.
+
+نصب‌های قبل از v0.2.1 هنوز دستور `amorechat-update` را ندارند؛ یک بار **داخل پوشه برنامه** بزنید:
+```bash
+curl -fsSL https://raw.githubusercontent.com/amor7/AmoreChat/main/deploy/update.sh | sudo AMORECHAT_DIR="$PWD" bash
+```
+
+بدون دسترسی سرور به گیت‌هاب: دو فایل نسخه جدید را به پوشه برنامه منتقل کنید و بزنید:
+```bash
+tar xzf amorechat-source.tar.gz --strip-components=1 && sudo bash deploy/install.sh
+```
+
+فهرست تغییرات هر نسخه: [CHANGELOG.md](CHANGELOG.md)
 
 ---
 

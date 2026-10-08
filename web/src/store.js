@@ -22,6 +22,7 @@ export const useStore = create((set, get) => ({
   connected: true,
   replyTo: null,
   editing: null,
+  downloads: {}, // key -> { progress (0..1 or null if size unknown), received bytes }
   prefs: getPrefs(),
   setPrefs: (patch) => set({ prefs: setPrefs(patch) }),
 
