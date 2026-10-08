@@ -32,12 +32,10 @@ BUNDLE=$(ls -t amorechat-offline-*.tar.gz 2>/dev/null | head -n1 || true)
 if [ -n "${BUNDLE}" ]; then
   echo ">> Loading images from ${BUNDLE}..."
   gunzip -c "${BUNDLE}" | docker load
-fi
-
-if docker image inspect amorechat:latest >/dev/null 2>&1; then
   docker compose up -d --no-build
 else
-  echo ">> No prebuilt image found; building (needs Docker Hub + npm access)..."
+  # No offline bundle: build from the source in this folder (e.g. after `git pull`).
+  echo ">> Building from source (needs Docker Hub + npm access)..."
   docker compose up -d --build
 fi
 
