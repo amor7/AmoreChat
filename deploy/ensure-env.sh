@@ -8,7 +8,7 @@ has() { grep -q "^$1=." .env; }
 
 if ! has LIVEKIT_API_SECRET; then
   sed -i '/^LIVEKIT_API_SECRET=/d' .env
-  echo "LIVEKIT_API_SECRET=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48)" >> .env
+  echo "LIVEKIT_API_SECRET=$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')" >> .env
   echo ">> Generated a LiveKit secret in .env"
 fi
 
