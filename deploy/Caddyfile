@@ -3,6 +3,11 @@
 #   internal - this server's own certificate authority: works fully offline and
 #              with a bare IP address; each device installs the CA once from http://<server>/ca
 #   custom   - your own certificate files: ./certs/cert.pem and ./certs/key.pem
+{
+	# Browsers send no server name when you open https://<ip>; use the configured one.
+	default_sni {$DOMAIN}
+}
+
 (tls-auto) {
 }
 (tls-internal) {

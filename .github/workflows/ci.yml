@@ -65,7 +65,11 @@ jobs:
           ! docker compose logs livekit | grep -i 'secret is too short'
       - name: Logs
         if: always()
-        run: docker compose logs --tail 60
+        run: |
+          curl -vsk https://127.0.0.1/healthz 2>&1 | tail -25 || true
+          curl -vs http://127.0.0.1/ca.crt 2>&1 | tail -15 || true
+          docker compose logs caddy --tail 80
+          docker compose logs --tail 30
 
   # Real LiveKit + two headless Chromes with fake microphone/camera.
   rtc-e2e:
