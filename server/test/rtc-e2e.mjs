@@ -118,7 +118,7 @@ try {
   for (const p of [A, B]) {
     await waitFor(p, () => document.querySelector('.call-view[data-remote="1"]'), null, 'other side connected');
     await waitFor(p, () => document.querySelector('.call-main')?.videoWidth > 0 && !document.querySelector('.call-main').classList.contains('mirror'), null, 'remote video full-screen');
-    await waitFor(p, () => document.querySelector('.call-pip video'), null, 'own camera in the small box');
+    await waitFor(p, () => document.querySelector('video.call-pip'), null, 'own camera in the small box');
   }
   await B.screenshot({ path: 'shot-call-mobile.png' });
   await B.click('.call-pip');

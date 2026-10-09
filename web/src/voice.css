@@ -452,7 +452,7 @@
   object-fit: contain;
 }
 .call-main.mirror,
-.pip-video.mirror {
+.call-pip.mirror {
   transform: scaleX(-1);
 }
 .call-avatar {
@@ -515,6 +515,7 @@
   position: absolute;
   width: 112px;
   aspect-ratio: 3 / 4;
+  object-fit: cover;
   border-radius: 14px;
   overflow: hidden;
   background: #000;
@@ -546,12 +547,6 @@
     width: 200px;
     aspect-ratio: 16 / 10;
   }
-}
-.pip-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  pointer-events: none;
 }
 .call-controls {
   position: absolute;

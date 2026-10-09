@@ -11,7 +11,7 @@ const run = (fn) =>
 
 const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 
-function Video({ pub, mirror, className }) {
+function Video({ pub, mirror, className, ...rest }) {
   const ref = useRef(null);
   const track = pub?.videoTrack;
   useEffect(() => {
@@ -19,7 +19,7 @@ function Video({ pub, mirror, className }) {
     track.attach(ref.current);
     return () => track.detach(ref.current);
   }, [track]);
-  return track ? <video ref={ref} className={`${className} ${mirror ? 'mirror' : ''}`} autoPlay playsInline muted /> : null;
+  return track ? <video ref={ref} className={`${className} ${mirror ? 'mirror' : ''}`} autoPlay playsInline muted {...rest} /> : null;
 }
 
 // Seconds since the other person joined (both sides count from the same moment).
@@ -51,7 +51,9 @@ function usePip() {
       const dx = e.clientX - d.x;
       const dy = e.clientY - d.y;
       if (Math.abs(dx) + Math.abs(dy) > 12) d.moved = true;
-      if (d.moved) e.currentTarget.style.transform = `translate(${dx}px, ${dy}px)`;
+      // Keep the selfie mirror while dragging (an inline transform replaces the CSS one).
+      const mirror = e.currentTarget.classList.contains('mirror') ? ' scaleX(-1)' : '';
+      if (d.moved) e.currentTarget.style.transform = `translate(${dx}px, ${dy}px)${mirror}`;
     },
     onPointerUp(e, onTap) {
       const d = drag.current;
@@ -84,9 +86,12 @@ export default function CallView() {
   const remoteVideo = remote?.screen || remote?.camera;
   const localVideo = local?.camera;
   const anyVideo = !!(remoteVideo || localVideo);
-  const big = swapped ? localVideo : remoteVideo || (!remote ? localVideo : null);
-  const small = swapped ? remoteVideo : remote ? localVideo : null;
-  const bigIsLocal = big === localVideo;
+  const canSwap = !!(remoteVideo && localVideo);
+  // Each video keeps its own <video> element and only changes role ("big" / "small"),
+  // so swapping is instant instead of re-attaching tracks (which flashes black).
+  const remoteRole = !remoteVideo ? null : swapped && canSwap ? 'small' : 'big';
+  const localRole = !localVideo ? null : swapped && canSwap ? 'big' : remote ? 'small' : 'big';
+  const hasBig = remoteRole === 'big' || localRole === 'big';
 
   // Auto-hide controls while there is video; any tap brings them back.
   const poke = () => {
@@ -99,8 +104,18 @@ export default function CallView() {
     return () => clearTimeout(hideTimer.current);
   }, [anyVideo, !!remote]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!small) setSwapped(false);
-  }, [!!small]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!canSwap) setSwapped(false);
+  }, [canSwap]);
+
+  const pipProps = {
+    role: 'button',
+    'aria-label': 'جابه‌جایی تصویر',
+    onClick: (e) => e.stopPropagation(),
+    onPointerDown: pip.handlers.onPointerDown,
+    onPointerMove: pip.handlers.onPointerMove,
+    onPointerUp: (e) => pip.handlers.onPointerUp(e, () => canSwap && setSwapped((v) => !v)),
+  };
+  const roleProps = (role, mainClass) => (role === 'big' ? { className: mainClass } : { className: `call-pip ${pip.corner}`, ...pipProps });
 
   let status;
   if (rtc.state === 'reconnecting') status = 'اتصال ضعیف است؛ در حال اتصال دوباره…';
@@ -112,13 +127,13 @@ export default function CallView() {
 
   return (
     <div className={`call-view ${controls ? '' : 'hide-controls'} ${swapped ? 'swapped' : ''}`} data-remote={remote ? '1' : '0'} onClick={poke}>
-      {big ? (
-        <Video pub={big} mirror={bigIsLocal} className={`call-main ${remote?.screen && !bigIsLocal ? 'contain' : ''}`} />
-      ) : (
+      {!hasBig && (
         <div className={`call-avatar ${remote?.speaking ? 'speaking' : ''}`}>
           <Avatar id={peer.id} name={peer.displayName} file={peer.avatar} size={132} />
         </div>
       )}
+      <Video key="remote" pub={remoteVideo} {...roleProps(remoteRole, `call-main ${remote?.screen ? 'contain' : ''}`)} />
+      <Video key="local" pub={localVideo} mirror {...roleProps(localRole, 'call-main')} />
 
       <div className="call-top">
         <button
@@ -140,20 +155,6 @@ export default function CallView() {
         </div>
       </div>
 
-      {small && (
-        <div
-          className={`call-pip ${pip.corner}`}
-          role="button"
-          aria-label="جابه‌جایی تصویر"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={pip.handlers.onPointerDown}
-          onPointerMove={pip.handlers.onPointerMove}
-          onPointerUp={(e) => pip.handlers.onPointerUp(e, () => setSwapped((v) => !v))}
-        >
-          <Video pub={small} mirror={small === localVideo} className="pip-video" />
-        </div>
-      )}
-
       {!rtc.canPlayAudio && (
         <button
           className="btn primary audio-unlock call-audio-unlock"
@@ -173,6 +174,9 @@ export default function CallView() {
         <button className={`ctl ${rtc.camOn ? 'on' : ''}`} onClick={() => run(() => setCamera(!rtc.camOn))} aria-label="دوربین">
           📷
         </button>
+        <button className="ctl hangup" onClick={() => run(hangUp)} aria-label="قطع تماس">
+          📵
+        </button>
         {rtc.camOn && isTouch && (
           <button className="ctl" onClick={() => run(flipCamera)} aria-label="تعویض دوربین">
             🔄
@@ -187,9 +191,6 @@ export default function CallView() {
             🖥
           </button>
         )}
-        <button className="ctl hangup" onClick={() => run(hangUp)} aria-label="قطع تماس">
-          📵
-        </button>
       </div>
     </div>
   );
