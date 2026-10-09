@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { formatClock } from '../util';
+import { useSmartFit } from '../smartFit';
 import Avatar from './Avatar';
 import { ChevronDown, Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, SwitchCamera, ScreenShare, ScreenShareOff, Volume2 } from 'lucide-react';
 import { setMic, setCamera, flipCamera, hangUp, canShareScreen, startScreenShare, stopScreenShare, enableAudioPlayback } from '../rtc';
@@ -15,12 +16,26 @@ const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coars
 function Video({ pub, mirror, className, ...rest }) {
   const ref = useRef(null);
   const track = pub?.videoTrack;
+  const big = className?.includes('call-main');
+  const fit = useSmartFit(ref, big);
   useEffect(() => {
     if (!track || !ref.current) return;
     track.attach(ref.current);
     return () => track.detach(ref.current);
   }, [track]);
-  return track ? <video ref={ref} className={`${className} ${mirror ? 'mirror' : ''}`} autoPlay playsInline muted {...rest} /> : null;
+  return track ? (
+    <video
+      ref={ref}
+      className={`${className} ${mirror ? 'mirror' : ''}`}
+      // Screen shares are always shown whole; cameras use the smart choice.
+      style={{ objectFit: big ? (className.includes('contain') ? 'contain' : fit) : 'cover' }}
+      data-fit={big ? fit : undefined}
+      autoPlay
+      playsInline
+      muted
+      {...rest}
+    />
+  ) : null;
 }
 
 // Seconds since the other person joined (both sides count from the same moment).

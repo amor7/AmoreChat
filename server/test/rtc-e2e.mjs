@@ -41,6 +41,8 @@ const browser = await puppeteer.launch({
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
     '--autoplay-policy=no-user-gesture-required',
+    // A portrait "phone camera", to check desktop doesn't zoom it into a blur.
+    ...(process.env.FAKE_VIDEO ? [`--use-file-for-fake-video-capture=${process.env.FAKE_VIDEO}`] : []),
   ],
 });
 
@@ -96,6 +98,9 @@ try {
   step('camera: bob turns on the camera, owner receives video frames');
   await B.click('.room-view .ctl[title="دوربین"]');
   await waitFor(A, () => document.querySelector('.spot-main .mtile video')?.videoWidth > 0, null, 'owner sees bob camera big');
+  if (process.env.FAKE_VIDEO) {
+    await waitFor(A, () => document.querySelector('.spot-main .mtile video')?.dataset.fit === 'contain', null, 'portrait camera shown whole on desktop');
+  }
   await A.screenshot({ path: 'shot-room-duo.png' });
   await B.screenshot({ path: 'shot-room-mobile.png' });
 
@@ -133,6 +138,11 @@ try {
     await waitFor(p, () => document.querySelector('.call-main')?.videoWidth > 0 && !document.querySelector('.call-main').classList.contains('mirror'), null, 'remote video full-screen');
     await waitFor(p, () => document.querySelector('video.call-pip'), null, 'own camera in the small box');
   }
+  if (process.env.FAKE_VIDEO) {
+    await waitFor(A, () => document.querySelector('.call-main')?.dataset.fit === 'contain', null, 'desktop: portrait caller shown whole, not zoomed');
+    await waitFor(B, () => document.querySelector('.call-main')?.dataset.fit === 'cover', null, 'phone: portrait caller fills the screen');
+  }
+  await A.screenshot({ path: 'shot-call-desktop.png' });
   await B.screenshot({ path: 'shot-call-mobile.png' });
   await B.click('.call-pip');
   await waitFor(B, () => document.querySelector('.call-view.swapped .call-main.mirror'), null, 'tap swaps: own camera big');

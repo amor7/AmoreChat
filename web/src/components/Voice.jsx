@@ -27,6 +27,7 @@ import { useStore } from '../store';
 import { hasChatPerm, toFa } from '../util';
 import Avatar from './Avatar';
 import CallView from './CallView';
+import { useSmartFit } from '../smartFit';
 import {
   joinVoice,
   leave,
@@ -55,16 +56,19 @@ const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coars
 const expand = () => useStore.setState((s) => ({ rtc: { ...s.rtc, expanded: true } }));
 
 // Attaches a LiveKit video track to a <video>; detaches on unmount.
+// fit: 'cover' | 'contain' | 'smart' (fill only when the shapes match, see smartFit.js).
 export function VideoView({ pub, mirror, fit = 'cover', className = '' }) {
   const ref = useRef(null);
   const track = pub?.videoTrack;
+  const smart = useSmartFit(ref, fit === 'smart');
   useEffect(() => {
     if (!track || !ref.current) return;
     track.attach(ref.current);
     return () => track.detach(ref.current);
   }, [track]);
   if (!track) return null;
-  return <video ref={ref} className={`rtc-video ${mirror ? 'mirror' : ''} ${className}`} style={{ objectFit: fit }} autoPlay playsInline muted />;
+  const objectFit = fit === 'smart' ? smart : fit;
+  return <video ref={ref} className={`rtc-video ${mirror ? 'mirror' : ''} ${className}`} style={{ objectFit }} data-fit={objectFit} autoPlay playsInline muted />;
 }
 
 // ---------- Sidebar: Discord-style voice channels with who's inside ----------
@@ -423,7 +427,8 @@ function MeetTile({ t, mode, chatId, canMute, canKick, onClick, onWatch }) {
   const [level, setLevel] = useState('high');
   const needsWatch = type === 'screen' && !p.isLocal && !p.watching;
   const hasVideo = !!pub?.videoTrack && !needsWatch;
-  const fit = type === 'screen' || mode === 'main' ? 'contain' : 'cover';
+  // Screens are always shown whole; cameras fill the tile only when the shapes match.
+  const fit = type === 'screen' ? 'contain' : mode === 'strip' || mode === 'pip' ? 'cover' : 'smart';
   const showMod = type === 'person' && !p.isLocal && (canMute || canKick) && (mode === 'grid' || mode === 'main');
 
   const mod = (action) =>
