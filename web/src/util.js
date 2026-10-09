@@ -54,20 +54,20 @@ export function formatSize(bytes) {
 
 export function messagePreview(m) {
   if (!m) return '';
-  if (m.file?.purged) return '⌛ فایل منقضی شده';
+  if (m.file?.purged) return 'فایل منقضی شده';
   switch (m.type) {
     case 'deleted':
       return 'پیام حذف شد';
     case 'image':
-      return '🖼 ' + (m.text || 'عکس');
+      return m.text || 'عکس';
     case 'video':
-      return '🎬 ' + (m.text || 'ویدیو');
+      return m.text || 'ویدیو';
     case 'voice':
-      return '🎤 پیام صوتی';
+      return 'پیام صوتی';
     case 'call':
       return callSummary(m).label;
     case 'file':
-      return '📎 ' + (m.text || m.file?.name || 'فایل');
+      return m.text || m.file?.name || 'فایل';
     default:
       return m.text;
   }
@@ -163,7 +163,7 @@ export function callSummary(m) {
   }
   const kind = d.video ? 'تماس تصویری' : 'تماس صوتی';
   const status = { missed: 'بی‌پاسخ', declined: 'رد شد', cancelled: 'لغو شد', busy: 'مشغول' }[d.status];
-  const label = status ? `${d.video ? '🎥' : '📞'} ${kind} · ${status}` : `${d.video ? '🎥' : '📞'} ${kind} · ${formatClock(d.duration || 0)}`;
+  const label = status ? `${kind} · ${status}` : `${kind} · ${formatClock(d.duration || 0)}`;
   return { ...d, label, failed: !!status };
 }
 

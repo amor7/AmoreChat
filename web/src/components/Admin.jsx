@@ -5,16 +5,18 @@ import { hasSitePerm, SITE_PERM_LABELS, ROLE_LABELS, formatDateTime, formatSize,
 import { Modal } from './Modals';
 import Avatar from './Avatar';
 import { LimitsEditor, Live, RtcSettings } from './AdminRtc';
+import { EmojiImg } from './Emoji';
+import { ChartColumn, Flag, Users as UsersIcon, Ticket, MessagesSquare, Radio, Settings as SettingsIcon, ScrollText, TriangleAlert, Megaphone, Volume2, SlidersHorizontal } from 'lucide-react';
 
 const TABS = [
-  ['stats', '📊 آمار', 'view_audit'],
-  ['reports', '🚩 گزارش‌ها', 'handle_reports'],
-  ['users', '👥 کاربران', 'manage_users'],
-  ['invites', '🎟 کدهای دعوت', 'manage_invites'],
-  ['chats', '💬 گروه‌ها', 'manage_chats'],
-  ['live', '🔴 زنده', 'manage_chats'],
-  ['settings', '⚙️ تنظیمات', 'manage_settings'],
-  ['audit', '📜 گزارش فعالیت', 'view_audit'],
+  ['stats', 'آمار', 'view_audit', ChartColumn],
+  ['reports', 'گزارش‌ها', 'handle_reports', Flag],
+  ['users', 'کاربران', 'manage_users', UsersIcon],
+  ['invites', 'کدهای دعوت', 'manage_invites', Ticket],
+  ['chats', 'گروه‌ها', 'manage_chats', MessagesSquare],
+  ['live', 'زنده', 'manage_chats', Radio],
+  ['settings', 'تنظیمات', 'manage_settings', SettingsIcon],
+  ['audit', 'گزارش فعالیت', 'view_audit', ScrollText],
 ];
 
 export default function Admin({ onClose }) {
@@ -25,9 +27,9 @@ export default function Admin({ onClose }) {
   return (
     <Modal title="پنل مدیریت" onClose={onClose} size="large">
       <div className="tabs scroll">
-        {tabs.map(([key, label]) => (
+        {tabs.map(([key, label, , Icon]) => (
           <button key={key} className={tab === key ? 'active' : ''} onClick={() => setTab(key)}>
-            {label}
+            <Icon size={16} /> {label}
           </button>
         ))}
       </div>
@@ -80,13 +82,17 @@ function Stats() {
     ['رم برنامه', formatSize(s.memory.process)],
     ['بار CPU', `${s.load.map((l) => l.toLocaleString('fa-IR', { maximumFractionDigits: 2 })).join(' / ')} (${toFa(s.cpus)} هسته)`],
     ['مدت روشن بودن', `${toFa(Math.floor(s.uptime / 3600))} ساعت`],
-    ['پردازش ویدیو (ffmpeg)', s.ffmpeg ? '✅ فعال' : '❌ نصب نیست'],
+    ['پردازش ویدیو (ffmpeg)', s.ffmpeg ? 'فعال' : 'نصب نیست'],
     ['گزارش‌های باز', toFa(s.openReports)],
   ];
   const diskLow = s.disk && s.disk.free / s.disk.total < 0.1;
   return (
     <>
-      {diskLow && <div className="error">⚠️ فضای دیسک کمتر از ۱۰٪ است!</div>}
+      {diskLow && (
+        <div className="error with-icon">
+          <TriangleAlert size={18} /> فضای دیسک کمتر از ۱۰٪ است!
+        </div>
+      )}
       <div className="stat-grid">
         {cards.map(([label, value]) => (
           <div key={label} className="stat">
@@ -126,6 +132,9 @@ function Users() {
   return (
     <>
       <input placeholder="جستجوی کاربر…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <p className="hint with-icon">
+        <SlidersHorizontal size={15} /> روی هر کاربر بزنید تا نقش، حداکثر حجم آپلود، سهمیه، اجازه تماس و استریمش را تنظیم کنید.
+      </p>
       <ul className="user-list">
         {data?.users.map((u) => (
           <li key={u.id} className="member">
@@ -134,6 +143,7 @@ function Users() {
               <span className="grow">
                 <b>
                   {u.displayName} {u.banned && <span className="tag danger">مسدود</span>}
+                  {Object.keys(u.overrides || {}).length > 0 && <span className="tag">محدودیت سفارشی</span>}
                 </b>
                 <small dir="ltr">@{u.username}</small>
               </span>
@@ -269,7 +279,7 @@ function Chats({ onClose }) {
         <li key={c.id} className="row-item">
           <span className="grow">
             <b>
-              {c.type === 'channel' ? '📢 ' : '👥 '}
+              {c.type === 'channel' ? <Megaphone size={15} /> : c.type === 'voice' ? <Volume2 size={15} /> : <UsersIcon size={15} />}{' '}
               {c.title}
             </b>
             <small>
@@ -389,7 +399,11 @@ function Reports() {
           بسته‌شده
         </button>
       </div>
-      {data?.reports.length === 0 && <p className="muted pad">گزارشی وجود ندارد 🎉</p>}
+      {data?.reports.length === 0 && (
+        <p className="muted pad with-icon">
+          گزارشی وجود ندارد <EmojiImg ch="🎉" size={22} />
+        </p>
+      )}
       <ul className="audit">
         {data?.reports.map((r) => (
           <li key={r.id} className="report">

@@ -3,6 +3,7 @@ import { fileUrl } from '../api';
 import { useStore } from '../store';
 import { formatSize, formatClock, decodeWaveform } from '../util';
 import { startDownload, cancelDownload } from '../download';
+import { Play, Pause, Download, X, Image as ImageIcon } from 'lucide-react';
 
 // Only one voice note / video plays at a time.
 let current = null;
@@ -40,7 +41,7 @@ export function VoicePlayer({ file, mine }) {
   return (
     <div className={`voice-player ${mine ? 'mine' : ''}`}>
       <button className="play-btn" onClick={toggle} aria-label={playing ? 'توقف' : 'پخش'}>
-        {playing ? '❚❚' : '▶'}
+        {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
       </button>
       <div className="voice-body">
         <div className="wave" dir="ltr" onClick={seek}>
@@ -87,7 +88,9 @@ export function ImageMessage({ file }) {
   if (!show) {
     return (
       <button className="media media-placeholder" style={{ aspectRatio: ratio || '4 / 3' }} onClick={() => setShow(true)}>
-        <span>🖼 نمایش عکس</span>
+        <span className="with-icon">
+          <ImageIcon size={18} /> نمایش عکس
+        </span>
         <small>{formatSize(file.size)}</small>
       </button>
     );
@@ -140,7 +143,9 @@ export function VideoMessage({ file }) {
         onKeyDown={(e) => e.key === 'Enter' && setStarted(true)}
       >
         {file.thumb && !dataSaver && <img src={`${fileUrl(file.id)}?thumb=1`} alt="" loading="lazy" />}
-        <span className="play-overlay">▶</span>
+        <span className="play-overlay">
+          <Play size={26} fill="currentColor" />
+        </span>
         <small className="video-info">
           {file.duration ? formatClock(file.duration) + ' · ' : ''}
           {formatSize(current?.size)}
@@ -210,7 +215,7 @@ function Ring({ progress }) {
   );
 }
 
-// ⬇ when idle; progress ring with ✕ (tap to cancel) while downloading.
+// Download icon when idle; progress ring with X (tap to cancel) while downloading.
 export function DownloadButton({ fileId, name, variant, className = '' }) {
   const key = dlKey(fileId, variant);
   const dl = useStore((s) => s.downloads[key]);
@@ -222,7 +227,7 @@ export function DownloadButton({ fileId, name, variant, className = '' }) {
   return (
     <button className={`dl-btn ${dl ? 'active' : ''} ${className}`} onClick={onClick} aria-label={dl ? 'لغو دانلود' : 'دانلود'} title={dl ? 'لغو دانلود' : 'دانلود'}>
       {dl && <Ring progress={dl.progress} />}
-      <span>{dl ? '✕' : '⬇'}</span>
+      <span className="dl-icon">{dl ? <X size={16} /> : <Download size={18} />}</span>
     </button>
   );
 }
@@ -235,7 +240,7 @@ export function FileCard({ file }) {
     <div className="file-card" role="button" tabIndex={0} onClick={start} onKeyDown={(e) => e.key === 'Enter' && start()}>
       <span className={`file-icon ${dl ? 'active' : ''}`}>
         {dl && <Ring progress={dl.progress} />}
-        <span>{dl ? '✕' : '⬇'}</span>
+        <span className="dl-icon">{dl ? <X size={16} /> : <Download size={18} />}</span>
       </span>
       <span>
         <span className="file-name" dir="auto">

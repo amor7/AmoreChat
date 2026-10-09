@@ -6,6 +6,9 @@ import Avatar from './Avatar';
 import Message from './Message';
 import Composer from './Composer';
 import { VoiceBanner } from './Voice';
+import { EmojiImg, EmojiPicker, RichText } from './Emoji';
+import PreviewIcon from './PreviewIcon';
+import { ArrowRight, ChevronDown, Timer, Phone, Video, Mic, Search, Pin, PinOff, Reply, Forward, Copy, Pencil, Flag, Trash2, Plus } from 'lucide-react';
 import { startCall, joinVoice } from '../rtc';
 
 export default function ChatView({ chatId }) {
@@ -213,7 +216,8 @@ export default function ChatView({ chatId }) {
       </div>
       {(showDown || hasNewer) && (
         <button className="to-bottom" onClick={toBottom} aria-label="رفتن به آخرین پیام">
-          ↓{chat.unread > 0 && <span className="badge">{toFa(chat.unread)}</span>}
+          <ChevronDown size={22} />
+          {chat.unread > 0 && <span className="badge">{toFa(chat.unread)}</span>}
         </button>
       )}
       {menu && (
@@ -264,13 +268,13 @@ function ChatHeader({ chat }) {
   return (
     <header className="chat-head">
       <a className="icon-btn back" href="#/" aria-label="بازگشت">
-        →
+        <ArrowRight size={22} />
       </a>
       <button className="chat-head-info" onClick={() => chat.type !== 'saved' && openModal('chatInfo', { chatId: chat.id })}>
         <Avatar id={chat.id} name={chat.title} file={chat.avatar} saved={chat.type === 'saved'} size={40} />
         <div>
           <div className="title">
-            {chat.title} {chat.autoDelete > 0 && <span title="حذف خودکار فعال است">⏱</span>}
+            {chat.title} {chat.autoDelete > 0 && <Timer size={14} className="inline-icon" aria-label="حذف خودکار فعال است" />}
           </div>
           <div className={`subtitle ${typers.length || (chat.type === 'dm' && online) ? 'accent' : ''}`}>{subtitle}</div>
         </div>
@@ -278,20 +282,20 @@ function ChatHeader({ chat }) {
       {rtcOn && chat.type === 'dm' && chat.peer && canCall && (
         <>
           <button className="icon-btn" aria-label="تماس صوتی" title="تماس صوتی" onClick={() => call(false)}>
-            📞
+            <Phone size={20} />
           </button>
           <button className="icon-btn" aria-label="تماس تصویری" title="تماس تصویری" onClick={() => call(true)}>
-            🎥
+            <Video size={21} />
           </button>
         </>
       )}
       {rtcOn && (chat.type === 'group' || chat.type === 'channel') && !inRoom && !roomActive && (
         <button className="icon-btn" aria-label="شروع ویس‌چت" title="شروع ویس‌چت" onClick={() => joinVoice(chat.id).catch((e) => showToast(e.message))}>
-          🎙
+          <Mic size={20} />
         </button>
       )}
       <button className="icon-btn" aria-label="جستجو در این گفتگو" onClick={() => openModal('search', { chatId: chat.id })}>
-        🔍
+        <Search size={20} />
       </button>
     </header>
   );
@@ -318,10 +322,15 @@ function PinnedBar({ chat, messages, onJump }) {
   const top = pinned[0];
   return (
     <button className="pinned-bar" onClick={() => onJump(top.id)}>
-      <span className="pin-icon">📌</span>
+      <span className="pin-icon">
+        <Pin size={18} />
+      </span>
       <span>
         <b>پیام سنجاق‌شده{pinned.length > 1 ? ` (${toFa(pinned.length)})` : ''}</b>
-        <span className="preview">{messagePreview(top)}</span>
+        <span className="preview">
+          <PreviewIcon m={top} />
+              <RichText text={messagePreview(top)} size={16} />
+        </span>
       </span>
     </button>
   );
@@ -339,7 +348,18 @@ function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, onAction, on
     });
   }, [x, y]);
 
+  const [picker, setPicker] = useState(false);
   const deleted = m.type === 'deleted';
+  if (picker) {
+    return (
+      <>
+        <div className="menu-backdrop" onClick={onClose} />
+        <div className="menu floating picker-host" ref={ref} style={pos}>
+          <EmojiPicker onPick={(ch) => onAction('react', ch)} onClose={onClose} />
+        </div>
+      </>
+    );
+  }
   return (
     <>
       <div className="menu-backdrop" onClick={onClose} onContextMenu={(e) => (e.preventDefault(), onClose())} />
@@ -347,21 +367,48 @@ function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, onAction, on
         {!deleted && (
           <div className="quick-reactions">
             {QUICK_REACTIONS.map((e) => (
-              <button key={e} onClick={() => onAction('react', e)}>
-                {e}
+              <button key={e} onClick={() => onAction('react', e)} aria-label={e}>
+                <EmojiImg ch={e} size={28} />
               </button>
             ))}
+            <button className="more-reactions" onClick={() => setPicker(true)} aria-label="ایموجی‌های بیشتر">
+              <Plus size={20} />
+            </button>
           </div>
         )}
-        {!deleted && <button onClick={() => onAction('reply')}>↩️ پاسخ</button>}
-        {!deleted && <button onClick={() => onAction('forward')}>↪️ فوروارد</button>}
-        {!deleted && m.text && <button onClick={() => onAction('copy')}>📋 کپی متن</button>}
-        {!deleted && mine && <button onClick={() => onAction('edit')}>✏️ ویرایش</button>}
-        {!deleted && canPin && <button onClick={() => onAction(m.pinned ? 'unpin' : 'pin')}>📌 {m.pinned ? 'برداشتن سنجاق' : 'سنجاق کردن'}</button>}
-        {!deleted && canReport && <button onClick={() => onAction('report')}>🚩 گزارش</button>}
+        {!deleted && (
+          <button onClick={() => onAction('reply')}>
+            <Reply size={17} /> پاسخ
+          </button>
+        )}
+        {!deleted && (
+          <button onClick={() => onAction('forward')}>
+            <Forward size={17} /> فوروارد
+          </button>
+        )}
+        {!deleted && m.text && (
+          <button onClick={() => onAction('copy')}>
+            <Copy size={17} /> کپی متن
+          </button>
+        )}
+        {!deleted && mine && (
+          <button onClick={() => onAction('edit')}>
+            <Pencil size={17} /> ویرایش
+          </button>
+        )}
+        {!deleted && canPin && (
+          <button onClick={() => onAction(m.pinned ? 'unpin' : 'pin')}>
+            {m.pinned ? <PinOff size={17} /> : <Pin size={17} />} {m.pinned ? 'برداشتن سنجاق' : 'سنجاق کردن'}
+          </button>
+        )}
+        {!deleted && canReport && (
+          <button onClick={() => onAction('report')}>
+            <Flag size={17} /> گزارش
+          </button>
+        )}
         {!deleted && canDelete && (
           <button className="danger" onClick={() => onAction('delete')}>
-            🗑 حذف
+            <Trash2 size={17} /> حذف
           </button>
         )}
       </div>

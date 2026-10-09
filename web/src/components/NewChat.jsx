@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
 import { Modal, UserSearch } from './Modals';
+import { X } from 'lucide-react';
 
 const TAB_LABEL = { group: 'گروه', channel: 'کانال', voice: 'کانال صوتی' };
 
@@ -93,7 +94,7 @@ export default function NewChat({ onClose }) {
               <span key={m.id} className="chip">
                 {m.displayName}
                 <button type="button" onClick={() => setMembers(members.filter((x) => x.id !== m.id))}>
-                  ✕
+                  <X size={14} />
                 </button>
               </span>
             ))}

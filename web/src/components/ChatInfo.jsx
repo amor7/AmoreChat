@@ -15,6 +15,7 @@ import {
 } from '../util';
 import { Modal, UserSearch } from './Modals';
 import Avatar from './Avatar';
+import { Camera, Settings, Link, UserPlus, VolumeX, MessageCircle, Timer } from 'lucide-react';
 
 const MUTE_OPTIONS = [
   ['۱ ساعت', 3600e3],
@@ -144,7 +145,9 @@ function InfoHeader({ chat, canEdit }) {
       {canEdit ? (
         <button className="avatar-edit" onClick={() => fileRef.current.click()} aria-label="تغییر عکس">
           <Avatar id={chat.id} name={chat.title} file={chat.avatar} size={72} />
-          <span>📷</span>
+          <span>
+            <Camera size={15} />
+          </span>
         </button>
       ) : (
         <Avatar id={chat.id} name={chat.title} file={chat.avatar} size={72} />
@@ -189,7 +192,7 @@ function EditChat({ chat }) {
   if (!open)
     return (
       <button className="btn wide" onClick={() => setOpen(true)}>
-        ⚙️ ویرایش و تنظیمات
+        <Settings size={17} /> ویرایش و تنظیمات
       </button>
     );
   return (
@@ -264,7 +267,9 @@ function InviteLinks({ chatId }) {
 
   return (
     <details className="boxed">
-      <summary>🔗 لینک‌های دعوت</summary>
+      <summary className="with-icon">
+        <Link size={16} /> لینک‌های دعوت
+      </summary>
       <div className="inline-form">
         <input type="number" min="1" placeholder="حداکثر استفاده" value={opts.maxUses} onChange={(e) => setOpts({ ...opts, maxUses: e.target.value })} />
         <input type="number" min="1" placeholder="اعتبار (ساعت)" value={opts.expiresInHours} onChange={(e) => setOpts({ ...opts, expiresInHours: e.target.value })} />
@@ -302,7 +307,7 @@ function AddMembers({ chatId, members, onDone }) {
   if (!open)
     return (
       <button className="btn wide" onClick={() => setOpen(true)}>
-        ➕ افزودن عضو
+        <UserPlus size={17} /> افزودن عضو
       </button>
     );
   return (
@@ -350,7 +355,7 @@ function MemberRow({ m, chat, me, isOwner, run }) {
           </b>
           <small>{online ? 'آنلاین' : formatLastSeen(m.lastSeen)}</small>
         </span>
-        {muted && <span title="بی‌صدا">🔇</span>}
+        {muted && <VolumeX size={16} aria-label="بی‌صدا" />}
         {m.chatRole !== 'member' && <span className="role-badge">{ROLE_LABELS[m.chatRole]}</span>}
       </button>
       {open && (
@@ -365,7 +370,7 @@ function MemberRow({ m, chat, me, isOwner, run }) {
                 location.hash = `#/chat/${dm.id}`;
               }}
             >
-              💬 پیام خصوصی
+              <MessageCircle size={15} /> پیام خصوصی
             </button>
           )}
           {hasActions && isOwner && m.chatRole !== 'owner' && (
@@ -397,7 +402,9 @@ function MemberRow({ m, chat, me, isOwner, run }) {
           )}
           {hasActions && outranks && can('mute_members') && chat.type === 'group' && (
             <div className="inline-form">
-              <span>🔇 بی‌صدا:</span>
+              <span className="with-icon">
+                <VolumeX size={15} /> بی‌صدا:
+              </span>
               {MUTE_OPTIONS.map(([label, ms]) => (
                 <button key={label} className="btn sm" onClick={() => patch({ mutedUntil: Date.now() + ms }, 'بی‌صدا شد')}>
                   {label}
@@ -433,7 +440,9 @@ function AutoDeleteSelect({ value, onChange }) {
   const known = AUTO_DELETE_OPTIONS.some(([v]) => v === value);
   return (
     <label>
-      ⏱ حذف خودکار پیام‌های جدید
+      <span className="with-icon">
+        <Timer size={15} /> حذف خودکار پیام‌های جدید
+      </span>
       <select value={value} onChange={(e) => onChange(Number(e.target.value))}>
         {AUTO_DELETE_OPTIONS.map(([v, label]) => (
           <option key={v} value={v}>

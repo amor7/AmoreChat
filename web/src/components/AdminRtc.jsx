@@ -2,6 +2,51 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
 import Avatar from './Avatar';
+import { Mic, MicOff, Video, VideoOff, LogOut, Phone } from 'lucide-react';
+
+const formatMb = (mb) => (mb >= 1024 ? `${+(mb / 1024).toFixed(1)} گیگابایت` : `${mb} مگابایت`);
+
+// A size in MB stored as a number, edited in MB or GB.
+function SizeField({ label, value, onChange, presets, min = 0 }) {
+  const [unit, setUnit] = useState(value != null && value >= 1024 && value % 1024 === 0 ? 'GB' : 'MB');
+  const factor = unit === 'GB' ? 1024 : 1;
+  return (
+    <div className="size-field">
+      <span className="size-label">{label}</span>
+      <div className="size-row">
+        <input
+          type="number"
+          min={min}
+          step="any"
+          placeholder="پیش‌فرض سرور"
+          value={value == null ? '' : +(value / factor).toFixed(2)}
+          onChange={(e) => onChange(e.target.value === '' ? undefined : Math.round(Number(e.target.value) * factor))}
+        />
+        <select value={unit} onChange={(e) => setUnit(e.target.value)} aria-label="واحد">
+          <option value="MB">مگابایت</option>
+          <option value="GB">گیگابایت</option>
+        </select>
+      </div>
+      {presets && (
+        <div className="chips">
+          {presets.map(([mb, text]) => (
+            <button
+              key={text}
+              type="button"
+              className={`chip-btn ${value === mb ? 'active' : ''}`}
+              onClick={() => {
+                if (mb >= 1024) setUnit('GB');
+                onChange(mb);
+              }}
+            >
+              {text}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Per-user overrides; empty = site default.
 export function LimitsEditor({ u, run }) {
@@ -9,23 +54,41 @@ export function LimitsEditor({ u, run }) {
   const tri = (key) => (o[key] === true ? 'yes' : o[key] === false ? 'no' : '');
   const setTri = (key, v) => setO({ ...o, [key]: v === 'yes' ? true : v === 'no' ? false : undefined });
   const num = (key) => (e) => setO({ ...o, [key]: e.target.value === '' ? undefined : Number(e.target.value) });
+  const setVal = (key) => (v) => setO({ ...o, [key]: v });
   const L = u.limits || {};
   const save = (body, ok) => run(() => api('PATCH', `/admin/users/${u.id}/limits`, body), ok);
   return (
-    <div className="perm-box">
+    <div className="perm-box limits-box">
       <b>محدودیت‌ها و دسترسی‌های این کاربر</b>
       <small className="muted">خالی یا «پیش‌فرض سرور» یعنی همان تنظیم کلی سرور</small>
-      <small>
-        الان: فایل تا {L.uploadMb} مگابایت · تماس {L.canCall ? '✅' : '⛔'} · استریم {L.canStream ? `✅ تا ${L.streamQuality}p` : '⛔'}
-      </small>
-      <label>
-        حداکثر حجم هر فایل (مگابایت)
-        <input type="number" min="1" placeholder="پیش‌فرض سرور" value={o.upload_mb ?? ''} onChange={num('upload_mb')} />
-      </label>
-      <label>
-        سهمیه کل فضا (مگابایت، ۰ = نامحدود)
-        <input type="number" min="0" placeholder="پیش‌فرض" value={o.quota_mb ?? ''} onChange={num('quota_mb')} />
-      </label>
+      <div className="limits-now">
+        <span>الان:</span>
+        <span className="pill">فایل تا {formatMb(L.uploadMb)}</span>
+        <span className={`pill ${L.canCall ? 'ok' : 'no'}`}>تماس {L.canCall ? 'مجاز' : 'ممنوع'}</span>
+        <span className={`pill ${L.canStream ? 'ok' : 'no'}`}>استریم {L.canStream ? `تا ${L.streamQuality}p` : 'ممنوع'}</span>
+      </div>
+      <SizeField
+        label="حداکثر حجم هر فایل"
+        value={o.upload_mb}
+        onChange={setVal('upload_mb')}
+        min={1}
+        presets={[
+          [100, '۱۰۰ مگ'],
+          [1024, '۱ گیگ'],
+          [5120, '۵ گیگ'],
+          [10240, '۱۰ گیگ'],
+        ]}
+      />
+      <SizeField
+        label="سهمیه کل فضای کاربر (۰ = نامحدود)"
+        value={o.quota_mb}
+        onChange={setVal('quota_mb')}
+        presets={[
+          [0, 'نامحدود'],
+          [5120, '۵ گیگ'],
+          [20480, '۲۰ گیگ'],
+        ]}
+      />
       <label>
         تماس صوتی/تصویری
         <select value={tri('can_call')} onChange={(e) => setTri('can_call', e.target.value)}>
@@ -95,7 +158,9 @@ export function Live() {
   if (!data.enabled) return <p className="muted pad">تماس و ویس‌چت روی این سرور فعال نیست (LiveKit تنظیم نشده).</p>;
   return (
     <>
-      <h4>🎙 ویس‌چت‌های فعال</h4>
+      <h4 className="with-icon">
+        <Mic size={18} /> ویس‌چت‌های فعال
+      </h4>
       {!data.rooms.length && <p className="muted">هیچ ویس‌چتی فعال نیست.</p>}
       {data.rooms.map((r) => (
         <div key={r.chatId} className="boxed">
@@ -112,27 +177,29 @@ export function Live() {
             <div key={p.userId} className="row-item">
               <Avatar id={p.userId} name={p.name} file={p.avatar} size={28} />
               <span className="grow">
-                {p.name} {p.screen && <span className="live-badge">LIVE</span>} {p.camera && '📷'}
+                {p.name} {p.screen && <span className="live-badge">LIVE</span>} {p.camera && <Video size={14} />}
               </span>
               <button className="btn sm" title="بستن میکروفون" onClick={() => moderate(r.chatId, p.userId, 'mute', 'میکروفون بسته شد')}>
-                🔇
+                <MicOff size={16} />
               </button>
               <button className="btn sm" title="توقف استریم" onClick={() => moderate(r.chatId, p.userId, 'stop_stream', 'استریم متوقف شد')}>
-                ⏹
+                <VideoOff size={16} />
               </button>
               <button className="btn sm danger" title="بیرون کردن" onClick={() => moderate(r.chatId, p.userId, 'kick', 'بیرون شد')}>
-                🚪
+                <LogOut size={16} />
               </button>
             </div>
           ))}
         </div>
       ))}
-      <h4>📞 تماس‌های در جریان</h4>
+      <h4 className="with-icon">
+        <Phone size={18} /> تماس‌های در جریان
+      </h4>
       {!data.calls.length && <p className="muted">تماسی در جریان نیست.</p>}
       {data.calls.map((c) => (
         <div key={c.id} className="row-item boxed">
           <span className="grow">
-            {c.video ? '🎥' : '📞'} {c.caller.displayName} ← {c.callee.displayName} · {c.state === 'ringing' ? 'در حال زنگ' : 'در حال مکالمه'}
+            {c.video ? <Video size={15} /> : <Phone size={15} />} {c.caller.displayName} ← {c.callee.displayName} · {c.state === 'ringing' ? 'در حال زنگ' : 'در حال مکالمه'}
           </span>
           <button className="btn sm danger" onClick={() => act(() => api('POST', '/admin/live/end', { callId: c.id }), 'تماس قطع شد')}>
             قطع

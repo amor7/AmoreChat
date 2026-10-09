@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api, upload } from '../api';
 import { useStore } from '../store';
 import { APP_VERSION } from '../update';
+import { Camera, Bell, RefreshCw } from 'lucide-react';
 import { compressImage, formatSize, ROLE_LABELS } from '../util';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
@@ -63,7 +64,9 @@ export default function Profile({ onClose }) {
       <div className="profile-head">
         <button className="avatar-edit" onClick={() => fileRef.current.click()} aria-label="تغییر عکس">
           <Avatar id={me.id} name={me.displayName} file={me.avatar} size={80} />
-          <span>📷</span>
+          <span>
+            <Camera size={15} />
+          </span>
         </button>
         <input ref={fileRef} type="file" accept="image/*" hidden onChange={onAvatar} />
         <div>
@@ -109,7 +112,7 @@ export default function Profile({ onClose }) {
       {notif === 'granted' && <p className="muted">اعلان‌ها فعال هستند (وقتی برنامه باز یا در پس‌زمینه است).</p>}
       {notif === 'default' && (
         <button className="btn" onClick={async () => setNotif(await Notification.requestPermission())}>
-          🔔 فعال کردن اعلان‌ها
+          <Bell size={17} /> فعال کردن اعلان‌ها
         </button>
       )}
       {notif === 'denied' && <p className="muted">اعلان‌ها در تنظیمات مرورگر مسدود شده‌اند.</p>}
@@ -126,7 +129,7 @@ export default function Profile({ onClose }) {
       </p>
       {APP_VERSION !== version && (
         <button className="btn wide" onClick={() => location.reload()}>
-          🔄 نسخه برنامه با سرور فرق دارد؛ به‌روزرسانی
+          <RefreshCw size={17} /> نسخه برنامه با سرور فرق دارد؛ به‌روزرسانی
         </button>
       )}
     </Modal>

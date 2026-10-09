@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store';
 import { formatClock } from '../util';
 import Avatar from './Avatar';
+import { ChevronDown, Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, SwitchCamera, ScreenShare, ScreenShareOff, Volume2 } from 'lucide-react';
 import { setMic, setCamera, flipCamera, hangUp, canShareScreen, startScreenShare, stopScreenShare, enableAudioPlayback } from '../rtc';
 
 const run = (fn) =>
@@ -144,13 +145,13 @@ export default function CallView() {
             minimize();
           }}
         >
-          ⌄
+          <ChevronDown size={24} />
         </button>
         <div className="call-title">
           <b>{peer.displayName}</b>
           <span>
             {status}
-            {remote && !remote.micOn && ' · 🔇'}
+            {remote && !remote.micOn && <MicOff size={14} className="inline-icon" />}
           </span>
         </div>
       </div>
@@ -163,23 +164,23 @@ export default function CallView() {
             run(enableAudioPlayback);
           }}
         >
-          🔊 برای شنیدن صدا بزنید
+          <Volume2 size={18} /> برای شنیدن صدا بزنید
         </button>
       )}
 
       <div className="call-controls" onClick={(e) => e.stopPropagation()}>
         <button className={`ctl ${rtc.micOn ? '' : 'off'}`} onClick={() => run(() => setMic(!rtc.micOn))} aria-label={rtc.micOn ? 'بستن میکروفون' : 'باز کردن میکروفون'}>
-          {rtc.micOn ? '🎙' : '🔇'}
+          {rtc.micOn ? <Mic size={24} /> : <MicOff size={24} />}
         </button>
         <button className={`ctl ${rtc.camOn ? 'on' : ''}`} onClick={() => run(() => setCamera(!rtc.camOn))} aria-label="دوربین">
-          📷
+          {rtc.camOn ? <VideoIcon size={24} /> : <VideoOff size={24} />}
         </button>
         <button className="ctl hangup" onClick={() => run(hangUp)} aria-label="قطع تماس">
-          📵
+          <PhoneOff size={28} />
         </button>
         {rtc.camOn && isTouch && (
           <button className="ctl" onClick={() => run(flipCamera)} aria-label="تعویض دوربین">
-            🔄
+            <SwitchCamera size={24} />
           </button>
         )}
         {rtc.canStream && canShareScreen() && (
@@ -188,7 +189,7 @@ export default function CallView() {
             onClick={() => run(() => (rtc.screenOn ? stopScreenShare() : startScreenShare({ quality: Math.min(rtc.streamQuality || 720, 720), fps: 15, audio: false })))}
             aria-label="اشتراک صفحه"
           >
-            🖥
+            {rtc.screenOn ? <ScreenShareOff size={24} /> : <ScreenShare size={24} />}
           </button>
         )}
       </div>

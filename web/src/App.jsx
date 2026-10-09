@@ -3,6 +3,8 @@ import { api } from './api';
 import { useStore } from './store';
 import { connectSocket } from './socket';
 import { ensureLatest } from './update';
+import { Megaphone, X } from 'lucide-react';
+import { loadEmoji } from './components/Emoji';
 import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
@@ -72,6 +74,7 @@ function Main() {
       .loadChats()
       .finally(() => setReady(true));
     connectSocket();
+    loadEmoji();
 
     const onHash = () => {
       const { kind, value } = parseHash();
@@ -130,10 +133,10 @@ function EmergencyBanner() {
           useStore.setState({ emergency: null });
         }}
       >
-        📢 {m.text || 'اطلاعیه جدید'}
+        <Megaphone size={18} /> {m.text || 'اطلاعیه جدید'}
       </button>
       <button className="icon-btn" aria-label="بستن" onClick={() => useStore.setState({ emergency: null })}>
-        ✕
+        <X size={18} />
       </button>
     </div>
   );

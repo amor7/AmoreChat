@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { api, upload, CANCELLED } from '../api';
 import { useStore } from '../store';
 import { emitTyping } from '../socket';
+import { EmojiPicker, RichText } from './Emoji';
+import PreviewIcon from './PreviewIcon';
+import { Pencil, Reply, X, Paperclip, SendHorizontal, Mic, FileText, Smile } from 'lucide-react';
 import { postBlockReason, messagePreview, compressImage, imageSize, formatSize, formatClock, toFa, computeWaveform } from '../util';
 
 const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
@@ -15,6 +18,20 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState(null);
   const [recording, setRecording] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+
+  // Insert at the cursor (not just at the end) and keep typing from there.
+  function insertEmoji(ch) {
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? text.length;
+    const next = text.slice(0, start) + ch + text.slice(end);
+    setText(next);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + ch.length, start + ch.length);
+    });
+  }
   const inputRef = useRef(null);
   const fileRef = useRef(null);
 
@@ -91,10 +108,13 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
     <div className="composer-wrap">
       {bar && (
         <div className="composer-bar">
-          <span className="bar-icon">{editing ? '✏️' : '↩️'}</span>
+          <span className="bar-icon">{editing ? <Pencil size={20} /> : <Reply size={20} />}</span>
           <span className="bar-body">
             <b>{editing ? 'ویرایش پیام' : `پاسخ به ${replyTo.sender?.displayName || ''}`}</b>
-            <span className="preview">{messagePreview(bar)}</span>
+            <span className="preview">
+              <PreviewIcon m={bar} />
+              <RichText text={messagePreview(bar)} size={16} />
+            </span>
           </span>
           <button
             className="icon-btn"
@@ -104,14 +124,14 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
               if (editing) setText('');
             }}
           >
-            ✕
+            <X size={20} />
           </button>
         </div>
       )}
       <div className="composer">
         {!editing && (
           <button className="icon-btn" aria-label="پیوست" onClick={() => fileRef.current.click()}>
-            📎
+            <Paperclip size={22} />
           </button>
         )}
         <input
@@ -137,13 +157,19 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
           onKeyDown={onKeyDown}
           onPaste={onPaste}
         />
+        <div className="emoji-anchor">
+          <button className="icon-btn" aria-label="ایموجی" onClick={() => setEmojiOpen((v) => !v)}>
+            <Smile size={22} />
+          </button>
+          {emojiOpen && <EmojiPicker onPick={insertEmoji} onClose={() => setEmojiOpen(false)} />}
+        </div>
         {text.trim() || editing ? (
           <button className="send-btn" aria-label="ارسال" disabled={!text.trim() || busy} onClick={send}>
-            ➤
+            <SendHorizontal size={20} />
           </button>
         ) : (
           <button className="send-btn mic" aria-label="ضبط پیام صوتی" onClick={() => setRecording(true)}>
-            🎤
+            <Mic size={21} />
           </button>
         )}
       </div>
@@ -260,7 +286,7 @@ function VoiceRecorder({ chat, onDone }) {
         <span>{sending ? 'در حال ارسال…' : formatClock(seconds)}</span>
       </div>
       <button className="send-btn" aria-label="ارسال پیام صوتی" onClick={() => finish(true)} disabled={sending}>
-        ➤
+        <SendHorizontal size={20} />
       </button>
     </div>
   );
@@ -331,7 +357,9 @@ function SendFileDialog({ file, chat, onClose }) {
         {isVideo && <video className="send-preview" src={preview} controls muted playsInline />}
         {!isImage && !isVideo && (
           <div className="file-card">
-            <span className="file-icon">📄</span>
+            <span className="file-icon">
+              <FileText size={20} />
+            </span>
             <span>
               <span className="file-name">{file.name}</span>
               <small>{formatSize(file.size)}</small>

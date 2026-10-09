@@ -4,6 +4,9 @@ import { api, fileUrl } from '../api';
 import { toFa, postBlockReason, messagePreview, formatListTime } from '../util';
 import Avatar from './Avatar';
 import { DownloadButton } from './Media';
+import { RichText } from './Emoji';
+import PreviewIcon from './PreviewIcon';
+import { X, Megaphone, Users, Volume2 } from 'lucide-react';
 import NewChat from './NewChat';
 import Profile from './Profile';
 import ChatInfo from './ChatInfo';
@@ -21,7 +24,7 @@ export function Modal({ title, onClose, children, size = '' }) {
         <header className="modal-head">
           <h3>{title}</h3>
           <button className="icon-btn" aria-label="بستن" onClick={onClose}>
-            ✕
+            <X size={20} />
           </button>
         </header>
         <div className="modal-body">{children}</div>
@@ -98,7 +101,7 @@ function Discover({ onClose }) {
             <Avatar id={c.id} name={c.title} file={c.avatar} size={40} />
             <span className="grow">
               <b>
-                {c.type === 'channel' ? '📢 ' : '👥 '}
+                {c.type === 'channel' ? <Megaphone size={15} /> : c.type === 'voice' ? <Volume2 size={15} /> : <Users size={15} />}{' '}
                 {c.title}
               </b>
               <small>
@@ -237,7 +240,10 @@ export function MessageResults({ messages, onPick }) {
                   {m.sender?.displayName}
                   {chat && chat.type !== 'dm' ? ` · ${chat.title}` : ''}
                 </b>
-                <small className="preview">{messagePreview(m)}</small>
+                <small className="preview">
+                  <PreviewIcon m={m} />
+              <RichText text={messagePreview(m)} size={16} />
+                </small>
               </span>
               <small className="muted">{formatListTime(m.createdAt)}</small>
             </button>

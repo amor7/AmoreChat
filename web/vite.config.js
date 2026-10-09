@@ -32,7 +32,8 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // webp/json: the emoji sprite, so emoji work offline too.
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2,webp,json}'],
         importScripts: ['sw-extra.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io/, /^\/healthz/, /^\/rtc/],

@@ -72,6 +72,8 @@ try {
   await A.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
   await clickText(A, '.voice-banner button', 'شروع ویس‌چت');
   await waitFor(A, () => document.querySelector('.voice-bar .dot.connected'), null, 'owner connected');
+  // Bob is on a phone for the room part.
+  await B.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
   await B.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
   await clickText(B, '.voice-banner button', 'پیوستن');
   await waitFor(B, () => document.querySelector('.voice-bar .dot.connected'), null, 'bob connected');
@@ -79,20 +81,30 @@ try {
   step('presence via webhook shows both in the sidebar');
   for (const p of [A, B]) await waitFor(p, () => document.querySelectorAll('.vc-user').length === 2, null, 'two names under Lobby');
 
-  step('media: each side sees two tiles and receives remote audio');
+  step('media: two people = WhatsApp style (other big, me small), remote audio flows');
   for (const p of [A, B]) {
     await p.click('.vbar-info');
-    await waitFor(p, () => document.querySelectorAll('.room-view .tile:not(.waiting)').length === 2, null, 'two tiles');
+    await waitFor(p, () => document.querySelectorAll('.room-view .mtile.person').length === 2, null, 'two person tiles');
+    await waitFor(p, () => document.querySelector('.room-stage.spot.pip-mode .spot-main .mtile.person'), null, 'duo layout');
     await waitFor(p, () => document.querySelectorAll('audio').length >= 1, null, 'remote audio element');
   }
-  await waitFor(A, () => document.querySelector('.room-view .tile.speaking'), null, 'speaking indicator', 15000).then(
+  await waitFor(A, () => document.querySelector('.room-view .mtile.speaking'), null, 'speaking indicator', 15000).then(
     () => console.log('  speaking indicator works'),
     () => console.log('  (speaking indicator not seen; fake audio may be too quiet)'),
   );
 
   step('camera: bob turns on the camera, owner receives video frames');
   await B.click('.room-view .ctl[title="دوربین"]');
-  await waitFor(A, () => [...document.querySelectorAll('.stream-tile video')].some((v) => v.videoWidth > 0), null, 'owner sees bob camera');
+  await waitFor(A, () => document.querySelector('.spot-main .mtile video')?.videoWidth > 0, null, 'owner sees bob camera big');
+  await A.screenshot({ path: 'shot-room-duo.png' });
+  await B.screenshot({ path: 'shot-room-mobile.png' });
+
+  step('tap the big tile: everyone in a grid; tap a tile: only that one big');
+  await A.click('.spot-main .mtile');
+  await waitFor(A, () => document.querySelectorAll('.room-stage.grid .meet-grid .mtile').length === 2, null, 'grid of everyone');
+  await A.screenshot({ path: 'shot-room-grid.png' });
+  await A.$eval('.meet-grid .mtile.has-video', (els) => els[0].click());
+  await waitFor(A, () => document.querySelector('.room-stage.spot .spot-main .mtile.has-video'), null, 'spotlight again');
   await B.click('.room-view .ctl[title="دوربین"]');
 
   step('moderation through the LiveKit API: mute then kick bob');
@@ -102,7 +114,8 @@ try {
   r = await owner.call('POST', `/api/rtc/${lobby}/moderate`, { userId: bobId, action: 'kick' });
   assert.equal(r.status, 200, JSON.stringify(r));
   await waitFor(B, () => !document.querySelector('.room-view') && !document.querySelector('.voice-bar'), null, 'bob removed from room');
-  await waitFor(A, () => document.querySelectorAll('.room-view .tile:not(.waiting)').length === 1, null, 'owner sees bob gone');
+  await waitFor(A, () => document.querySelectorAll('.room-view .mtile.person').length === 1, null, 'owner sees bob gone');
+  await B.setViewport({ width: 1200, height: 800 });
   await waitFor(A, () => document.querySelectorAll('.vc-user').length === 1, null, 'sidebar updated');
   await A.click('.room-view .ctl.hangup');
   await waitFor(A, () => !document.querySelector('.voice-bar') && !document.querySelector('.room-view'), null, 'owner left');
@@ -147,9 +160,11 @@ try {
   await B.click('.vbar-info');
   await waitFor(B, () => document.querySelector('.watch-btn'), null, '"watch stream" button (not auto-subscribed)');
   await B.click('.watch-btn');
-  await waitFor(B, () => [...document.querySelectorAll('.stream-tile video')].some((v) => v.videoWidth > 0), null, 'bob receives screen frames');
+  await waitFor(B, () => document.querySelector('.spot-main .mtile.screen video')?.videoWidth > 0, null, 'watched stream shown big');
+  await waitFor(B, () => document.querySelectorAll('.filmstrip .mtile').length === 2, null, 'people in the side strip');
+  await B.screenshot({ path: 'shot-room-stream.png' });
   await A.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
-  await waitFor(B, () => !document.querySelector('.stream-tile'), null, 'stream ends for viewer');
+  await waitFor(B, () => !document.querySelector('.mtile.screen'), null, 'stream ends for viewer');
 
   console.log('\nRTC E2E TEST PASSED');
 } finally {

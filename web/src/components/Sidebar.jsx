@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MessageResults, openMessage } from './Modals';
 import { VoiceChannels } from './Voice';
+import { RichText } from './Emoji';
+import PreviewIcon from './PreviewIcon';
+import { Menu, SquarePen, UserRound, Compass, Shield, LogOut, Users, Megaphone, Volume2 } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api';
 import { disconnectSocket } from '../socket';
 import { formatListTime, messagePreview, toFa, hasSitePerm } from '../util';
 import Avatar from './Avatar';
 
-const TYPE_ICON = { group: '👥 ', channel: '📢 ' };
+const TYPE_ICON = { group: Users, channel: Megaphone, voice: Volume2 };
+
+function TypeIcon({ type }) {
+  const Icon = TYPE_ICON[type];
+  return Icon ? <Icon size={15} className="type-icon" /> : null;
+}
 
 export default function Sidebar() {
   const chats = useStore((s) => s.chats);
@@ -65,7 +73,7 @@ export default function Sidebar() {
     <aside className="sidebar">
       <header className="sidebar-head">
         <button className="icon-btn" aria-label="منو" onClick={() => setMenu(!menu)}>
-          ☰
+          <Menu size={22} />
         </button>
         <input className="search" placeholder="جستجو" value={query} onChange={(e) => setQuery(e.target.value)} />
         {menu && (
@@ -79,11 +87,11 @@ export default function Sidebar() {
                   <small dir="ltr">@{me.username}</small>
                 </div>
               </div>
-              {item('👤 پروفایل و تنظیمات', () => openModal('profile'))}
-              {item('✏️ گفتگوی جدید', () => openModal('newChat'))}
-              {item('🔎 کاوش گروه‌ها و کانال‌ها', () => openModal('discover'))}
-              {isAdmin && hasAnyAdminPerm(me) && item('🛡 پنل مدیریت', () => openModal('admin'))}
-              {item('🚪 خروج', logout)}
+              {item(<><UserRound size={18} /> پروفایل و تنظیمات</>, () => openModal('profile'))}
+              {item(<><SquarePen size={18} /> گفتگوی جدید</>, () => openModal('newChat'))}
+              {item(<><Compass size={18} /> کاوش گروه‌ها و کانال‌ها</>, () => openModal('discover'))}
+              {isAdmin && hasAnyAdminPerm(me) && item(<><Shield size={18} /> پنل مدیریت</>, () => openModal('admin'))}
+              {item(<><LogOut size={18} /> خروج</>, logout)}
             </div>
           </>
         )}
@@ -105,7 +113,7 @@ export default function Sidebar() {
                 <div className="chat-item-body">
                   <div className="row">
                     <span className="title">
-                      {TYPE_ICON[c.type] || ''}
+                      <TypeIcon type={c.type} />
                       {c.title}
                     </span>
                     {last && <span className="time">{formatListTime(last.createdAt)}</span>}
@@ -113,7 +121,8 @@ export default function Sidebar() {
                   <div className="row">
                     <span className="preview">
                       {sender}
-                      {messagePreview(last)}
+                      <PreviewIcon m={last} />
+                      <RichText text={messagePreview(last)} size={16} />
                     </span>
                     {c.unread > 0 && <span className="badge">{toFa(c.unread)}</span>}
                   </div>
@@ -131,7 +140,7 @@ export default function Sidebar() {
         )}
       </ul>
       <button className="fab" aria-label="گفتگوی جدید" onClick={() => openModal('newChat')}>
-        ✏️
+        <SquarePen size={24} />
       </button>
     </aside>
   );
