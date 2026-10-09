@@ -118,20 +118,24 @@ try {
   await waitFor(B, () => !document.querySelector('.room-view'), null, 'call closed for bob');
   await waitFor(B, () => document.querySelector('.call-log'), null, 'call log message');
 
-  step('screen share (best effort: depends on headless capture support)');
+  step('streaming: owner shares the screen, bob sees LIVE and watches it');
   await A.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
   await clickText(A, '.voice-banner button', 'شروع ویس‌چت');
   await waitFor(A, () => document.querySelector('.voice-bar .dot.connected'), null, 'owner connected again');
-  const shared = await A.evaluate(async () => {
-    try {
-      const s = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      s.getTracks().forEach((t) => t.stop());
-      return true;
-    } catch (e) {
-      return e.name;
-    }
-  });
-  console.log(`  getDisplayMedia in headless Chrome: ${shared}`);
+  await A.click('.vbar-info');
+  await A.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
+  await clickText(A, '.modal .btn.primary', 'شروع');
+  await waitFor(A, () => document.querySelector('.room-view .ctl.on[title="اشتراک صفحه (استریم)"]'), null, 'owner is sharing');
+  await B.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
+  await waitFor(B, () => document.querySelector('.vc-user .live-badge'), null, 'LIVE badge in sidebar');
+  await clickText(B, '.voice-banner button', 'پیوستن');
+  await waitFor(B, () => document.querySelector('.voice-bar .dot.connected'), null, 'bob connected');
+  await B.click('.vbar-info');
+  await waitFor(B, () => document.querySelector('.watch-btn'), null, '"watch stream" button (not auto-subscribed)');
+  await B.click('.watch-btn');
+  await waitFor(B, () => [...document.querySelectorAll('.stream-tile video')].some((v) => v.videoWidth > 0), null, 'bob receives screen frames');
+  await A.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
+  await waitFor(B, () => !document.querySelector('.stream-tile'), null, 'stream ends for viewer');
 
   console.log('\nRTC E2E TEST PASSED');
 } finally {

@@ -312,8 +312,9 @@ export async function hangUp() {
   const call = st().call;
   stopRing();
   useStore.setState({ call: null });
-  await leave();
+  // Tell the server first: leaving the room would otherwise end the call on its own.
   if (call) await api('POST', `/calls/${call.id}/end`).catch(() => {});
+  await leave();
 }
 
 const END_TEXT = { missed: 'تماس بی‌پاسخ ماند', declined: 'تماس رد شد', cancelled: 'تماس لغو شد', ended: 'تماس پایان یافت', busy: 'مخاطب مشغول است' };
