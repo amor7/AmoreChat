@@ -23,6 +23,24 @@ if ! has PUBLIC_IP; then
   fi
 fi
 
+if ! grep -q '^TLS_MODE=' .env; then
+  echo "TLS_MODE=auto" >> .env
+fi
+
+# Caddyfile: older installs have a copy without the TLS_MODE switch. Replace it if it is
+# an unmodified stock copy (only comments differ); keep it if the owner edited it.
+if [ -f Caddyfile ] && ! grep -q 'tls-{\$TLS_MODE' Caddyfile; then
+  stock=$(grep -v '^\s*#' Caddyfile | tr -d ' \t\n')
+  old1=$(printf '{$DOMAIN}{encodezstdgzipreverse_proxyapp:3000}')
+  if [ "$stock" = "$old1" ]; then
+    cp Caddyfile Caddyfile.bak
+    cp deploy/Caddyfile Caddyfile
+    echo ">> Updated Caddyfile (TLS_MODE support). Old one saved as Caddyfile.bak"
+  else
+    echo "!! Your Caddyfile was customised, so it was kept. Compare with deploy/Caddyfile to get TLS_MODE support."
+  fi
+fi
+
 # Open the media ports on ufw if it is active (the provider's cloud firewall must be opened by hand).
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
   for p in 80/tcp 443/tcp 443/udp 7881/tcp 7882/udp 3478/udp; do ufw allow "$p" >/dev/null; done

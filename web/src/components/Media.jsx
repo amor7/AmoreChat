@@ -85,9 +85,12 @@ export function ImageMessage({ file }) {
   const dataSaver = useStore((s) => s.prefs.dataSaver);
   const [show, setShow] = useState(!dataSaver);
   const ratio = file.width && file.height ? `${file.width} / ${file.height}` : undefined;
+  // Portrait photos get narrower instead of being cropped by the max height (420px).
+  const width = file.width && file.height ? Math.min(360, Math.round((420 * file.width) / file.height)) : undefined;
+  const box = { aspectRatio: ratio, width };
   if (!show) {
     return (
-      <button className="media media-placeholder" style={{ aspectRatio: ratio || '4 / 3' }} onClick={() => setShow(true)}>
+      <button className="media media-placeholder" style={{ ...box, aspectRatio: ratio || '4 / 3' }} onClick={() => setShow(true)}>
         <span className="with-icon">
           <ImageIcon size={18} /> نمایش عکس
         </span>
@@ -96,7 +99,7 @@ export function ImageMessage({ file }) {
     );
   }
   return (
-    <button className="media" style={{ aspectRatio: ratio }} onClick={() => openModal('image', { fileId: file.id, name: file.name })}>
+    <button className="media" style={box} onClick={() => openModal('image', { fileId: file.id, name: file.name })}>
       <img src={fileUrl(file.id)} alt="" loading="lazy" />
     </button>
   );

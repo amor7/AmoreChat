@@ -284,9 +284,17 @@ function Search({ chatId, onClose }) {
 }
 
 function ImageViewer({ fileId, name, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
   return (
-    <div className="lightbox" onClick={onClose}>
-      <img src={fileUrl(fileId)} alt="" />
+    <div className="lightbox" onClick={onClose} role="dialog" aria-label="نمایش عکس">
+      <button className="lightbox-close" onClick={onClose} aria-label="بستن">
+        <X size={24} />
+      </button>
+      <img src={fileUrl(fileId)} alt="" onClick={(e) => e.stopPropagation()} />
       <DownloadButton fileId={fileId} name={name || 'image.jpg'} className="lightbox-dl" />
     </div>
   );

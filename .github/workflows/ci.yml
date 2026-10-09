@@ -41,7 +41,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Prepare like install.sh
         run: |
-          printf 'DOMAIN=localhost\nBACKUP_KEEP=14\nLOG_LEVEL=info\n' > .env
+          # Offline mode on a bare IP: the server's own CA, no Let's Encrypt.
+          printf 'DOMAIN=127.0.0.1\nTLS_MODE=internal\nBACKUP_KEEP=14\nLOG_LEVEL=info\n' > .env
           cp deploy/Caddyfile Caddyfile
           mkdir -p data certs && sudo chown -R 1000:1000 data
           sudo bash deploy/ensure-env.sh
@@ -50,10 +51,15 @@ jobs:
         run: docker compose up -d --build
       - name: Check site, media server and the /rtc proxy
         run: |
-          for i in $(seq 1 60); do curl -skf https://localhost/healthz && break; sleep 2; done
-          curl -skf https://localhost/api/config | grep -q '"rtc":true'
+          for i in $(seq 1 60); do curl -skf https://127.0.0.1/healthz && break; sleep 2; done
+          # A device that installed the CA from http://<ip>/ca.crt trusts the site with full verification.
+          curl -sf http://127.0.0.1/ca.crt -o /tmp/ca.crt && grep -q 'BEGIN CERTIFICATE' /tmp/ca.crt
+          curl -sf --cacert /tmp/ca.crt https://127.0.0.1/api/config | grep -q '"rtc":true'
+          curl -sf http://127.0.0.1/ca | grep -q 'نصب گواهی'
+          # Everything else on plain HTTP is redirected to HTTPS.
+          [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1/)" = "308" ]
           # LiveKit answers through the app's /rtc proxy (401 = reached it, token missing).
-          code=$(curl -sk -o /dev/null -w '%{http_code}' https://localhost/rtc/validate)
+          code=$(curl -s --cacert /tmp/ca.crt -o /dev/null -w '%{http_code}' https://127.0.0.1/rtc/validate)
           echo "rtc/validate -> $code"; [ "$code" = "401" ]
           docker compose logs livekit | grep -q 'starting LiveKit server'
           ! docker compose logs livekit | grep -i 'secret is too short'

@@ -901,3 +901,71 @@ select:focus {
     height: 44px;
   }
 }
+
+/* ---------- Desktop review fixes ---------- */
+/* The floating message menu is positioned with left/top inline styles; never let the
+   base .menu rule's inline-start offset stretch it across the screen (RTL). */
+.menu.floating {
+  inset-inline-start: auto;
+  inset-inline-end: auto;
+  right: auto;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 16px));
+}
+.menu,
+.emoji-picker {
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+}
+/* Chip buttons live inside .user-list in the admin panel; keep them chip-sized. */
+.user-list .chips button.chip-btn {
+  display: inline-flex;
+  width: auto;
+  padding: 3px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.user-list .chips button.chip-btn.active {
+  border-color: transparent;
+}
+/* Letterboxed video shows the call/tile background instead of black bars. */
+.call-main[data-fit='contain'],
+.mtile .rtc-video[data-fit='contain'] {
+  background: transparent;
+}
+@media (min-width: 768px) {
+  /* Self-view takes the camera's real shape on desktop. */
+  .call-pip {
+    aspect-ratio: auto;
+    height: auto;
+    max-height: 260px;
+  }
+}
+.lightbox-close {
+  position: absolute;
+  top: 16px;
+  inset-inline-end: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 0;
+  background: rgb(255 255 255 / 0.15);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-close:hover {
+  background: rgb(255 255 255 / 0.28);
+}
+.lightbox img {
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 0.6);
+}
+.user-list .chips button.chip-btn.active,
+.user-list .chips button.chip-btn.active:hover {
+  background: var(--grad);
+  color: #fff;
+}
