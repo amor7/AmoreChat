@@ -34,6 +34,33 @@ jobs:
         if: always()
         run: cat server.log server-rtc.log
 
+  # The production docker-compose stack (app + LiveKit + Caddy), wired the way install.sh does it.
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare like install.sh
+        run: |
+          printf 'DOMAIN=localhost\nBACKUP_KEEP=14\nLOG_LEVEL=info\n' > .env
+          cp deploy/Caddyfile Caddyfile
+          mkdir -p data certs && sudo chown -R 1000:1000 data
+          sudo bash deploy/ensure-env.sh
+          grep -E '^(PUBLIC_IP|LIVEKIT_API_SECRET)=.' .env | sed 's/=.*/=<set>/'
+      - name: Start the stack
+        run: docker compose up -d --build
+      - name: Check site, media server and the /rtc proxy
+        run: |
+          for i in $(seq 1 60); do curl -skf https://localhost/healthz && break; sleep 2; done
+          curl -skf https://localhost/api/config | grep -q '"rtc":true'
+          # LiveKit answers through the app's /rtc proxy (401 = reached it, token missing).
+          code=$(curl -sk -o /dev/null -w '%{http_code}' https://localhost/rtc/validate)
+          echo "rtc/validate -> $code"; [ "$code" = "401" ]
+          docker compose logs livekit | grep -q 'starting LiveKit server'
+          ! docker compose logs livekit | grep -i 'secret is too short'
+      - name: Logs
+        if: always()
+        run: docker compose logs --tail 60
+
   # Real LiveKit + two headless Chromes with fake microphone/camera.
   rtc-e2e:
     runs-on: ubuntu-latest
