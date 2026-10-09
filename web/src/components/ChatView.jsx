@@ -26,6 +26,18 @@ export default function ChatView({ chatId }) {
   const [dragOver, setDragOver] = useState(false);
   const [droppedFile, setDroppedFile] = useState(null);
 
+  // Public voice channels are open to everyone: opening one joins it (like Discord).
+  const publicVoice = useStore((s) => s.voiceChannels.some((c) => c.id === chatId && c.isPublic && !c.isMember));
+  useEffect(() => {
+    if (chat || !publicVoice) return;
+    api('POST', `/chats/${chatId}/join`)
+      .then(({ chat: joined }) => {
+        st().upsertChat(joined);
+        useStore.setState((s) => ({ voiceChannels: s.voiceChannels.map((c) => (c.id === chatId ? { ...c, isMember: true } : c)) }));
+      })
+      .catch((e) => st().showToast(e.message));
+  }, [chatId, !!chat, publicVoice]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!chat) return;
     // A search result may have asked to open this chat at a specific message.
@@ -120,6 +132,7 @@ export default function ChatView({ chatId }) {
   }
 
   if (!chat) {
+    if (publicVoice) return <div className="empty-pane">در حال ورود به کانال…</div>;
     return (
       <div className="empty-pane">
         <p>این گفتگو در دسترس نیست.</p>
