@@ -109,6 +109,7 @@ try {
 
   step('1:1 video call: WhatsApp-style layout, swap, hang up');
   await A.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
+  await B.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
   await B.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
   await A.click('button[aria-label="تماس تصویری"]');
   await waitFor(A, () => document.querySelector('.call-view .call-main'), null, 'caller sees own camera full-screen while ringing');
@@ -119,10 +120,13 @@ try {
     await waitFor(p, () => document.querySelector('.call-main')?.videoWidth > 0 && !document.querySelector('.call-main').classList.contains('mirror'), null, 'remote video full-screen');
     await waitFor(p, () => document.querySelector('.call-pip video'), null, 'own camera in the small box');
   }
+  await B.screenshot({ path: 'shot-call-mobile.png' });
   await B.click('.call-pip');
   await waitFor(B, () => document.querySelector('.call-view.swapped .call-main.mirror'), null, 'tap swaps: own camera big');
+  await B.screenshot({ path: 'shot-call-swapped.png' });
   await B.click('.call-pip');
   await waitFor(B, () => !document.querySelector('.call-view.swapped'), null, 'tap again swaps back');
+  await B.setViewport({ width: 1200, height: 800 });
   await A.$eval('.call-view .ctl.hangup', (b) => b.click());
   await waitFor(B, () => !document.querySelector('.call-view'), null, 'call closed for bob');
   await waitFor(B, () => document.querySelector('.call-log'), null, 'call log message');
