@@ -107,15 +107,24 @@ try {
   await A.click('.room-view .ctl.hangup');
   await waitFor(A, () => !document.querySelector('.voice-bar') && !document.querySelector('.room-view'), null, 'owner left');
 
-  step('1:1 call: owner calls bob, bob answers, owner hangs up');
+  step('1:1 video call: WhatsApp-style layout, swap, hang up');
   await A.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
   await B.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
-  await A.click('button[aria-label="تماس صوتی"]');
+  await A.click('button[aria-label="تماس تصویری"]');
+  await waitFor(A, () => document.querySelector('.call-view .call-main'), null, 'caller sees own camera full-screen while ringing');
   await waitFor(B, () => document.querySelector('.incoming-call'), null, 'incoming call screen');
   await B.click('button[aria-label="پاسخ"]');
-  for (const p of [A, B]) await waitFor(p, () => document.querySelectorAll('.room-view.call .tile:not(.waiting)').length === 2, null, 'both in call');
-  await A.click('.room-view .ctl.hangup');
-  await waitFor(B, () => !document.querySelector('.room-view'), null, 'call closed for bob');
+  for (const p of [A, B]) {
+    await waitFor(p, () => document.querySelector('.call-view[data-remote="1"]'), null, 'other side connected');
+    await waitFor(p, () => document.querySelector('.call-main')?.videoWidth > 0 && !document.querySelector('.call-main').classList.contains('mirror'), null, 'remote video full-screen');
+    await waitFor(p, () => document.querySelector('.call-pip video'), null, 'own camera in the small box');
+  }
+  await B.click('.call-pip');
+  await waitFor(B, () => document.querySelector('.call-view.swapped .call-main.mirror'), null, 'tap swaps: own camera big');
+  await B.click('.call-pip');
+  await waitFor(B, () => !document.querySelector('.call-view.swapped'), null, 'tap again swaps back');
+  await A.$eval('.call-view .ctl.hangup', (b) => b.click());
+  await waitFor(B, () => !document.querySelector('.call-view'), null, 'call closed for bob');
   await waitFor(B, () => document.querySelector('.call-log'), null, 'call log message');
 
   step('streaming: owner shares the screen, bob sees LIVE and watches it');

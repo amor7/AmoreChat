@@ -429,3 +429,163 @@
   font-size: 14px;
   margin-top: 4px;
 }
+
+/* ---------- 1:1 call screen (WhatsApp style) ---------- */
+.call-view {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: radial-gradient(circle at 50% 35%, #1e3a5f, #0b1220 70%);
+  color: #fff;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+.call-main {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+.call-main.contain {
+  object-fit: contain;
+}
+.call-main.mirror,
+.pip-video.mirror {
+  transform: scaleX(-1);
+}
+.call-avatar {
+  position: absolute;
+  top: 34%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  padding: 6px;
+  transition: box-shadow 0.15s;
+}
+.call-avatar.speaking {
+  box-shadow: 0 0 0 6px rgb(34 197 94 / 0.55), 0 0 0 16px rgb(34 197 94 / 0.18);
+}
+.call-top {
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top)) 12px 28px;
+  background: linear-gradient(rgb(0 0 0 / 0.55), transparent);
+  transition: opacity 0.25s;
+}
+.call-top .icon-btn {
+  color: #fff;
+}
+.call-view[data-remote='0'] .call-top,
+.call-view:not(:has(.call-main)) .call-top {
+  background: none;
+}
+.call-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 6px;
+}
+.call-title b {
+  font-size: 18px;
+}
+.call-title span {
+  font-size: 14px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+/* Without video the name sits under the big avatar, centred. */
+.call-view:not(:has(.call-main)) .call-title {
+  position: absolute;
+  top: calc(34% + 90px);
+  left: 0;
+  right: 0;
+  align-items: center;
+  text-align: center;
+}
+.call-view:not(:has(.call-main)) .call-title b {
+  font-size: 24px;
+}
+.call-pip {
+  position: absolute;
+  width: 112px;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.5);
+  border: 2px solid rgb(255 255 255 / 0.25);
+  cursor: pointer;
+  touch-action: none;
+  z-index: 2;
+  transition: top 0.2s, bottom 0.2s, left 0.2s, right 0.2s;
+}
+.call-pip.top-end {
+  top: calc(76px + env(safe-area-inset-top));
+  left: 12px;
+}
+.call-pip.top-start {
+  top: calc(76px + env(safe-area-inset-top));
+  right: 12px;
+}
+.call-pip.bottom-end {
+  bottom: calc(110px + env(safe-area-inset-bottom));
+  left: 12px;
+}
+.call-pip.bottom-start {
+  bottom: calc(110px + env(safe-area-inset-bottom));
+  right: 12px;
+}
+@media (min-width: 768px) {
+  .call-pip {
+    width: 200px;
+    aspect-ratio: 16 / 10;
+  }
+}
+.pip-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.call-controls {
+  position: absolute;
+  bottom: 0;
+  inset-inline: 0;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  padding: 28px 12px calc(22px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.6));
+  transition: opacity 0.25s, transform 0.25s;
+}
+.call-controls .ctl {
+  width: 56px;
+  height: 56px;
+  font-size: 22px;
+}
+.call-controls .ctl.hangup {
+  width: 64px;
+  height: 64px;
+}
+.call-view.hide-controls .call-controls {
+  opacity: 0;
+  transform: translateY(30px);
+  pointer-events: none;
+}
+.call-view.hide-controls .call-top {
+  opacity: 0;
+  pointer-events: none;
+}
+.call-audio-unlock {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+}

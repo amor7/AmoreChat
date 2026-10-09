@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
-import { hasChatPerm, formatClock, toFa } from '../util';
+import { hasChatPerm, toFa } from '../util';
 import Avatar from './Avatar';
+import CallView from './CallView';
 import {
   joinVoice,
   leave,
@@ -28,16 +29,6 @@ const run = (fn) =>
     .catch((e) => useStore.getState().showToast(e.message));
 
 const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
-
-function useElapsed(since) {
-  const [, tick] = useState(0);
-  useEffect(() => {
-    if (!since) return;
-    const t = setInterval(() => tick((n) => n + 1), 1000);
-    return () => clearInterval(t);
-  }, [since]);
-  return since ? (Date.now() - since) / 1000 : 0;
-}
 
 // Attaches a LiveKit video track to a <video>; detaches on unmount.
 function VideoView({ pub, mirror, fit = 'contain' }) {
@@ -255,21 +246,20 @@ function ShareDialog({ onClose }) {
 // ---------- Full view: participants, cameras and streams ----------
 export function RoomView() {
   const rtc = useStore((s) => s.rtc);
-  const call = useStore((s) => s.call);
   const me = useStore((s) => s.me);
   const chat = useStore((s) => (rtc?.chatId ? s.chats[rtc.chatId] : null));
   const [focus, setFocus] = useState(null);
-  const elapsed = useElapsed(call?.answeredAt);
   if (!rtc?.expanded) return null;
+  // 1:1 calls get their own WhatsApp-style screen.
+  if (rtc.kind === 'call') return <CallView />;
 
-  const isCall = rtc.kind === 'call';
   const collapse = () => useStore.setState((s) => ({ rtc: { ...s.rtc, expanded: false } }));
-  const canMod = (perm) => !isCall && chat && hasChatPerm(me, chat, perm);
+  const canMod = (perm) => chat && hasChatPerm(me, chat, perm);
   const streams = rtc.participants.flatMap((p) => [p.screen && { p, pub: p.screen, kind: 'screen' }, p.camera && { p, pub: p.camera, kind: 'camera' }].filter(Boolean));
   const focused = streams.find((s) => `${s.p.identity}:${s.kind}` === focus);
 
   return (
-    <div className={`room-view ${isCall ? 'call' : ''}`}>
+    <div className="room-view">
       <header className="room-head">
         <button className="icon-btn" onClick={collapse} aria-label="کوچک کردن">
           ⌄
@@ -279,7 +269,7 @@ export function RoomView() {
           <small>
             {rtc.state === 'connecting' && 'در حال اتصال…'}
             {rtc.state === 'reconnecting' && 'اتصال قطع شد؛ در حال اتصال دوباره…'}
-            {rtc.state === 'connected' && (isCall ? (call?.state === 'ringing' ? 'در حال زنگ زدن…' : formatClock(elapsed)) : `${toFa(rtc.participants.length)} نفر`)}
+            {rtc.state === 'connected' && `${toFa(rtc.participants.length)} نفر`}
           </small>
         </div>
         {rtc.canSpeak === false && <span className="tag">فقط شنونده</span>}
@@ -309,12 +299,6 @@ export function RoomView() {
         {rtc.participants.map((p) => (
           <ParticipantTile key={p.identity} p={p} chatId={rtc.chatId} canMute={canMod('mute_members')} canKick={canMod('ban_members')} />
         ))}
-        {isCall && rtc.participants.length < 2 && call && (
-          <div className="tile waiting">
-            <Avatar id={call.peer.id} name={call.peer.displayName} file={call.peer.avatar} size={72} />
-            <span>{call.state === 'ringing' ? 'در حال زنگ زدن…' : 'در حال اتصال…'}</span>
-          </div>
-        )}
       </div>
 
       <footer className="room-foot">
