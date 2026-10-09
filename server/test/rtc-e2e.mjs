@@ -126,10 +126,11 @@ try {
   await B.screenshot({ path: 'shot-call-swapped.png' });
   await B.click('.call-pip');
   await waitFor(B, () => !document.querySelector('.call-view.swapped'), null, 'tap again swaps back');
-  await B.setViewport({ width: 1200, height: 800 });
   await A.$eval('.call-view .ctl.hangup', (b) => b.click());
   await waitFor(B, () => !document.querySelector('.call-view'), null, 'call closed for bob');
   await waitFor(B, () => document.querySelector('.call-log'), null, 'call log message');
+  // Switching mobile emulation off reloads the page, so only do it once the call is over.
+  await B.setViewport({ width: 1200, height: 800 });
 
   step('streaming: owner shares the screen, bob sees LIVE and watches it');
   await A.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
