@@ -891,3 +891,13 @@ select:focus {
 .emoji-picker {
   background: var(--panel);
 }
+@media (max-width: 480px) {
+  .room-foot .rtc-controls {
+    gap: 6px;
+    flex-wrap: nowrap;
+  }
+  .room-foot .ctl {
+    width: 44px;
+    height: 44px;
+  }
+}

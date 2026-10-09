@@ -103,8 +103,8 @@ try {
   await A.click('.spot-main .mtile');
   await waitFor(A, () => document.querySelectorAll('.room-stage.grid .meet-grid .mtile').length === 2, null, 'grid of everyone');
   await A.screenshot({ path: 'shot-room-grid.png' });
-  await A.$eval('.meet-grid .mtile.has-video', (els) => els[0].click());
-  await waitFor(A, () => document.querySelector('.room-stage.spot .spot-main .mtile.has-video'), null, 'spotlight again');
+  await A.$$eval('.meet-grid .mtile', (els) => els.find((e) => e.textContent.includes('Bob')).click());
+  await waitFor(A, () => document.querySelector('.room-stage.spot .spot-main .mtile video')?.videoWidth > 0, null, 'Bob alone in the spotlight again');
   await B.click('.room-view .ctl[title="دوربین"]');
 
   step('moderation through the LiveKit API: mute then kick bob');
