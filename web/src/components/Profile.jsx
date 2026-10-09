@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, upload } from '../api';
 import { useStore } from '../store';
+import { APP_VERSION } from '../update';
 import { compressImage, formatSize, ROLE_LABELS } from '../util';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
@@ -120,7 +121,14 @@ export default function Profile({ onClose }) {
         <input type="password" placeholder="رمز جدید (حداقل ۸ کاراکتر)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required minLength={8} dir="ltr" autoComplete="new-password" />
         <button className="btn">تغییر رمز</button>
       </form>
-      <p className="muted center version" dir="ltr">AmoreChat v{version}</p>
+      <p className="muted center version" dir="ltr">
+        AmoreChat app v{APP_VERSION} · server v{version}
+      </p>
+      {APP_VERSION !== version && (
+        <button className="btn wide" onClick={() => location.reload()}>
+          🔄 نسخه برنامه با سرور فرق دارد؛ به‌روزرسانی
+        </button>
+      )}
     </Modal>
   );
 }

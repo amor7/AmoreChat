@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from './api';
 import { useStore } from './store';
 import { connectSocket } from './socket';
+import { ensureLatest } from './update';
 import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
@@ -17,6 +18,7 @@ export default function App() {
   const me = useStore((s) => s.me);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -24,6 +26,12 @@ export default function App() {
         const config = await api('GET', '/config');
         document.title = config.siteName;
         useStore.setState({ config });
+        // Server was updated but this device still runs the cached old app: update first.
+        if (ensureLatest(config.version)) {
+          setError('');
+          setUpdating(true);
+          return;
+        }
         try {
           const { user } = await api('GET', '/auth/me');
           useStore.setState({ me: user });
@@ -37,6 +45,7 @@ export default function App() {
     })();
   }, []);
 
+  if (updating) return <div className="splash">در حال به‌روزرسانی برنامه به نسخه جدید…</div>;
   if (loading) return <div className="splash">در حال بارگذاری…</div>;
   if (error)
     return (

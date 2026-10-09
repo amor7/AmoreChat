@@ -3,6 +3,7 @@ import { useStore } from './store';
 import { api } from './api';
 import { messagePreview } from './util';
 import { callEvents, restoreCall, leave } from './rtc';
+import { ensureLatest } from './update';
 
 let socket = null;
 
@@ -16,6 +17,10 @@ export function connectSocket() {
     useStore.setState({ connected: true });
     // After a reconnect, catch up on whatever we missed.
     if (connectedBefore) {
+      // The server may have been updated while we were disconnected.
+      api('GET', '/config')
+        .then((c) => !st().rtc && ensureLatest(c.version))
+        .catch(() => {});
       st().loadChats().catch(() => {});
       const active = st().activeChatId;
       if (active) st().loadMessages(active).catch(() => {});
