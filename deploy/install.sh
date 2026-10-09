@@ -29,6 +29,7 @@ mkdir -p data certs
 [ -f Caddyfile ] || cp deploy/Caddyfile Caddyfile
 # The app runs as uid 1000 (user "node") inside the container.
 chown -R 1000:1000 data
+bash deploy/ensure-env.sh
 
 BUNDLE=$(ls -t amorechat-offline-*.tar.gz 2>/dev/null | head -n1 || true)
 if [ -n "${BUNDLE}" ]; then

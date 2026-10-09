@@ -1,7 +1,8 @@
 import { memo, useRef } from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
-import { formatTime, messagePreview, toFa } from '../util';
+import { formatTime, messagePreview, toFa, callSummary } from '../util';
+import { startCall } from '../rtc';
 import Avatar from './Avatar';
 import { VoicePlayer, ImageMessage, VideoMessage, FileCard } from './Media';
 
@@ -49,6 +50,8 @@ function Reactions({ m, meId }) {
 function Message({ m, chat, mine, grouped, onJump, onMenu }) {
   const meId = useStore((s) => s.me.id);
   const press = useRef(null);
+
+  if (m.type === 'call') return <CallLog m={m} mine={mine} chat={chat} />;
 
   if (m.type === 'system') {
     return (
@@ -113,6 +116,27 @@ function Message({ m, chat, mine, grouped, onJump, onMenu }) {
           </button>
         </div>
         <Reactions m={m} meId={meId} />
+      </div>
+    </div>
+  );
+}
+
+function CallLog({ m, mine, chat }) {
+  const s = callSummary(m);
+  const showToast = useStore((st) => st.showToast);
+  return (
+    <div className={`msg-row ${mine ? 'mine' : ''}`} id={`msg-${m.id}`}>
+      <div className={`bubble call-log ${s.failed && !mine ? 'missed' : ''}`}>
+        <span className="call-icon">{mine ? '↗' : '↙'}</span>
+        <span className="grow">
+          <b>{s.label}</b>
+          <small>{formatTime(m.createdAt)}</small>
+        </span>
+        {chat.peer && (
+          <button className="icon-btn" title="تماس دوباره" onClick={() => startCall(chat.peer, !!s.video).catch((e) => showToast(e.message))}>
+            {s.video ? '🎥' : '📞'}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,8 @@ import { api } from '../api';
 import { useStore } from '../store';
 import { Modal, UserSearch } from './Modals';
 
+const TAB_LABEL = { group: 'گروه', channel: 'کانال', voice: 'کانال صوتی' };
+
 export default function NewChat({ onClose }) {
   const me = useStore((s) => s.me);
   const config = useStore((s) => s.config);
@@ -32,6 +34,7 @@ export default function NewChat({ onClose }) {
     try {
       const { chat } = await api('POST', '/chats', { type: tab, ...form, memberIds: members.map((m) => m.id) });
       st().upsertChat(chat);
+      if (tab === 'voice') st().loadVoice().catch(() => {});
       onClose();
       location.hash = `#/chat/${chat.id}`;
     } catch (err) {
@@ -54,6 +57,17 @@ export default function NewChat({ onClose }) {
             <button className={tab === 'channel' ? 'active' : ''} onClick={() => setTab('channel')}>
               کانال
             </button>
+            {config.rtc && (
+              <button
+                className={tab === 'voice' ? 'active' : ''}
+                onClick={() => {
+                  setTab('voice');
+                  setForm((f) => ({ ...f, isPublic: true }));
+                }}
+              >
+                کانال صوتی
+              </button>
+            )}
           </>
         )}
       </div>
@@ -63,7 +77,7 @@ export default function NewChat({ onClose }) {
       ) : (
         <form className="form" onSubmit={create}>
           <label>
-            عنوان {tab === 'group' ? 'گروه' : 'کانال'}
+            عنوان {TAB_LABEL[tab]}
             <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required maxLength={100} autoFocus />
           </label>
           <label>
@@ -72,7 +86,7 @@ export default function NewChat({ onClose }) {
           </label>
           <label className="check">
             <input type="checkbox" checked={form.isPublic} onChange={(e) => setForm({ ...form, isPublic: e.target.checked })} />
-            عمومی (همه می‌توانند پیدا کنند و عضو شوند)
+            {tab === 'voice' ? 'عمومی (برای همه کاربران در لیست کانال‌های صوتی نمایش داده شود)' : 'عمومی (همه می‌توانند پیدا کنند و عضو شوند)'}
           </label>
           <div className="chips">
             {members.map((m) => (
@@ -90,7 +104,7 @@ export default function NewChat({ onClose }) {
             onPick={(u) => setMembers([...members, u])}
           />
           <button className="btn primary" disabled={busy}>
-            ساخت {tab === 'group' ? 'گروه' : 'کانال'}
+            ساخت {TAB_LABEL[tab]}
           </button>
         </form>
       )}

@@ -256,6 +256,16 @@ export function createChat({ type, title = '', description = '', createdBy = nul
   return Number(r.lastInsertRowid);
 }
 
+export function getOrCreateDm(a, b) {
+  const key = `dm:${Math.min(a, b)}:${Math.max(a, b)}`;
+  const c = get('SELECT id FROM chats WHERE dm_key = ?', key);
+  if (c) return c.id;
+  const id = createChat({ type: 'dm', dmKey: key, createdBy: a });
+  addMember(id, a, 'member', { silent: true });
+  addMember(id, b, 'member', { silent: true });
+  return id;
+}
+
 export function ensureEmergencyChannel() {
   const c = get('SELECT id FROM chats WHERE is_emergency = 1');
   if (c) return c.id;

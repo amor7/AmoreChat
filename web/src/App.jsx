@@ -6,6 +6,7 @@ import Auth from './components/Auth';
 import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
 import Modals from './components/Modals';
+import { VoiceBar, RoomView, IncomingCall, useAutoExpandCalls } from './components/Voice';
 
 function parseHash() {
   const [, kind, value] = location.hash.match(/^#\/(\w+)\/(.+)$/) || [];
@@ -54,6 +55,7 @@ function Main() {
   const activeChatId = useStore((s) => s.activeChatId);
   const connected = useStore((s) => s.connected);
   const [ready, setReady] = useState(false);
+  useAutoExpandCalls();
 
   useEffect(() => {
     useStore
@@ -83,9 +85,14 @@ function Main() {
     <div className={`layout ${activeChatId ? 'has-chat' : ''}`}>
       {!connected && <div className="offline-bar">اتصال قطع است؛ در حال تلاش برای اتصال دوباره…</div>}
       <EmergencyBanner />
+      <div className="voice-area">
+        <VoiceBar />
+      </div>
       <Sidebar />
       <main className="chat-pane">{activeChatId ? <ChatView key={activeChatId} chatId={activeChatId} /> : <Empty />}</main>
       <Modals />
+      <RoomView />
+      <IncomingCall />
       <Toast />
     </div>
   );

@@ -19,7 +19,7 @@ export function assertCanPost(user, chat, member) {
     if (!hasChatPerm(user, member, 'post_messages')) fail(403, 'فقط مدیران کانال می‌توانند پیام بگذارند');
     return;
   }
-  if (chat.type !== 'group') return;
+  if (chat.type !== 'group' && chat.type !== 'voice') return;
   const isStaff = member.role === 'owner' || member.role === 'admin' || hasSitePerm(user, 'manage_chats');
   if (isStaff) return;
   if (chat.locked) fail(403, 'گروه قفل است؛ فقط مدیران می‌توانند پیام بدهند');
@@ -59,7 +59,7 @@ export default async function messageRoutes(app) {
       `SELECT m.id FROM messages_fts f
        JOIN messages m ON m.id = f.rowid
        JOIN chat_members cm ON cm.chat_id = m.chat_id AND cm.user_id = ?
-       WHERE messages_fts MATCH ? AND m.deleted = 0 AND m.type != 'system' AND (? IS NULL OR m.chat_id = ?)
+       WHERE messages_fts MATCH ? AND m.deleted = 0 AND m.type NOT IN ('system', 'call') AND (? IS NULL OR m.chat_id = ?)
        ORDER BY m.id DESC LIMIT 50`,
       req.user.id,
       match,

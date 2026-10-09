@@ -2,7 +2,7 @@ import { get, all, run, now, parseJSON } from '../db.js';
 import { getSetting } from '../settings.js';
 import { hasSitePerm, hasChatPerm, cleanPerms, CHAT_PERMS } from '../perms.js';
 import { randomCode, publicUser } from '../auth.js';
-import { isOnline, toChat, toUser } from '../realtime.js';
+import { isOnline, toChat, toUser, toAll } from '../realtime.js';
 import {
   fail,
   getChat,
@@ -12,6 +12,7 @@ import {
   addMember,
   removeMember,
   createChat,
+  getOrCreateDm,
   systemMessage,
   audit,
 } from '../chats.js';
@@ -24,7 +25,8 @@ function formatDuration(secs) {
   return `${fa(secs)} ثانیه`;
 }
 
-const isRoom = (chat) => chat.type === 'group' || chat.type === 'channel';
+const isRoom = (chat) => chat.type === 'group' || chat.type === 'channel' || chat.type === 'voice';
+const TYPE_LABEL = { group: 'گروه', channel: 'کانال', voice: 'کانال صوتی' };
 
 // Loads chat + caller's membership, failing unless the caller is a member
 // (site chat moderators may also inspect chats they are not in).
@@ -83,7 +85,7 @@ export default async function chatRoutes(app) {
       `SELECT c.id, c.type, c.title, c.description, c.avatar_file_id AS avatar,
          (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id = c.id) AS memberCount
        FROM chats c
-       WHERE c.is_public = 1 AND c.type IN ('group', 'channel')
+       WHERE c.is_public = 1 AND c.type IN ('group', 'channel', 'voice')
          AND NOT EXISTS (SELECT 1 FROM chat_members m WHERE m.chat_id = c.id AND m.user_id = ?)
        ORDER BY memberCount DESC LIMIT 100`,
       req.user.id,
@@ -92,7 +94,7 @@ export default async function chatRoutes(app) {
 
   app.post('/api/chats', async (req) => {
     const { type, title, description = '', memberIds = [], isPublic = false } = req.body || {};
-    if (type !== 'group' && type !== 'channel') fail(400, 'نوع گفتگو نامعتبر است');
+    if (!TYPE_LABEL[type]) fail(400, 'نوع گفتگو نامعتبر است');
     if (getSetting('allow_user_groups') !== '1' && req.user.role === 'user') {
       fail(403, 'ساخت گروه و کانال فقط برای مدیران فعال است');
     }
@@ -107,13 +109,14 @@ export default async function chatRoutes(app) {
       isPublic: !!isPublic,
     });
     addMember(chatId, req.user.id, 'owner', { silent: true });
-    systemMessage(chatId, `${req.user.display_name} ${type === 'group' ? 'گروه' : 'کانال'} «${t}» را ساخت`);
+    systemMessage(chatId, `${req.user.display_name} ${TYPE_LABEL[type]} «${t}» را ساخت`);
     const ids = Array.isArray(memberIds) ? memberIds.slice(0, 500).map(Number) : [];
     for (const id of ids) {
       if (id !== req.user.id && get('SELECT 1 FROM users WHERE id = ? AND banned = 0', id)) {
         addMember(chatId, id, 'member', { silent: true });
       }
     }
+    if (type === 'voice') toAll('voice:channels', {});
     return { chat: chatSummary(chatId, req.user.id) };
   });
 
@@ -121,15 +124,7 @@ export default async function chatRoutes(app) {
     const otherId = Number(req.body?.userId);
     if (otherId === req.user.id) fail(400, 'برای پیام به خودتان از «پیام‌های ذخیره‌شده» استفاده کنید');
     if (!get('SELECT 1 FROM users WHERE id = ? AND banned = 0', otherId)) fail(404, 'کاربر پیدا نشد');
-    const key = `dm:${Math.min(req.user.id, otherId)}:${Math.max(req.user.id, otherId)}`;
-    let chat = get('SELECT id FROM chats WHERE dm_key = ?', key);
-    if (!chat) {
-      const id = createChat({ type: 'dm', dmKey: key, createdBy: req.user.id });
-      addMember(id, req.user.id, 'member', { silent: true });
-      addMember(id, otherId, 'member', { silent: true });
-      chat = { id };
-    }
-    return { chat: chatSummary(chat.id, req.user.id) };
+    return { chat: chatSummary(getOrCreateDm(req.user.id, otherId), req.user.id) };
   });
 
   app.get('/api/chats/:id', async (req) => {
@@ -191,6 +186,7 @@ export default async function chatRoutes(app) {
     run('DELETE FROM chats WHERE id = ?', chat.id);
     for (const uid of memberIds) toUser(uid, 'chat:removed', { chatId: chat.id, reason: 'deleted' });
     audit(req.user.id, 'chat.delete', chat.id, { title: chat.title });
+    if (chat.type === 'voice') toAll('voice:channels', {});
     return { ok: true };
   });
 
@@ -250,7 +246,7 @@ export default async function chatRoutes(app) {
       run('UPDATE chat_members SET muted_until = ? WHERE chat_id = ? AND user_id = ?', until, chat.id, targetId);
       audit(req.user.id, 'chat.mute', `${chat.id}:${targetId}`, { until });
       const u = get('SELECT display_name FROM users WHERE id = ?', targetId);
-      if (chat.type === 'group') {
+      if (chat.type === 'group' || chat.type === 'voice') {
         systemMessage(chat.id, until && until > now() ? `${u.display_name} بی‌صدا شد` : `${u.display_name} از حالت بی‌صدا خارج شد`);
       }
       toUser(targetId, 'chat:changed', { chatId: chat.id });

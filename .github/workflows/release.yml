@@ -19,7 +19,8 @@ jobs:
       - name: Create offline bundle
         run: |
           docker pull caddy:2-alpine
-          docker save amorechat:latest caddy:2-alpine | gzip > amorechat-offline-amd64.tar.gz
+          docker pull livekit/livekit-server:v1.13.7
+          docker save amorechat:latest caddy:2-alpine livekit/livekit-server:v1.13.7 | gzip > amorechat-offline-amd64.tar.gz
           git archive --format=tar.gz --prefix=amorechat/ -o amorechat-source.tar.gz HEAD
           ls -lh *.tar.gz
       - uses: actions/upload-artifact@v4

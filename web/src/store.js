@@ -22,6 +22,22 @@ export const useStore = create((set, get) => ({
   connected: true,
   replyTo: null,
   editing: null,
+  rtc: null, // active voice room / call connection (see rtc.js)
+  call: null, // 1:1 call being rung / in progress
+  voiceRooms: {}, // chatId -> participants currently in that chat's voice room
+  voiceChannels: [], // voice channels visible to me (public ones included)
+  async loadVoice() {
+    if (!get().config?.rtc) return null;
+    const [state, ch] = await Promise.all([api('GET', '/rtc/state'), api('GET', '/rtc/voice-channels')]);
+    set({ voiceRooms: Object.fromEntries(state.rooms.map((r) => [r.chatId, r.participants])), voiceChannels: ch.channels });
+    return state;
+  },
+  setVoiceRoom({ chatId, participants }) {
+    set((s) => ({
+      voiceRooms: { ...s.voiceRooms, [chatId]: participants },
+      voiceChannels: s.voiceChannels.map((c) => (c.id === chatId ? { ...c, participants } : c)),
+    }));
+  },
   downloads: {}, // key -> { progress (0..1 or null if size unknown), received bytes }
   prefs: getPrefs(),
   setPrefs: (patch) => set({ prefs: setPrefs(patch) }),

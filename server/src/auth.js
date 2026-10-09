@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
 import { get, run, now } from './db.js';
+import { effectiveLimits } from './limits.js';
 
 const scrypt = promisify(crypto.scrypt);
 export const SESSION_COOKIE = 'ac_session';
@@ -76,5 +77,5 @@ export function publicUser(u) {
 }
 
 export function selfUser(u) {
-  return { ...publicUser(u), adminPerms: JSON.parse(u.admin_perms || '[]') };
+  return { ...publicUser(u), adminPerms: JSON.parse(u.admin_perms || '[]'), limits: effectiveLimits(u) };
 }

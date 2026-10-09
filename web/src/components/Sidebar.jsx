@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MessageResults, openMessage } from './Modals';
+import { VoiceChannels } from './Voice';
 import { useStore } from '../store';
 import { api } from '../api';
 import { disconnectSocket } from '../socket';
@@ -32,6 +33,7 @@ export default function Sidebar() {
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return Object.values(chats)
+      .filter((c) => c.type !== 'voice' || q)
       .filter((c) => !q || c.title.toLowerCase().includes(q) || c.peer?.username?.toLowerCase().includes(q))
       .sort((a, b) => {
         if (a.isEmergency !== b.isEmergency) return a.isEmergency ? -1 : 1;
@@ -88,6 +90,11 @@ export default function Sidebar() {
       </header>
       <div className="site-name">{siteName}</div>
       <ul className="chat-list">
+        {!query && (
+          <li>
+            <VoiceChannels />
+          </li>
+        )}
         {list.map((c) => {
           const last = c.lastMessage;
           const sender = last?.sender && c.type === 'group' ? (last.sender.id === me.id ? 'شما: ' : last.sender.displayName + ': ') : '';

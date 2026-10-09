@@ -64,6 +64,8 @@ export function messagePreview(m) {
       return '🎬 ' + (m.text || 'ویدیو');
     case 'voice':
       return '🎤 پیام صوتی';
+    case 'call':
+      return callSummary(m).label;
     case 'file':
       return '📎 ' + (m.text || m.file?.name || 'فایل');
     default:
@@ -151,6 +153,20 @@ export const CHAT_PERM_LABELS = {
   post_messages: 'ارسال پیام در کانال',
 };
 
+// Call log entries carry JSON: { video, status, duration }.
+export function callSummary(m) {
+  let d = {};
+  try {
+    d = JSON.parse(m.text || '{}');
+  } catch {
+    /* old/invalid */
+  }
+  const kind = d.video ? 'تماس تصویری' : 'تماس صوتی';
+  const status = { missed: 'بی‌پاسخ', declined: 'رد شد', cancelled: 'لغو شد', busy: 'مشغول' }[d.status];
+  const label = status ? `${d.video ? '🎥' : '📞'} ${kind} · ${status}` : `${d.video ? '🎥' : '📞'} ${kind} · ${formatClock(d.duration || 0)}`;
+  return { ...d, label, failed: !!status };
+}
+
 export const ROLE_LABELS = { owner: 'مالک', admin: 'ادمین', member: 'عضو', user: 'کاربر' };
 
 export function hasSitePerm(me, perm) {
@@ -171,7 +187,7 @@ export function postBlockReason(me, chat) {
   if (!chat) return null;
   if (chat.isEmergency) return chat.myRole === 'owner' || hasSitePerm(me, 'broadcast') ? null : 'فقط مدیران در این کانال پیام می‌گذارند';
   if (chat.type === 'channel') return hasChatPerm(me, chat, 'post_messages') ? null : 'فقط مدیران کانال پیام می‌گذارند';
-  if (chat.type !== 'group') return null;
+  if (chat.type !== 'group' && chat.type !== 'voice') return null;
   if (chat.myRole === 'owner' || chat.myRole === 'admin' || hasSitePerm(me, 'manage_chats')) return null;
   if (chat.mutedUntil && chat.mutedUntil > Date.now()) return 'شما در این گروه بی‌صدا هستید';
   if (chat.locked) return 'گروه قفل است';

@@ -3,7 +3,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pipeline } from 'node:stream/promises';
 import { get, run, now, UPLOAD_DIR } from '../db.js';
-import { settingNumber } from '../settings.js';
+import { effectiveLimits } from '../limits.js';
 import { fail } from '../chats.js';
 import { mediaReady, processVoice, queueVideo, fileVariants } from '../media.js';
 
@@ -39,8 +39,9 @@ const num = (v) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : nu
 
 export default async function fileRoutes(app) {
   app.post('/api/upload', async (req, reply) => {
-    const maxBytes = settingNumber('max_upload_mb') * 1024 * 1024;
-    const quotaMb = settingNumber('user_quota_mb');
+    const limits = effectiveLimits(req.user);
+    const maxBytes = limits.uploadMb * 1024 * 1024;
+    const quotaMb = limits.quotaMb;
     if (quotaMb > 0) {
       const used = get('SELECT IFNULL(SUM(size), 0) AS s FROM files WHERE owner_id = ?', req.user.id).s;
       if (used >= quotaMb * 1024 * 1024) fail(413, 'سهمیه فضای شما پر شده است');
@@ -62,7 +63,7 @@ export default async function fileRoutes(app) {
     }
     if (part.file.truncated) {
       fs.rmSync(abs, { force: true });
-      fail(413, `حداکثر حجم فایل ${settingNumber('max_upload_mb')} مگابایت است`);
+      fail(413, `حداکثر حجم فایل برای شما ${limits.uploadMb} مگابایت است`);
     }
 
     const size = fs.statSync(abs).size;
@@ -100,7 +101,7 @@ export default async function fileRoutes(app) {
 
   app.get('/api/me/usage', async (req) => ({
     usedBytes: get('SELECT IFNULL(SUM(size), 0) AS s FROM files WHERE owner_id = ?', req.user.id).s,
-    quotaMb: settingNumber('user_quota_mb'),
+    quotaMb: effectiveLimits(req.user).quotaMb,
   }));
 
   app.get('/api/files/:id', async (req, reply) => {

@@ -8,6 +8,7 @@ import { hashPassword, randomCode, publicUser } from '../auth.js';
 import { online, isOnline, disconnectUser } from '../realtime.js';
 import { fail, audit, loadMessage } from '../chats.js';
 import { ffmpegAvailable } from '../media.js';
+import { effectiveLimits, cleanLimits } from '../limits.js';
 import { deleteMessage } from '../sweeper.js';
 
 const need = (req, perm) => {
@@ -43,6 +44,8 @@ export default async function adminRoutes(app) {
       users: rows.map((u) => ({
         ...publicUser(u),
         adminPerms: parseJSON(u.admin_perms, []),
+        overrides: parseJSON(u.limits, {}),
+        limits: effectiveLimits(u),
         banned: !!u.banned,
         createdAt: u.created_at,
         online: isOnline(u.id),
@@ -73,6 +76,18 @@ export default async function adminRoutes(app) {
     }
     audit(req.user.id, banned ? 'user.ban' : 'user.unban', u.id, { username: u.username });
     return { ok: true };
+  });
+
+  // Per-user overrides of upload size, quota, calling and streaming. Missing keys = site default.
+  app.patch('/api/admin/users/:id/limits', async (req) => {
+    need(req, 'manage_users');
+    const u = targetUser(req.params.id);
+    if (u.role === 'owner') fail(400, 'مالک محدودیتی ندارد');
+    if (u.role === 'admin' && req.user.role !== 'owner') fail(403, 'فقط مالک محدودیت ادمین‌ها را تغییر می‌دهد');
+    const overrides = cleanLimits(req.body || {});
+    run('UPDATE users SET limits = ? WHERE id = ?', JSON.stringify(overrides), u.id);
+    audit(req.user.id, 'user.limits', u.id, overrides);
+    return { overrides, limits: effectiveLimits(get('SELECT * FROM users WHERE id = ?', u.id)) };
   });
 
   app.post('/api/admin/users/:id/reset-password', async (req) => {
@@ -136,7 +151,9 @@ export default async function adminRoutes(app) {
       let v = String(b[key]);
       if (key === 'registration_mode' && !['open', 'invite', 'closed'].includes(v)) fail(400, 'حالت ثبت‌نام نامعتبر');
       if (key === 'allow_user_groups') v = v === '1' || v === 'true' ? '1' : '0';
-      if (['max_upload_mb', 'user_quota_mb', 'media_retention_days'].includes(key)) {
+      if (['default_can_call', 'default_can_stream'].includes(key)) v = v === '1' || v === 'true' ? '1' : '0';
+      if (key === 'max_stream_quality' && !['480', '720', '1080'].includes(v)) fail(400, 'کیفیت نامعتبر');
+      if (['max_upload_mb', 'user_quota_mb', 'media_retention_days', 'max_streams_per_room'].includes(key)) {
         v = String(Math.max(0, Math.min(100000, Math.floor(Number(v)) || 0)));
       }
       if (key === 'site_name') v = v.trim().slice(0, 50) || DEFAULTS.site_name;

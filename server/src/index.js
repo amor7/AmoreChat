@@ -20,6 +20,9 @@ import chatRoutes from './routes/chats.js';
 import messageRoutes from './routes/messages.js';
 import fileRoutes from './routes/files.js';
 import adminRoutes from './routes/admin.js';
+import rtcRoutes from './routes/rtc.js';
+import { startVoiceSync } from './voice.js';
+import { setupRtcProxy } from './rtc-proxy.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -48,7 +51,8 @@ app.decorateRequest('user', null);
 app.addHook('onRequest', async (req, reply) => {
   if (!req.url.startsWith('/api/')) return;
   // Custom header => browsers must preflight cross-site requests, which we never allow (CSRF guard).
-  if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers['x-requested-with'] !== 'amorechat') {
+  const csrfExempt = req.routeOptions.config?.noCsrf;
+  if (!csrfExempt && req.method !== 'GET' && req.method !== 'HEAD' && req.headers['x-requested-with'] !== 'amorechat') {
     return reply.code(403).send({ error: 'درخواست نامعتبر' });
   }
   const user = userFromToken(req.cookies[SESSION_COOKIE]);
@@ -83,6 +87,10 @@ await app.register(chatRoutes);
 await app.register(messageRoutes);
 await app.register(fileRoutes);
 await app.register(adminRoutes);
+// LiveKit posts webhooks as application/webhook+json; keep the raw text to verify its signature.
+app.addContentTypeParser('application/webhook+json', { parseAs: 'string' }, (_req, body, done) => done(null, body));
+await app.register(rtcRoutes);
+setupRtcProxy(app);
 
 app.get('/healthz', async () => ({ ok: true }));
 
@@ -100,7 +108,7 @@ if (hasWeb) {
 }
 
 app.setNotFoundHandler((req, reply) => {
-  if (req.method === 'GET' && hasWeb && !req.url.startsWith('/api/') && !req.url.startsWith('/socket.io')) {
+  if (req.method === 'GET' && hasWeb && !req.url.startsWith('/api/') && !req.url.startsWith('/socket.io') && !req.url.startsWith('/rtc')) {
     return reply.header('Cache-Control', 'no-cache').sendFile('index.html', WEB_DIR);
   }
   reply.code(404).send({ error: 'پیدا نشد' });
@@ -122,6 +130,7 @@ setupSocket(app);
 await app.listen({ port: PORT, host: HOST });
 scheduleBackups(app.log);
 startSweeper(app.log);
+startVoiceSync(app.log);
 // When a video finishes processing, refresh every message that shows it.
 onMediaUpdate((fileId) => {
   for (const m of all('SELECT id, chat_id FROM messages WHERE file_id = ? AND deleted = 0', fileId)) {

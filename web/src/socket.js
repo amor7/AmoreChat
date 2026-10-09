@@ -2,6 +2,7 @@ import { io } from 'socket.io-client';
 import { useStore } from './store';
 import { api } from './api';
 import { messagePreview } from './util';
+import { callEvents, restoreCall, leave } from './rtc';
 
 let socket = null;
 
@@ -19,7 +20,12 @@ export function connectSocket() {
       const active = st().activeChatId;
       if (active) st().loadMessages(active).catch(() => {});
     }
-    connectedBefore = true;
+    // Voice presence and any call that survived a reload / reconnect.
+    st()
+      .loadVoice()
+      .then((state) => !connectedBefore && state?.call && restoreCall(state.call))
+      .catch(() => {})
+      .finally(() => (connectedBefore = true));
   });
   socket.on('disconnect', (reason) => {
     useStore.setState({ connected: false });
@@ -47,6 +53,16 @@ export function connectSocket() {
   socket.on('read', (d) => st().onRead(d));
   socket.on('typing', (d) => st().setTyping(d));
   socket.on('presence', (d) => st().setPresence(d));
+  socket.on('voice:state', (d) => st().setVoiceRoom(d));
+  socket.on('voice:channels', () => st().loadVoice().catch(() => {}));
+  socket.on('call:incoming', callEvents.incoming);
+  socket.on('call:accepted', callEvents.accepted);
+  socket.on('call:handled', callEvents.handled);
+  socket.on('call:ended', callEvents.ended);
+  socket.on('rtc:notice', (n) => {
+    st().showToast(n.text);
+    if (n.action === 'kick' && st().rtc?.chatId === n.chatId) leave();
+  });
   socket.on('emergency', (m) => m.sender?.id !== st().me?.id && useStore.setState({ emergency: m }));
 }
 

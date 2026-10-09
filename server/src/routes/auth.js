@@ -15,6 +15,7 @@ import {
 import { fail, addMember, ensureEmergencyChannel, ensureSavedChat, audit } from '../chats.js';
 import { isOnline } from '../realtime.js';
 import { mediaReady } from '../media.js';
+import { rtcEnabled } from '../livekit.js';
 
 const VERSION = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).version;
 
@@ -35,6 +36,7 @@ export default async function authRoutes(app) {
     registrationMode: getSetting('registration_mode'),
     allowUserGroups: getSetting('allow_user_groups') === '1',
     videoProcessing: await mediaReady,
+    rtc: rtcEnabled,
     needsSetup: !hasAnyUser(),
   }));
 

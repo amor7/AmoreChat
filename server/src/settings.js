@@ -11,6 +11,13 @@ export const DEFAULTS = {
   user_quota_mb: '0',
   // Delete uploaded media older than this many days; 0 = keep forever.
   media_retention_days: '0',
+  // Defaults for live audio/video; each can be overridden per user.
+  default_can_call: '1',
+  default_can_stream: '1',
+  // Highest stream/camera resolution (short side): 480 | 720 | 1080
+  max_stream_quality: '720',
+  // Max simultaneous screen/camera streams in one voice room; 0 = unlimited.
+  max_streams_per_room: '3',
 };
 
 let cache = null;

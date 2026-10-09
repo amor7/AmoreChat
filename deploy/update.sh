@@ -60,6 +60,8 @@ else
   # The archive holds code only, so data/, .env, Caddyfile and certs/ are untouched.
   tar xzf "$TMP/source.tar.gz" --strip-components=1
 fi
+# New versions may need new settings (e.g. the voice server secret); existing values are kept.
+[ -f deploy/ensure-env.sh ] && bash deploy/ensure-env.sh
 
 if [ "$(uname -m)" = "x86_64" ] && curl -fL --retry 3 -o "$TMP/offline.tar.gz" "${BASE}/amorechat-offline-amd64.tar.gz"; then
   echo ">> Loading prebuilt images..."

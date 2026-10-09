@@ -194,6 +194,10 @@ const migrations = [
   END;
   INSERT INTO messages_fts(messages_fts) VALUES ('rebuild');
   `,
+  // v3: per-user limit/permission overrides (JSON; missing keys fall back to site defaults)
+  `
+  ALTER TABLE users ADD COLUMN limits TEXT NOT NULL DEFAULT '{}';
+  `,
 ];
 
 const current = db.prepare('PRAGMA user_version').get().user_version;

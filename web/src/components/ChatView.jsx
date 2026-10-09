@@ -5,6 +5,8 @@ import { formatDay, formatLastSeen, sameDay, toFa, hasChatPerm, messagePreview, 
 import Avatar from './Avatar';
 import Message from './Message';
 import Composer from './Composer';
+import { VoiceBanner } from './Voice';
+import { startCall, joinVoice } from '../rtc';
 
 export default function ChatView({ chatId }) {
   const chat = useStore((s) => s.chats[chatId]);
@@ -171,6 +173,7 @@ export default function ChatView({ chatId }) {
       onDrop={onDrop}
     >
       <ChatHeader chat={chat} />
+      <VoiceBanner chat={chat} />
       <PinnedBar chat={chat} messages={messages} onJump={goTo} />
       <div className="messages" ref={listRef} onScroll={onScroll}>
         {hasMore && messages?.length > 0 && <div className="muted center pad">…</div>}
@@ -233,6 +236,12 @@ function ChatHeader({ chat }) {
   const openModal = useStore((s) => s.openModal);
   const online = useStore((s) => isUserOnline(s, chat.peer));
   const typers = useTypers(chat.id);
+  const rtcOn = useStore((s) => s.config.rtc);
+  const canCall = useStore((s) => s.me.limits?.canCall);
+  const inRoom = useStore((s) => s.rtc?.chatId === chat.id);
+  const roomActive = useStore((s) => (s.voiceRooms[chat.id] || []).length > 0);
+  const showToast = useStore((s) => s.showToast);
+  const call = (video) => startCall(chat.peer, video).catch((e) => showToast(e.message));
 
   let subtitle = '';
   if (typers.length) subtitle = chat.type === 'dm' ? 'در حال نوشتن…' : `${typers.slice(0, 2).join('، ')} در حال نوشتن…`;
@@ -253,6 +262,21 @@ function ChatHeader({ chat }) {
           <div className={`subtitle ${typers.length || (chat.type === 'dm' && online) ? 'accent' : ''}`}>{subtitle}</div>
         </div>
       </button>
+      {rtcOn && chat.type === 'dm' && chat.peer && canCall && (
+        <>
+          <button className="icon-btn" aria-label="تماس صوتی" title="تماس صوتی" onClick={() => call(false)}>
+            📞
+          </button>
+          <button className="icon-btn" aria-label="تماس تصویری" title="تماس تصویری" onClick={() => call(true)}>
+            🎥
+          </button>
+        </>
+      )}
+      {rtcOn && (chat.type === 'group' || chat.type === 'channel') && !inRoom && !roomActive && (
+        <button className="icon-btn" aria-label="شروع ویس‌چت" title="شروع ویس‌چت" onClick={() => joinVoice(chat.id).catch((e) => showToast(e.message))}>
+          🎙
+        </button>
+      )}
       <button className="icon-btn" aria-label="جستجو در این گفتگو" onClick={() => openModal('search', { chatId: chat.id })}>
         🔍
       </button>

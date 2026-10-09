@@ -9,6 +9,8 @@ export function setupSocket(app) {
     maxHttpBufferSize: 64 * 1024,
     pingInterval: 20000,
     pingTimeout: 25000,
+    // Leave other WebSocket upgrades (the LiveKit /rtc proxy) alone.
+    destroyUpgrade: false,
   });
   setIO(io);
 

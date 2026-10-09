@@ -4,6 +4,7 @@ import { useStore } from '../store';
 import { hasSitePerm, SITE_PERM_LABELS, ROLE_LABELS, formatDateTime, formatSize, formatLastSeen, toFa, copyText, messagePreview } from '../util';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
+import { LimitsEditor, Live, RtcSettings } from './AdminRtc';
 
 const TABS = [
   ['stats', '📊 آمار', 'view_audit'],
@@ -11,6 +12,7 @@ const TABS = [
   ['users', '👥 کاربران', 'manage_users'],
   ['invites', '🎟 کدهای دعوت', 'manage_invites'],
   ['chats', '💬 گروه‌ها', 'manage_chats'],
+  ['live', '🔴 زنده', 'manage_chats'],
   ['settings', '⚙️ تنظیمات', 'manage_settings'],
   ['audit', '📜 گزارش فعالیت', 'view_audit'],
 ];
@@ -36,6 +38,7 @@ export default function Admin({ onClose }) {
       {tab === 'chats' && <Chats onClose={onClose} />}
       {tab === 'settings' && <Settings />}
       {tab === 'audit' && <Audit />}
+      {tab === 'live' && <Live />}
     </Modal>
   );
 }
@@ -174,6 +177,7 @@ function UserActions({ u, me, run }) {
           </div>
         </div>
       )}
+      {canManage && !self && u.role !== 'owner' && <LimitsEditor u={u} run={run} />}
       {canManage && !self && (
         <div className="inline-form">
           <button
@@ -356,6 +360,7 @@ function Settings() {
         <input type="number" min="0" value={f.media_retention_days} onChange={(e) => setF({ ...f, media_retention_days: e.target.value })} />
       </label>
       <p className="hint">برای وقتی دیسک سرور کوچک است. پیام‌ها می‌مانند، فقط فایل‌هایشان حذف می‌شود. عکس پروفایل‌ها حذف نمی‌شوند.</p>
+      <RtcSettings f={f} setF={setF} />
       <button className="btn primary">ذخیره تنظیمات</button>
     </form>
   );

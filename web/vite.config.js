@@ -31,7 +31,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         importScripts: ['sw-extra.js'],
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io/, /^\/healthz/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io/, /^\/healthz/, /^\/rtc/],
       },
     }),
   ],
@@ -39,6 +39,7 @@ export default defineConfig({
     proxy: {
       '/api': backend,
       '/socket.io': { target: backend, ws: true },
+      '/rtc': { target: backend, ws: true },
     },
   },
 });

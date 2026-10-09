@@ -6,10 +6,27 @@ services:
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - BACKUP_KEEP=${BACKUP_KEEP:-14}
+      - LIVEKIT_URL=http://livekit:7880
+      - LIVEKIT_API_KEY=amorechat
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-}
     volumes:
       - ./data:/data
     expose:
       - '3000'
+
+  # Voice/video media server (calls, voice chats, streaming).
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml --node-ip ${PUBLIC_IP:-127.0.0.1}
+    environment:
+      - 'LIVEKIT_KEYS=amorechat: ${LIVEKIT_API_SECRET:-}'
+    volumes:
+      - ./deploy/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - '7881:7881'
+      - '7882:7882/udp'
+      - '3478:3478/udp'
 
   caddy:
     image: caddy:2-alpine
