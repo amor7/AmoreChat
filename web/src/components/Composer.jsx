@@ -294,9 +294,13 @@ function VoiceRecorder({ chat, onDone }) {
 
 function SendFileDialog({ file, chat, onClose }) {
   const replyTo = useStore((s) => s.replyTo);
+  // Check the user's own limit up front instead of after uploading the whole file.
+  // (Compressed images shrink before upload, so they are not blocked here.)
+  const maxBytes = (useStore((s) => s.me.limits?.uploadMb) || 100) * 1024 * 1024;
   const isImage = /^image\/(jpeg|png|webp|gif|avif)$/.test(file.type);
   const isVideo = file.type.startsWith('video/');
   const [compress, setCompress] = useState(true);
+  const tooBig = file.size > maxBytes && !(isImage && compress);
   const videoProcessing = useStore((s) => s.config.videoProcessing);
   const [videoQ, setVideoQ] = useState(() => (useStore.getState().prefs.dataSaver ? '360' : '720'));
   const [caption, setCaption] = useState('');
@@ -414,10 +418,15 @@ function SendFileDialog({ file, chat, onClose }) {
               انصراف
             </button>
           )}
-          <button className="btn primary" onClick={send} disabled={progress !== null}>
+          <button className="btn primary" onClick={send} disabled={progress !== null || tooBig}>
             ارسال
           </button>
         </div>
+        {tooBig && (
+          <div className="error">
+            حجم این فایل ({formatSize(file.size)}) از حد مجاز شما ({formatSize(maxBytes)}) بیشتر است. برای افزایش با مدیر تماس بگیرید.
+          </div>
+        )}
       </div>
     </div>
   );

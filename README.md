@@ -147,3 +147,11 @@ npm run dev:web        # رابط کاربری روی پورت 5173 (با پرا
 ساختن بسته آفلاین: کافی است یک تگ بزنید (`git tag v0.1.0 && git push --tags`) تا GitHub Actions بسته را بسازد و در Releases بگذارد.
 
 </div>
+
+---
+
+<div dir="rtl">
+
+ایموجی‌ها: [Microsoft Fluent Emoji](https://github.com/microsoft/fluentui-emoji) (مجوز MIT). آیکون‌ها: [Lucide](https://lucide.dev) (مجوز ISC).
+
+</div>
