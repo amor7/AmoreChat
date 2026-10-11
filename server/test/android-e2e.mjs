@@ -41,7 +41,7 @@ function client() {
   return async (method, url, body) => {
     const res = await fetch(HOST + url, {
       method,
-      headers: { 'x-requested-with': 'amorechat', 'content-type': 'application/json', ...(cookie ? { cookie } : {}) },
+      headers: { 'x-requested-with': 'amorechat', ...(body ? { 'content-type': 'application/json' } : {}), ...(cookie ? { cookie } : {}) },
       body: body && JSON.stringify(body),
     });
     const set = res.headers.get('set-cookie');
