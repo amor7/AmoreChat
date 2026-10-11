@@ -54,9 +54,18 @@ function client() {
 async function devtools() {
   const sock = await waitUntil(() => adb('shell cat /proc/net/unix').match(/@(webview_devtools_remote_\d+)/)?.[1], 'WebView devtools socket');
   adb(`forward tcp:9333 localabstract:${sock}`);
-  const page = await waitUntil(async () => (await (await fetch('http://127.0.0.1:9333/json/list')).json()).find((t) => t.type === 'page' && t.url.startsWith('http')), 'WebView page target');
-  const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise((ok, bad) => ((ws.onopen = ok), (ws.onerror = bad)));
+  // The visible page (an activity recreated by Android leaves an old, hidden one behind).
+  const ws = await waitUntil(async () => {
+    const pages = (await (await fetch('http://127.0.0.1:9333/json/list')).json()).filter((t) => t.type === 'page' && t.url.startsWith('http'));
+    for (const p of pages.reverse()) {
+      const attached = JSON.parse(p.description || '{}');
+      if (attached.attached === false || attached.visible === false) continue;
+      const w = new WebSocket(p.webSocketDebuggerUrl);
+      await new Promise((ok, bad) => ((w.onopen = ok), (w.onerror = bad)));
+      return w;
+    }
+    return null;
+  }, 'visible WebView page');
   let id = 0;
   const waiting = new Map();
   ws.onmessage = (m) => {

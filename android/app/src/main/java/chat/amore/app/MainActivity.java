@@ -222,6 +222,15 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onDestroy() {
+        if (web != null) {
+            web.removeJavascriptInterface("AmoreAndroid");
+            web.destroy();
+        }
+        super.onDestroy();
+    }
+
+    @Override
     public void onBackPressed() {
         if (web.canGoBack()) web.goBack();
         else moveTaskToBack(true);

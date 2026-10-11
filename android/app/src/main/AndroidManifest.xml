@@ -34,7 +34,7 @@
 
         <activity
             android:name=".MainActivity"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|density"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|smallestScreenSize|uiMode|density|fontScale|locale|layoutDirection|touchscreen|colorMode|mcc|mnc"
             android:exported="true"
             android:launchMode="singleTask"
             android:showWhenLocked="true"
