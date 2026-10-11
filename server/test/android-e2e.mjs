@@ -51,7 +51,7 @@ function client() {
 }
 
 // Minimal Chrome DevTools Protocol client for the app's WebView (debug builds enable it).
-async function devtools() {
+async function connectPage() {
   const sock = await waitUntil(() => adb('shell cat /proc/net/unix').match(/@(webview_devtools_remote_\d+)/)?.[1], 'WebView devtools socket');
   adb(`forward tcp:9333 localabstract:${sock}`);
   // The visible page (an activity recreated by Android leaves an old, hidden one behind).
@@ -88,6 +88,27 @@ async function devtools() {
       ws.send(JSON.stringify({ id: n, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
     });
   return { evaluate, close: () => ws.close() };
+}
+
+// Reconnects to the current page whenever a call fails (Android may replace the WebView).
+async function devtools() {
+  let conn = await connectPage();
+  return {
+    async evaluate(expr) {
+      try {
+        return await conn.evaluate(expr);
+      } catch (e) {
+        try {
+          conn.close();
+        } catch {
+          /* ignore */
+        }
+        conn = await connectPage().catch(() => conn);
+        throw e;
+      }
+    },
+    close: () => conn.close(),
+  };
 }
 
 // Active notifications only: dumpsys also lists recently removed ones (archive / history).
