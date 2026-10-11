@@ -220,6 +220,19 @@ const migrations = [
   ALTER TABLE chats ADD COLUMN voice_stage INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE chats ADD COLUMN hide_members INTEGER NOT NULL DEFAULT 0;
   `,
+  // v6: resumable uploads (chunks are appended to DATA_DIR/partial/<id> until complete)
+  `
+  CREATE TABLE upload_sessions (
+    id TEXT PRIMARY KEY,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    meta TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  `,
 ];
 
 const current = db.prepare('PRAGMA user_version').get().user_version;

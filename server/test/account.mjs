@@ -191,6 +191,44 @@ assert.equal(r.messages.length, 1);
 r = await bob.call('GET', `/api/chats/${g}/media?kind=media`);
 assert.equal(r.messages.length, 0);
 
+// ---- Resumable uploads ----
+async function putChunk(cl, id, offset, buf) {
+  const res = await fetch(`${BASE}/api/uploads/${id}`, {
+    method: 'PUT',
+    headers: { 'x-requested-with': 'amorechat', 'content-type': 'application/octet-stream', 'upload-offset': String(offset), cookie: cl.cookie(), 'x-forwarded-for': '10.0.9.9' },
+    body: buf,
+  });
+  return { status: res.status, ...(await res.json()) };
+}
+const data = crypto.randomBytes(9 * 1024 * 1024 + 123); // 3 chunks of 4 MB
+r = await alice.call('POST', '/api/uploads', { name: 'big.bin', size: data.length, mime: 'application/octet-stream' });
+assert.equal(r.offset, 0);
+const up = r.id;
+const CH = r.chunkSize;
+r = await putChunk(alice, up, 0, data.subarray(0, CH));
+assert.equal(r.offset, CH);
+// Connection dropped after the server got the chunk: the client resends it from offset 0
+r = await putChunk(alice, up, 0, data.subarray(0, CH));
+assert.equal(r.status, 409);
+assert.equal(r.offset, CH, 'server tells where to continue');
+assert.equal((await alice.call('GET', `/api/uploads/${up}`)).offset, CH);
+assert.equal((await bob.call('GET', `/api/uploads/${up}`)).status, 404, "someone else's upload");
+r = await putChunk(alice, up, CH, data.subarray(CH, 2 * CH));
+r = await putChunk(alice, up, 2 * CH, data.subarray(2 * CH));
+assert.equal(r.status, 201, JSON.stringify(r));
+assert.equal(r.file.size, data.length);
+const got = Buffer.from(await (await alice.call('GET', `/api/files/${r.file.id}?download=1`, null, { raw: true })).arrayBuffer());
+assert.ok(got.equals(data), 'reassembled file is identical');
+assert.equal((await alice.call('GET', `/api/uploads/${up}`)).status, 404, 'session closed');
+await owner.call('PATCH', '/api/admin/settings', { max_upload_mb: 1 });
+r = await bob.call('POST', '/api/uploads', { name: 'x', size: 2 * 1024 * 1024 });
+assert.equal(r.status, 413, 'size limit checked before uploading anything');
+await owner.call('PATCH', '/api/admin/settings', { max_upload_mb: 100 });
+r = await bob.call('POST', '/api/uploads', { name: 'x', size: 10 });
+assert.equal((await bob.call('DELETE', `/api/uploads/${r.id}`)).ok, true, 'cancel');
+r = await bob.call('POST', '/api/uploads', { name: 'empty.txt', size: 0 });
+assert.equal((await putChunk(bob, r.id, 0, Buffer.alloc(0))).status, 201, 'empty file');
+
 // ---- Backups: owner only ----
 r = await alice.call('GET', '/api/admin/backups');
 assert.equal(r.status, 403);

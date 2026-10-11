@@ -370,17 +370,9 @@ function Chats({ onClose }) {
   const [kind, setKind] = useState('all');
   const [q, setQ] = useState('');
   const list = (data?.chats || []).filter((c) => (kind === 'all' || c.type === kind) && (!q || c.title.toLowerCase().includes(q.toLowerCase())));
-  const manage = async (c) => {
-    try {
-      if (!c.isMember || !useStore.getState().chats[c.id]) {
-        const { chat } = await api('POST', `/admin/chats/${c.id}/manage`);
-        useStore.getState().upsertChat(chat);
-      }
-      onClose();
-      useStore.getState().openModal('chatInfo', { chatId: c.id });
-    } catch (e) {
-      showToast(e.message);
-    }
+  const open = (c) => {
+    onClose();
+    useStore.getState().openModal('chatInfo', { chatId: c.id });
   };
   return (
     <>
@@ -392,7 +384,7 @@ function Chats({ onClose }) {
           </button>
         ))}
       </div>
-      <p className="hint">«مدیریت» شما را بی‌صدا و با همه دسترسی‌ها مدیر آن گفتگو می‌کند (در گزارش فعالیت ثبت می‌شود). «حذف» گفتگو را برای همه پاک می‌کند.</p>
+      <p className="hint">هر گروه، کانال یا کانال صوتی را می‌توانید از همین‌جا برای همه حذف کنید، بدون اینکه عضو یا ادمین آن شوید.</p>
     <ul className="user-list">
       {list.map((c) => (
         <li key={c.id} className="row-item">
@@ -406,9 +398,11 @@ function Chats({ onClose }) {
               {!c.isMember && ' · شما عضو نیستید'}
             </small>
           </span>
-          <button className="btn sm" onClick={() => manage(c)}>
-            مدیریت
-          </button>
+          {c.isMember && useStore.getState().chats[c.id] && (
+            <button className="btn sm" onClick={() => open(c)}>
+              اطلاعات
+            </button>
+          )}
           {!c.isEmergency && (
             <button
               className="btn sm danger"

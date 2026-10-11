@@ -100,6 +100,26 @@ try {
   assert.ok(box.top >= 0 && box.bottom <= box.vh + 1 && box.send <= box.vh, `dialog off screen: ${JSON.stringify(box)}`);
   await A.$$eval('.modal .btn', (els) => els.find((b) => b.textContent.includes('انصراف')).click());
 
+  step('upload survives a dropped connection and continues where it stopped');
+  const big = (await import('node:path')).join((await import('node:os')).tmpdir(), `ac-resume-${Date.now()}.bin`);
+  (await import('node:fs')).writeFileSync(big, (await import('node:crypto')).randomBytes(10 * 1024 * 1024));
+  await A.waitForSelector('.composer input[type=file]');
+  await (await A.$('.composer input[type=file]')).uploadFile(big);
+  await waitFor(A, () => document.querySelector('.modal'), null, 'send dialog open');
+  await A.emulateNetworkConditions({ download: 5e6, upload: 1.5e6, latency: 20 });
+  const firstChunk = A.waitForResponse((res) => res.url().includes('/api/uploads/') && res.request().method() === 'PUT' && res.status() === 200);
+  await A.$$eval('.modal .btn.primary', (els) => els.find((b) => b.textContent.includes('ارسال')).click());
+  await firstChunk;
+  await A.setOfflineMode(true);
+  await waitFor(A, () => document.querySelector('.upload-waiting'), null, '"waiting for connection" shown');
+  await sleep(1500);
+  const offsets = [];
+  A.on('request', (req) => req.method() === 'PUT' && req.url().includes('/api/uploads/') && offsets.push(Number(req.headers()['upload-offset'])));
+  await A.setOfflineMode(false);
+  await A.emulateNetworkConditions(null);
+  await waitFor(A, () => !document.querySelector('.modal') && [...document.querySelectorAll('.file-name')].some((e) => e.textContent.includes('ac-resume')), null, 'file sent after reconnecting', 60000);
+  assert.ok(offsets.length && Math.min(...offsets) > 0, `resumed instead of restarting (offsets ${offsets})`);
+
   step('both join the voice channel');
   await A.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
   await clickText(A, '.voice-banner button', 'شروع ویس‌چت');

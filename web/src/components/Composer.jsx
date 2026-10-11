@@ -390,7 +390,12 @@ function SendFileDialog({ file, chat, onClose }) {
   const [videoQ, setVideoQ] = useState(() => (useStore.getState().prefs.dataSaver ? '360' : '720'));
   const [caption, setCaption] = useState('');
   const [progress, setProgress] = useState(null);
+  const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState('');
+  const uploadedRef = useRef(null); // file already on the server (only the message post failed)
+  useEffect(() => {
+    uploadedRef.current = null;
+  }, [compress, videoQ]);
   const abort = useRef(null);
   const [preview] = useState(() => (isImage || isVideo ? URL.createObjectURL(file) : null));
 
@@ -419,7 +424,10 @@ function SendFileDialog({ file, chat, onClose }) {
         meta = { q: videoQ };
       }
       const name = isImage && compress ? file.name.replace(/\.\w+$/, '') + '.jpg' : file.name;
-      const uploaded = await upload(blob, { name, meta, onProgress: setProgress, signal: abort.current.signal });
+      const uploaded =
+        uploadedRef.current ||
+        (await upload(blob, { name, meta, onProgress: setProgress, onStatus: (st) => setWaiting(st === 'waiting'), signal: abort.current.signal }));
+      uploadedRef.current = uploaded;
       const { message } = await api('POST', `/chats/${chat.id}/messages`, {
         fileId: uploaded.id,
         type,
@@ -431,6 +439,7 @@ function SendFileDialog({ file, chat, onClose }) {
       onClose();
     } catch (e) {
       setProgress(null);
+      setWaiting(false);
       if (e.status === CANCELLED) return;
       setError(e.message);
     } finally {
@@ -494,6 +503,7 @@ function SendFileDialog({ file, chat, onClose }) {
             <span>{toFa(Math.round(progress * 100))}٪</span>
           </div>
         )}
+        {waiting && <p className="hint upload-waiting">اتصال قطع شد؛ با برگشتن اینترنت ارسال از همان‌جا ادامه پیدا می‌کند…</p>}
         {error && <div className="error">{error}</div>}
         <div className="actions">
           {progress !== null ? (
