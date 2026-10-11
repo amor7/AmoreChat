@@ -18,7 +18,7 @@ const MSG_SELECT = `
     f.mime AS f_mime, f.size AS f_size, f.name AS f_name, f.kind AS f_kind,
     f.width AS f_w, f.height AS f_h, f.duration AS f_dur, f.status AS f_status,
     f.variants AS f_variants, f.thumb AS f_thumb, f.waveform AS f_wave, f.purged AS f_purged,
-    ch.type AS chat_type, r.text AS r_text, r.type AS r_type, r.deleted AS r_deleted, ru.display_name AS r_sender
+    ch.type AS chat_type, ch.title AS chat_title, ch.avatar_file_id AS chat_avatar, r.text AS r_text, r.type AS r_type, r.deleted AS r_deleted, ru.display_name AS r_sender
   FROM messages m
   LEFT JOIN users u ON u.id = m.sender_id
   LEFT JOIN files f ON f.id = m.file_id
@@ -56,9 +56,12 @@ export function serializeMessage(m, reactions = []) {
     chatId: m.chat_id,
     type: deleted ? 'deleted' : m.type,
     text: deleted ? '' : m.text,
-    sender: m.sender_id
-      ? { id: m.sender_id, displayName: m.sender_name, username: m.sender_username, avatar: m.sender_avatar }
-      : null,
+    // Channel posts appear under the channel's name (like Telegram): subscribers never learn who the admins are.
+    sender: !m.sender_id
+      ? null
+      : m.chat_type === 'channel'
+        ? { id: 0, displayName: m.chat_title, username: '', avatar: m.chat_avatar, channel: true }
+        : { id: m.sender_id, displayName: m.sender_name, username: m.sender_username, avatar: m.sender_avatar },
     file:
       !deleted && m.file_id
         ? {
@@ -86,7 +89,7 @@ export function serializeMessage(m, reactions = []) {
           id: m.reply_to,
           text: m.r_deleted ? '' : m.r_text,
           type: m.r_deleted ? 'deleted' : m.r_type,
-          sender: m.r_sender,
+          sender: m.chat_type === 'channel' ? m.chat_title : m.r_sender,
         }
       : null,
     editedAt: m.edited_at,

@@ -1,5 +1,5 @@
 import { Server } from 'socket.io';
-import { all, run, now } from './db.js';
+import { get, all, run, now } from './db.js';
 import { userFromToken, SESSION_COOKIE } from './auth.js';
 import { setIO, online } from './realtime.js';
 
@@ -45,7 +45,8 @@ export function setupSocket(app) {
 
     socket.on('typing', (data) => {
       const chatId = Number(data?.chatId);
-      if (socket.rooms.has(`chat:${chatId}`)) {
+      // Channels: "X is typing" would reveal who the admins are.
+      if (socket.rooms.has(`chat:${chatId}`) && get('SELECT type FROM chats WHERE id = ?', chatId)?.type !== 'channel') {
         socket.to(`chat:${chatId}`).emit('typing', { chatId, userId: uid, name: socket.data.user.name });
       }
     });

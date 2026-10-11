@@ -226,10 +226,10 @@ export default function ChatView({ chatId }) {
       {menu && (
         <MessageMenu
           {...menu}
-          mine={menu.m.sender?.id === me.id}
+          mine={menu.m.sender?.id === me.id || (chat.type === 'channel' && hasChatPerm(me, chat, 'post_messages') && menu.m.type !== 'call')}
           canPin={canPin}
           canDelete={menu.m.sender?.id === me.id || canDeleteOthers}
-          canReport={menu.m.sender?.id !== me.id && chat.type !== 'saved'}
+          canReport={menu.m.sender?.id !== me.id && chat.type !== 'saved' && !(chat.type === 'channel' && (chat.myRole === 'owner' || chat.myRole === 'admin'))}
           canReaders={(chat.type === 'group' || chat.type === 'channel') && (menu.m.sender?.id === me.id || chat.myRole === 'owner' || chat.myRole === 'admin')}
           onAction={(a, extra) => act(a, menu.m, extra)}
           onClose={() => setMenu(null)}

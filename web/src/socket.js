@@ -153,7 +153,7 @@ function notify(m) {
   beep();
   if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const chat = s.chats[m.chatId];
-  const title = (mentioned && chat?.type !== 'dm' ? '@ ' : '') + (chat?.type === 'dm' ? m.sender.displayName : `${chat?.title || ''} — ${m.sender.displayName}`);
+  const title = (mentioned && chat?.type !== 'dm' ? '@ ' : '') + (chat?.type === 'dm' ? m.sender.displayName : chat?.type === 'channel' ? chat.title : `${chat?.title || ''} — ${m.sender.displayName}`);
   const opts = { body: messagePreview(m).slice(0, 120), tag: `chat-${m.chatId}`, icon: '/icon-192.png', data: { chatId: m.chatId } };
   navigator.serviceWorker?.ready
     .then((reg) => reg.showNotification(title, opts))

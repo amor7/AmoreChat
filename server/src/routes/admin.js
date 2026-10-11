@@ -3,10 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { get, all, run, now, parseJSON, DATA_DIR } from '../db.js';
 import { DEFAULTS, getAllSettings, setSetting } from '../settings.js';
-import { hasSitePerm, cleanPerms, SITE_PERMS } from '../perms.js';
+import { hasSitePerm, cleanPerms, SITE_PERMS, CHAT_PERMS } from '../perms.js';
 import { hashPassword, randomCode, publicUser } from '../auth.js';
 import { online, isOnline, disconnectUser } from '../realtime.js';
-import { fail, audit, loadMessage } from '../chats.js';
+import { fail, audit, loadMessage, addMember, chatSummary } from '../chats.js';
 import { ffmpegAvailable } from '../media.js';
 import { effectiveLimits, cleanLimits } from '../limits.js';
 import { deleteMessage } from '../sweeper.js';
@@ -260,6 +260,20 @@ export default async function adminRoutes(app) {
     return { ok: true };
   });
 
+  // Join any group / channel / voice channel as its admin (all permissions), silently and audited.
+  app.post('/api/admin/chats/:id/manage', async (req) => {
+    need(req, 'manage_chats');
+    const chat = get("SELECT * FROM chats WHERE id = ? AND type IN ('group', 'channel', 'voice')", Number(req.params.id));
+    if (!chat) fail(404, 'گفتگو پیدا نشد');
+    const m = get('SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?', chat.id, req.user.id);
+    if (!m) addMember(chat.id, req.user.id, 'admin', { silent: true });
+    if (!m || m.role === 'member') {
+      run("UPDATE chat_members SET role = 'admin', perms = ? WHERE chat_id = ? AND user_id = ?", JSON.stringify(CHAT_PERMS), chat.id, req.user.id);
+    }
+    audit(req.user.id, 'chat.takeover', chat.id, { title: chat.title });
+    return { chat: chatSummary(chat.id, req.user.id) };
+  });
+
   app.get('/api/admin/chats', async (req) => {
     need(req, 'manage_chats');
     return {
@@ -267,8 +281,10 @@ export default async function adminRoutes(app) {
         `SELECT c.id, c.type, c.title, c.is_public AS isPublic, c.is_emergency AS isEmergency, c.created_at AS createdAt,
            (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id = c.id) AS memberCount,
            (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id) AS messageCount
-         FROM chats c WHERE c.type IN ('group', 'channel') ORDER BY c.id DESC LIMIT 500`,
-      ),
+           , EXISTS (SELECT 1 FROM chat_members me WHERE me.chat_id = c.id AND me.user_id = ?) AS isMember
+         FROM chats c WHERE c.type IN ('group', 'channel', 'voice') ORDER BY c.id DESC LIMIT 1000`,
+        req.user.id,
+      ).map((c) => ({ ...c, isMember: !!c.isMember, isPublic: !!c.isPublic, isEmergency: !!c.isEmergency })),
     };
   });
 }

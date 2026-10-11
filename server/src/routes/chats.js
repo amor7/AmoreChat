@@ -134,8 +134,14 @@ export default async function chatRoutes(app) {
     const canSeeBans = hasChatPerm(req.user, member, 'ban_members');
     return {
       chat: member ? chatSummary(chat.id, req.user.id) : { id: chat.id, type: chat.type, title: chat.title, description: chat.description },
-      // Hidden list: regular members only see the admins (and themselves), like Telegram.
-      members: chat.type === 'saved' ? [] : membersOf(chat.id).filter((u) => !membersHidden(chat) || isChatStaff(req.user, member) || u.chatRole !== 'member' || u.id === req.user.id),
+      // Hidden list, like Telegram: channel subscribers only see themselves (not even the admins);
+      // in groups with a hidden list, regular members see the admins and themselves.
+      members:
+        chat.type === 'saved'
+          ? []
+          : membersOf(chat.id).filter(
+              (u) => !membersHidden(chat) || isChatStaff(req.user, member) || u.id === req.user.id || (chat.type === 'group' && u.chatRole !== 'member'),
+            ),
       membersHidden: membersHidden(chat) && !isChatStaff(req.user, member),
       bans: canSeeBans
         ? all(

@@ -173,12 +173,31 @@ assert.equal((await carol.call('POST', '/api/rtc/join', { chatId: radio })).stat
 await sendWebhook({ event: 'participant_left', room: { name: `chat-${radio}` }, participant: { identity: `u${ownerId}` } });
 // Channel members are hidden from regular subscribers, reactions are anonymous
 r = await carol.call('GET', `/api/chats/${radio}`);
-assert.deepEqual(r.members.map((m) => m.id).sort(), [ownerId, carolId].sort(), 'subscriber sees only admins and self');
+assert.deepEqual(r.members.map((m) => m.id), [carolId], 'subscriber sees only self, not even the admins');
 assert.equal(r.membersHidden, true);
 r = await owner.call('GET', `/api/chats/${radio}`);
 assert.equal(r.members.length, 3);
 r = await owner.call('POST', `/api/chats/${radio}/messages`, { text: 'خبر' });
 const post = r.message.id;
+assert.equal(r.message.sender.id, 0, 'channel posts are signed by the channel');
+assert.equal(r.message.sender.displayName, 'رادیو');
+r = await carol.call('GET', `/api/chats/${radio}/messages`);
+assert.ok(r.messages.every((m) => !m.sender || m.sender.id === 0), 'no admin identity in channel history');
+// Site owner manages any chat, even one they're not in
+r = await bob.call('POST', '/api/chats', { type: 'group', title: 'گروه باب' });
+const bobGroup = r.chat.id;
+r = await owner.call('GET', '/api/admin/chats');
+assert.equal(r.chats.find((c) => c.id === bobGroup).isMember, false);
+assert.ok(r.chats.some((c) => c.type === 'voice'), 'voice channels are listed too');
+r = await carol.call('POST', `/api/admin/chats/${bobGroup}/manage`);
+assert.equal(r.status, 403);
+r = await owner.call('POST', `/api/admin/chats/${bobGroup}/manage`);
+assert.equal(r.chat.myRole, 'admin');
+assert.ok(r.chat.myPerms.includes('ban_members'));
+r = await owner.call('GET', `/api/chats/${bobGroup}/messages`);
+assert.ok(!r.messages.some((m) => m.type === 'system' && m.text.includes('پیوست')), 'joined silently');
+r = await owner.call('DELETE', `/api/chats/${bobGroup}`);
+assert.equal(r.ok, true);
 r = await carol.call('POST', `/api/messages/${post}/react`, { emoji: '👍' });
 assert.deepEqual(r.message.reactions, [{ emoji: '👍', users: [], count: 1, mine: true }]);
 r = await bob.call('GET', `/api/chats/${radio}/messages`);

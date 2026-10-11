@@ -168,8 +168,10 @@ export default async function messageRoutes(app) {
   });
 
   app.patch('/api/messages/:id', async (req) => {
-    const { m } = requireMessage(req, req.params.id);
-    if (m.sender_id !== req.user.id) fail(403, 'فقط پیام‌های خودتان را می‌توانید ویرایش کنید');
+    const { m, chat, member } = requireMessage(req, req.params.id);
+    // Channel posts are anonymous: any admin who may post can edit them.
+    const channelEditor = chat.type === 'channel' && member && hasChatPerm(req.user, member, 'post_messages');
+    if (m.sender_id !== req.user.id && !channelEditor) fail(403, 'فقط پیام‌های خودتان را می‌توانید ویرایش کنید');
     if (m.type === 'system') fail(400, 'نامعتبر');
     const text = String(req.body?.text || '').trim();
     if (!text && !m.file_id) fail(400, 'پیام خالی است');

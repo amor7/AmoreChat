@@ -356,12 +356,45 @@ function Invites() {
   );
 }
 
+const CHAT_KINDS = [
+  ['all', 'همه'],
+  ['group', 'گروه'],
+  ['channel', 'کانال'],
+  ['voice', 'کانال صوتی'],
+];
+
+// Every group, channel and voice channel on the server, whether or not I'm in it.
 function Chats({ onClose }) {
   const showToast = useStore((s) => s.showToast);
   const [data, load] = useLoad('/admin/chats');
+  const [kind, setKind] = useState('all');
+  const [q, setQ] = useState('');
+  const list = (data?.chats || []).filter((c) => (kind === 'all' || c.type === kind) && (!q || c.title.toLowerCase().includes(q.toLowerCase())));
+  const manage = async (c) => {
+    try {
+      if (!c.isMember || !useStore.getState().chats[c.id]) {
+        const { chat } = await api('POST', `/admin/chats/${c.id}/manage`);
+        useStore.getState().upsertChat(chat);
+      }
+      onClose();
+      useStore.getState().openModal('chatInfo', { chatId: c.id });
+    } catch (e) {
+      showToast(e.message);
+    }
+  };
   return (
+    <>
+      <input placeholder="جستجوی گروه یا کانال…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="chips admin-kinds">
+        {CHAT_KINDS.map(([k, label]) => (
+          <button key={k} className={`chip-btn ${kind === k ? 'active' : ''}`} onClick={() => setKind(k)}>
+            {label} {data && <small>({toFa(k === 'all' ? data.chats.length : data.chats.filter((c) => c.type === k).length)})</small>}
+          </button>
+        ))}
+      </div>
+      <p className="hint">«مدیریت» شما را بی‌صدا و با همه دسترسی‌ها مدیر آن گفتگو می‌کند (در گزارش فعالیت ثبت می‌شود). «حذف» گفتگو را برای همه پاک می‌کند.</p>
     <ul className="user-list">
-      {data?.chats.map((c) => (
+      {list.map((c) => (
         <li key={c.id} className="row-item">
           <span className="grow">
             <b>
@@ -370,17 +403,10 @@ function Chats({ onClose }) {
             </b>
             <small>
               {toFa(c.memberCount)} عضو · {toFa(c.messageCount)} پیام · {c.isPublic ? 'عمومی' : 'خصوصی'}
+              {!c.isMember && ' · شما عضو نیستید'}
             </small>
           </span>
-          <button
-            className="btn sm"
-            onClick={() => {
-              onClose();
-              useStore.getState().openModal('chatInfo', { chatId: c.id });
-            }}
-            disabled={!useStore.getState().chats[c.id]}
-            title="فقط برای گفتگوهایی که عضو هستید"
-          >
+          <button className="btn sm" onClick={() => manage(c)}>
             مدیریت
           </button>
           {!c.isEmergency && (
@@ -398,7 +424,9 @@ function Chats({ onClose }) {
           )}
         </li>
       ))}
+      {data && !list.length && <li className="muted center">موردی نیست</li>}
     </ul>
+    </>
   );
 }
 
