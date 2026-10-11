@@ -2,8 +2,8 @@ plugins {
     id 'com.android.application'
 }
 
-// Version comes from the release tag (v1.2.3 -> 1.2.3 / 10203), see .github/workflows.
-def appVersion = (System.getenv('APP_VERSION') ?: '0.0.0').replaceFirst(/^v/, '')
+// Same version as the server (package.json): 1.2.3 -> versionCode 10203.
+def appVersion = new groovy.json.JsonSlurper().parse(rootProject.file('../package.json')).version
 def parts = appVersion.tokenize('.').collect { it.replaceAll(/\D.*/, '') ?: '0' }.collect { it as int } + [0, 0, 0]
 def ks = System.getenv('ANDROID_KEYSTORE_FILE')
 

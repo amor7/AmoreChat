@@ -38,7 +38,6 @@ jobs:
           fi
       - name: Build
         env:
-          APP_VERSION: ${{ inputs.version || '0.0.0' }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: gradle -p android --no-daemon assembleDebug assembleRelease
       - name: Collect
