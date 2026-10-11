@@ -84,7 +84,12 @@ async function devtools() {
   return { evaluate, close: () => ws.close() };
 }
 
-const notifications = () => adb('shell dumpsys notification --noredact');
+// Active notifications only: dumpsys also lists recently removed ones (archive / history).
+const notifications = () => {
+  const all = adb('shell dumpsys notification --noredact');
+  const cut = all.search(/\n\s*(mArchive|Archive|Notification History|mHistory)/i);
+  return cut > 0 ? all.slice(0, cut) : all;
+};
 
 // ---------- Accounts ----------
 const owner = client();
@@ -150,6 +155,13 @@ try {
   console.log('\nANDROID E2E TEST PASSED');
 } catch (e) {
   console.error(e);
+  try {
+    // Section headers of dumpsys, to see where things are listed
+    const lines = adb('shell dumpsys notification --noredact').split('\n');
+    console.log(lines.filter((l) => /^ {0,4}\S/.test(l)).slice(0, 80).join('\n'));
+  } catch {
+    /* ignore */
+  }
   try {
     console.log(adb('logcat -d -t 300 AndroidRuntime:E chromium:W *:S'));
   } catch {
