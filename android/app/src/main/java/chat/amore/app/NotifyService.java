@@ -36,6 +36,15 @@ public class NotifyService extends Service {
         }
     }
 
+    /** Reconnect now (e.g. right after signing in) instead of waiting for the next retry. */
+    static void kick(Context c) {
+        if (Prefs.server(c) == null || !Prefs.background(c)) return;
+        try {
+            ContextCompat.startForegroundService(c, new Intent(c, NotifyService.class).setAction("kick"));
+        } catch (Exception ignored) {
+        }
+    }
+
     static void stop(Context c) {
         c.stopService(new Intent(c, NotifyService.class));
     }
@@ -54,6 +63,11 @@ public class NotifyService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && "kick".equals(intent.getAction()) && loop != null && loop.isAlive()) {
+            HttpURLConnection c = conn;
+            if (c != null) new Thread(c::disconnect).start();
+            loop.interrupt();
+        }
         if (loop == null || !loop.isAlive()) {
             running = true;
             loop = new Thread(this::run, "amore-notify");
@@ -78,7 +92,7 @@ public class NotifyService extends Service {
                     // Logged out: nothing to listen for until the user signs in again.
                     status("برای دریافت اعلان وارد شوید");
                     lastStatus = null;
-                    sleep(60000);
+                    sleep(30000);
                     continue;
                 }
                 if (code != 200) throw new Exception("HTTP " + code);
@@ -98,6 +112,10 @@ public class NotifyService extends Service {
                 conn = null;
             }
             if (!running) break;
+            if (Thread.interrupted()) {
+                backoff = 2000;
+                continue;
+            }
             sleep(backoff);
             backoff = Math.min(backoff * 2, 60000);
         }
@@ -111,6 +129,7 @@ public class NotifyService extends Service {
         try {
             Thread.sleep(ms);
         } catch (InterruptedException ignored) {
+            // kicked: retry right away
         }
     }
 

@@ -78,4 +78,6 @@ export function initNative() {
   document.documentElement.classList.add('android-app');
   window.addEventListener('amore-native', drain);
   drain();
+  // Signed in now: the background connection can stop waiting and reconnect.
+  bridge.signedIn?.();
 }

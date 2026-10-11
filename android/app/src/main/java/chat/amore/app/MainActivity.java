@@ -436,6 +436,11 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void signedIn() {
+            NotifyService.kick(MainActivity.this);
+        }
+
+        @JavascriptInterface
         public void reload() {
             runOnUiThread(() -> {
                 String server = Prefs.server(MainActivity.this);
