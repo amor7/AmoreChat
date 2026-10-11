@@ -630,3 +630,21 @@
 .user-list .row-item {
   width: 100%;
 }
+
+/* A long preview line (e.g. the "new login" notice) must not widen the chat list on phones. */
+.sidebar,
+.chat-list,
+.chat-item .row {
+  min-width: 0;
+}
+.chat-item .row > .preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.preview > span:not(.emoji):not(.preview-icon) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

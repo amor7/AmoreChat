@@ -133,6 +133,8 @@ try {
   assert.equal(pages.length, 1, 'exactly one WebView page');
   await sleep(3000); // software-rendered emulator: let it paint
   assert.equal(await dt.evaluate("!!document.querySelector('.splash')"), false, 'not stuck on the loading screen');
+  // Regression: the long "new login" preview used to make the chat list wider than the phone.
+  assert.equal(await dt.evaluate("document.querySelector('.sidebar').getBoundingClientRect().width <= innerWidth + 1"), true, 'chat list fits the screen');
   screenshot('chats');
 
   step('background connection: the service is running');
