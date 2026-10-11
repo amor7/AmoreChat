@@ -969,3 +969,9 @@ select:focus {
   background: var(--grad);
   color: #fff;
 }
+@media (max-width: 767px) {
+  /* Keep bottom-sheet buttons clear of the iPhone home indicator. */
+  .modal.small {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  }
+}

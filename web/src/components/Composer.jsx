@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api, upload, CANCELLED } from '../api';
 import { useStore } from '../store';
 import { emitTyping } from '../socket';
@@ -353,7 +354,9 @@ function SendFileDialog({ file, chat, onClose }) {
     }
   }
 
-  return (
+  // Portal: the composer bar uses backdrop-filter, which would otherwise trap this
+  // "fixed" overlay inside the bar (half of it ended up below the screen).
+  return createPortal(
     <div className="modal-backdrop" onClick={() => progress === null && onClose()}>
       <div className="modal small" onClick={(e) => e.stopPropagation()}>
         <h3>ارسال {isImage ? 'عکس' : isVideo ? 'ویدیو' : 'فایل'}</h3>
@@ -428,6 +431,7 @@ function SendFileDialog({ file, chat, onClose }) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

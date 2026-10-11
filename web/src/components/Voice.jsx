@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Mic,
   MicOff,
@@ -233,7 +234,7 @@ function ShareDialog({ onClose }) {
   const [fps, setFps] = useState(30);
   const [audio, setAudio] = useState(true);
   const options = [480, 720, 1080].filter((q) => q <= max);
-  return (
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal small" onClick={(e) => e.stopPropagation()}>
         <h3 className="with-icon">
@@ -275,7 +276,8 @@ function ShareDialog({ onClose }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

@@ -70,6 +70,21 @@ async function clickText(page, selector, text) {
 }
 
 try {
+  step('desktop: the send-file dialog is fully on screen (regression: it slid below the window)');
+  await A.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
+  const tmp = (await import('node:path')).join((await import('node:os')).tmpdir(), `ac-e2e-${Date.now()}.mp4`);
+  (await import('node:fs')).writeFileSync(tmp, Buffer.alloc(200_000));
+  const input = await A.$('.composer input[type=file]');
+  await input.uploadFile(tmp);
+  await waitFor(A, () => document.querySelector('.modal'), null, 'send dialog open');
+  const box = await A.evaluate(() => {
+    const send = [...document.querySelectorAll('.modal .btn.primary')].find((b) => b.textContent.includes('ارسال')).getBoundingClientRect();
+    const m = document.querySelector('.modal').getBoundingClientRect();
+    return { top: m.top, bottom: m.bottom, send: send.bottom, vh: innerHeight };
+  });
+  assert.ok(box.top >= 0 && box.bottom <= box.vh + 1 && box.send <= box.vh, `dialog off screen: ${JSON.stringify(box)}`);
+  await A.$$eval('.modal .btn', (els) => els.find((b) => b.textContent.includes('انصراف')).click());
+
   step('both join the voice channel');
   await A.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
   await clickText(A, '.voice-banner button', 'شروع ویس‌چت');
