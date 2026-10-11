@@ -27,6 +27,7 @@ import { api } from '../api';
 import { useStore } from '../store';
 import { hasChatPerm, toFa } from '../util';
 import Avatar from './Avatar';
+import Ping from './Ping';
 import CallView from './CallView';
 import { useSmartFit } from '../smartFit';
 import {
@@ -163,6 +164,7 @@ export function VoiceBar() {
           <small>{speaking.length ? `در حال صحبت: ${speaking.join('، ')}` : rtc.title}</small>
         </span>
       </button>
+      <Ping />
       <Controls compact />
     </div>
   );
@@ -371,6 +373,7 @@ export function RoomView() {
             )}
           </small>
         </div>
+        <Ping />
         {rtc.canSpeak === false && <span className="tag">فقط شنونده</span>}
         {main && tiles.length > 1 && (
           <button className="icon-btn" onClick={() => setSpot('grid')} title="نمایش همه" aria-label="نمایش همه">

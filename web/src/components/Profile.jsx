@@ -3,9 +3,10 @@ import { api, upload } from '../api';
 import { useStore } from '../store';
 import { APP_VERSION } from '../update';
 import { Camera, Bell, RefreshCw } from 'lucide-react';
-import { compressImage, formatSize, ROLE_LABELS } from '../util';
+import { compressImage, formatSize, ROLE_LABELS, toFa } from '../util';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
+import Security from './Security';
 
 export default function Profile({ onClose }) {
   const me = useStore((s) => s.me);
@@ -51,9 +52,9 @@ export default function Profile({ onClose }) {
   async function changePassword(e) {
     e.preventDefault();
     try {
-      await api('POST', '/auth/password', pw);
+      const { loggedOut } = await api('POST', '/auth/password', pw);
       setPw({ current: '', next: '' });
-      showToast('رمز عبور تغییر کرد');
+      showToast(loggedOut ? `رمز عوض شد و ${toFa(loggedOut)} دستگاه دیگر خارج شد` : 'رمز عبور تغییر کرد');
     } catch (err) {
       showToast(err.message);
     }
@@ -118,10 +119,13 @@ export default function Profile({ onClose }) {
       {notif === 'denied' && <p className="muted">اعلان‌ها در تنظیمات مرورگر مسدود شده‌اند.</p>}
       {notif === 'unsupported' && <p className="muted">این مرورگر از اعلان پشتیبانی نمی‌کند. برنامه را نصب کنید (افزودن به صفحه اصلی).</p>}
 
-      <h4>تغییر رمز عبور</h4>
+      <Security />
+
+      <h5>تغییر رمز عبور</h5>
+      <p className="muted tiny">بعد از تغییر رمز، همهٔ دستگاه‌های دیگر خارج می‌شوند.</p>
       <form className="form" onSubmit={changePassword}>
         <input type="password" placeholder="رمز فعلی" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required dir="ltr" autoComplete="current-password" />
-        <input type="password" placeholder="رمز جدید (حداقل ۸ کاراکتر)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required minLength={8} dir="ltr" autoComplete="new-password" />
+        <input type="password" placeholder="رمز جدید (حداقل ۸ کاراکتر، ساده نباشد)" value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required minLength={8} dir="ltr" autoComplete="new-password" />
         <button className="btn">تغییر رمز</button>
       </form>
       <p className="muted center version" dir="ltr">

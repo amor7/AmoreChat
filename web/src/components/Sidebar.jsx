@@ -3,12 +3,13 @@ import { MessageResults, openMessage } from './Modals';
 import { VoiceChannels } from './Voice';
 import { RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
-import { Menu, SquarePen, UserRound, Compass, Shield, LogOut, Users, Megaphone, Volume2 } from 'lucide-react';
+import { Menu, SquarePen, UserRound, Compass, Shield, LogOut, Users, Megaphone, Volume2, BellOff } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api';
-import { disconnectSocket } from '../socket';
+import { disconnectSocket, isChatMuted } from '../socket';
 import { formatListTime, messagePreview, toFa, hasSitePerm } from '../util';
 import Avatar from './Avatar';
+import Ping from './Ping';
 
 const TYPE_ICON = { group: Users, channel: Megaphone, voice: Volume2 };
 
@@ -96,7 +97,10 @@ export default function Sidebar() {
           </>
         )}
       </header>
-      <div className="site-name">{siteName}</div>
+      <div className="site-name">
+        <span>{siteName}</span>
+        <Ping />
+      </div>
       <ul className="chat-list">
         {!query && (
           <li>
@@ -115,6 +119,7 @@ export default function Sidebar() {
                     <span className="title">
                       <TypeIcon type={c.type} />
                       {c.title}
+                      {isChatMuted(c) && <BellOff size={13} className="muted-icon" aria-label="بی‌صدا" />}
                     </span>
                     {last && <span className="time">{formatListTime(last.createdAt)}</span>}
                   </div>
@@ -124,7 +129,8 @@ export default function Sidebar() {
                       <PreviewIcon m={last} />
                       <RichText text={messagePreview(last)} size={16} />
                     </span>
-                    {c.unread > 0 && <span className="badge">{toFa(c.unread)}</span>}
+                    {c.unreadMentions > 0 && <span className="badge mention">@</span>}
+                    {c.unread > 0 && <span className={`badge ${isChatMuted(c) ? 'quiet' : ''}`}>{toFa(c.unread)}</span>}
                   </div>
                 </div>
               </a>

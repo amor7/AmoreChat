@@ -20,6 +20,20 @@ function Linkify({ text, big }) {
         {p}
       </a>
     ) : (
+      <Mentions key={i} text={p} big={big} />
+    ),
+  );
+}
+
+const MENTION_RE = /((?<![\w@.])@[A-Za-z][A-Za-z0-9_]{2,31})/g;
+function Mentions({ text, big }) {
+  const parts = text.split(MENTION_RE);
+  return parts.map((p, i) =>
+    i % 2 ? (
+      <span key={i} className="mention" dir="ltr">
+        {p}
+      </span>
+    ) : (
       <RichText key={i} text={p} size={22} big={big} />
     ),
   );
@@ -93,7 +107,7 @@ function Message({ m, chat, mine, grouped, onJump, onMenu }) {
       {showAvatar && <div className="msg-avatar">{!grouped && <Avatar id={m.sender?.id} name={m.sender?.displayName} file={m.sender?.avatar} size={34} />}</div>}
       <div className="bubble-col">
         <div
-          className={`bubble ${m.type === 'deleted' ? 'deleted' : ''} ${visual ? 'has-media' : ''} ${bigEmoji ? 'big-emoji' : ''}`}
+          className={`bubble ${m.type === 'deleted' ? 'deleted' : ''} ${visual ? 'has-media' : ''} ${bigEmoji ? 'big-emoji' : ''} ${!mine && m.mentions?.includes(meId) ? 'mentions-me' : ''}`}
           onContextMenu={openMenu}
           onTouchStart={touchStart}
           onTouchEnd={touchEnd}

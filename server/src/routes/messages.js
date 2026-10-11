@@ -1,7 +1,7 @@
 import { get, all, run, now } from '../db.js';
 import { hasSitePerm, hasChatPerm } from '../perms.js';
 import { toChat, toAll } from '../realtime.js';
-import { fail, getMember, loadMessage, loadMessages, loadMessagesByIds, postMessage, systemMessage, audit } from '../chats.js';
+import { fail, getMember, loadMessage, loadMessages, loadMessagesByIds, postMessage, systemMessage, audit, findMentions } from '../chats.js';
 import { requireChat } from './chats.js';
 import { deleteMessage } from '../sweeper.js';
 
@@ -174,7 +174,8 @@ export default async function messageRoutes(app) {
     const text = String(req.body?.text || '').trim();
     if (!text && !m.file_id) fail(400, 'پیام خالی است');
     if (text.length > MAX_TEXT) fail(400, 'متن خیلی طولانی است');
-    run('UPDATE messages SET text = ?, edited_at = ? WHERE id = ?', text, now(), m.id);
+    const mentions = findMentions(m.chat_id, text, m.reply_to, m.sender_id);
+    run('UPDATE messages SET text = ?, edited_at = ?, mentions = ? WHERE id = ?', text, now(), mentions.length ? JSON.stringify(mentions) : null, m.id);
     const msg = loadMessage(m.id);
     toChat(m.chat_id, 'message:edit', msg);
     return { message: msg };
@@ -198,6 +199,41 @@ export default async function messageRoutes(app) {
     toChat(m.chat_id, 'message:edit', loadMessage(m.id));
     if (pinned && chat.type === 'group') systemMessage(chat.id, `${req.user.display_name} پیامی را سنجاق کرد`);
     return { ok: true };
+  });
+
+  // "Seen by": members whose read pointer passed this message (groups and channels).
+  app.get('/api/messages/:id/readers', async (req) => {
+    const { m: msg, member } = requireMessage(req, req.params.id);
+    if (msg.sender_id !== req.user.id && !(member && (member.role === 'owner' || member.role === 'admin'))) fail(403, 'فقط فرستنده می‌تواند ببیند');
+    const users = all(
+      `SELECT u.id, u.username, u.display_name, u.avatar_file_id FROM chat_members cm JOIN users u ON u.id = cm.user_id
+       WHERE cm.chat_id = ? AND cm.last_read >= ? AND cm.user_id != IFNULL(?, 0) ORDER BY u.display_name LIMIT 500`,
+      msg.chat_id,
+      msg.id,
+      msg.sender_id,
+    );
+    const total = get('SELECT COUNT(*) AS n FROM chat_members WHERE chat_id = ? AND user_id != IFNULL(?, 0)', msg.chat_id, msg.sender_id).n;
+    return { readers: users.map((u) => ({ id: u.id, username: u.username, displayName: u.display_name, avatar: u.avatar_file_id })), total };
+  });
+
+  // Shared media of one chat, newest first: kind = media | files | voice | links
+  app.get('/api/chats/:id/media', async (req) => {
+    const { chat } = requireChat(req, req.params.id, { allowModerator: true });
+    const where = {
+      media: "m.type IN ('image', 'video')",
+      files: "m.type = 'file'",
+      voice: "m.type = 'voice'",
+      links: "m.type = 'text' AND (m.text LIKE '%http://%' OR m.text LIKE '%https://%')",
+    }[req.query.kind] || "m.type IN ('image', 'video')";
+    const before = Number(req.query.before) || Number.MAX_SAFE_INTEGER;
+    const ids = all(
+      `SELECT m.id FROM messages m LEFT JOIN files f ON f.id = m.file_id
+       WHERE m.chat_id = ? AND m.deleted = 0 AND m.id < ? AND ${where} AND IFNULL(f.purged, 0) = 0
+       ORDER BY m.id DESC LIMIT 60`,
+      chat.id,
+      before,
+    ).map((r) => r.id);
+    return { messages: loadMessagesByIds(ids) };
   });
 
   app.post('/api/chats/:id/read', async (req) => {

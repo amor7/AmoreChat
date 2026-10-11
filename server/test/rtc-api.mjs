@@ -62,14 +62,14 @@ const owner = client();
 const bob = client();
 const carol = client();
 
-let r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'password1', displayName: 'Owner', invite: SETUP });
+let r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'Str0ng-Pass-77', displayName: 'Owner', invite: SETUP });
 assert.equal(r.status, 200);
 assert.equal(r.user.limits.canStream, true);
 r = await owner.call('POST', '/api/admin/invites', { maxUses: 2 });
-r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'password1', displayName: 'Bob', invite: r.invite.code });
+r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'Str0ng-Pass-77', displayName: 'Bob', invite: r.invite.code });
 const bobId = r.user.id;
 r = await owner.call('GET', '/api/admin/invites');
-r = await carol.call('POST', '/api/auth/register', { username: 'carol', password: 'password1', displayName: 'Carol', invite: r.invites[0].code });
+r = await carol.call('POST', '/api/auth/register', { username: 'carol', password: 'Str0ng-Pass-77', displayName: 'Carol', invite: r.invites[0].code });
 const carolId = r.user.id;
 await bob.connect();
 await carol.connect();

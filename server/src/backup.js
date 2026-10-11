@@ -3,7 +3,7 @@ import path from 'node:path';
 import { backup } from 'node:sqlite';
 import { db, DATA_DIR } from './db.js';
 
-const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const KEEP = Number(process.env.BACKUP_KEEP || 14);
 const DAY = 24 * 3600 * 1000;
 

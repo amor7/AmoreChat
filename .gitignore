@@ -6,6 +6,7 @@ dist/
 *.log
 offline-bundle/
 data-test/
+data-ui/
 data-test.log
 .claude/
 /Caddyfile

@@ -30,9 +30,15 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:3102/healthz && break; sleep 1; done
           CODE=$(grep -oP 'SETUP CODE: \K\S+' server-rtc.log)
           LK_SECRET=$LIVEKIT_API_SECRET node server/test/rtc-api.mjs http://localhost:3102 "$CODE"
+      - name: Account & security test
+        run: |
+          DATA_DIR=/tmp/hs-acc PORT=3104 node server/src/index.js > server-acc.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3104/healthz && break; sleep 1; done
+          CODE=$(grep -oP 'SETUP CODE: \K\S+' server-acc.log)
+          node server/test/account.mjs http://127.0.0.1:3104 "$CODE"
       - name: Server logs
         if: always()
-        run: cat server.log server-rtc.log
+        run: cat server.log server-rtc.log server-acc.log
 
   # The production docker-compose stack (app + LiveKit + Caddy), wired the way install.sh does it.
   compose:

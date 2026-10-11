@@ -139,6 +139,7 @@ export const useStore = create((set, get) => ({
             ...chat,
             lastMessage: m,
             unread: mine || m.type === 'system' ? chat.unread : chat.unread + 1,
+            unreadMentions: !mine && m.mentions?.includes(s.me?.id) ? (chat.unreadMentions || 0) + 1 : chat.unreadMentions,
             lastRead: mine ? m.id : chat.lastRead,
           },
         },
@@ -166,7 +167,7 @@ export const useStore = create((set, get) => ({
     const list = s.messages[chatId];
     const last = list?.[list.length - 1];
     if (!chat || !last || (last.id <= chat.lastRead && !chat.unread)) return;
-    set({ chats: { ...s.chats, [chatId]: { ...chat, lastRead: Math.max(last.id, chat.lastRead), unread: 0 } } });
+    set({ chats: { ...s.chats, [chatId]: { ...chat, lastRead: Math.max(last.id, chat.lastRead), unread: 0, unreadMentions: 0 } } });
     api('POST', `/chats/${chatId}/read`, { messageId: last.id }).catch(() => {});
   },
   onRead({ chatId, userId, messageId }) {

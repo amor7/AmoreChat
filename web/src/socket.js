@@ -14,7 +14,8 @@ export function connectSocket() {
   socket = io({ transports: ['websocket', 'polling'] });
 
   socket.on('connect', () => {
-    useStore.setState({ connected: true });
+    useStore.setState({ connected: true, ping: null });
+    startPing();
     // After a reconnect, catch up on whatever we missed.
     if (connectedBefore) {
       // The server may have been updated while we were disconnected.
@@ -74,6 +75,31 @@ export function connectSocket() {
 export function disconnectSocket() {
   socket?.disconnect();
   socket = null;
+  clearInterval(pingTimer);
+}
+
+// Round-trip time to the server, smoothed. Faster sampling during calls.
+let pingTimer = 0;
+let lastPing = 0;
+function measurePing() {
+  const st = useStore.getState();
+  if (!socket?.connected) return useStore.setState({ ping: null });
+  if (document.hidden && !st.rtc) return;
+  const interval = st.rtc ? 2000 : 5000;
+  if (Date.now() - lastPing < interval - 100) return;
+  lastPing = Date.now();
+  const t = performance.now();
+  socket.timeout(8000).emit('rtt', Date.now(), (err) => {
+    const ms = err ? 9999 : Math.round(performance.now() - t);
+    const prev = useStore.getState().ping;
+    useStore.setState({ ping: prev == null || err ? ms : Math.round(prev * 0.5 + ms * 0.5) });
+  });
+}
+function startPing() {
+  clearInterval(pingTimer);
+  lastPing = 0;
+  measurePing();
+  pingTimer = setInterval(measurePing, 1000);
 }
 
 let lastTyping = 0;
@@ -109,14 +135,19 @@ function beep() {
   }
 }
 
+export const isChatMuted = (chat) => !!chat?.notifyMutedUntil && chat.notifyMutedUntil > Date.now();
+
 function notify(m) {
   const s = useStore.getState();
   if (!m.sender || m.sender.id === s.me?.id) return;
   if (!document.hidden && s.activeChatId === m.chatId) return;
+  // A muted chat stays silent unless the message @mentions me or replies to me.
+  const mentioned = m.mentions?.includes(s.me?.id);
+  if (isChatMuted(s.chats[m.chatId]) && !mentioned) return;
   beep();
   if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const chat = s.chats[m.chatId];
-  const title = chat?.type === 'dm' ? m.sender.displayName : `${chat?.title || ''} — ${m.sender.displayName}`;
+  const title = (mentioned && chat?.type !== 'dm' ? '@ ' : '') + (chat?.type === 'dm' ? m.sender.displayName : `${chat?.title || ''} — ${m.sender.displayName}`);
   const opts = { body: messagePreview(m).slice(0, 120), tag: `chat-${m.chatId}`, icon: '/icon-192.png', data: { chatId: m.chatId } };
   navigator.serviceWorker?.ready
     .then((reg) => reg.showNotification(title, opts))

@@ -8,8 +8,9 @@ import Composer from './Composer';
 import { VoiceBanner } from './Voice';
 import { EmojiImg, EmojiPicker, RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
-import { ArrowRight, ChevronDown, Timer, Phone, Video, Mic, Search, Pin, PinOff, Reply, Forward, Copy, Pencil, Flag, Trash2, Plus } from 'lucide-react';
+import { ArrowRight, ChevronDown, Timer, Phone, Video, Mic, Search, Pin, PinOff, Reply, Forward, Copy, Pencil, Flag, Trash2, Plus, Eye, BellOff } from 'lucide-react';
 import { startCall, joinVoice } from '../rtc';
+import { isChatMuted } from '../socket';
 
 export default function ChatView({ chatId }) {
   const chat = useStore((s) => s.chats[chatId]);
@@ -154,6 +155,7 @@ export default function ChatView({ chatId }) {
       if (action === 'edit') useStore.setState({ editing: m, replyTo: null });
       if (action === 'copy') (await copyText(m.text)) && st().showToast('کپی شد');
       if (action === 'forward') st().openModal('forward', { message: m });
+      if (action === 'readers') st().openModal('readers', { message: m });
       if (action === 'pin' || action === 'unpin') await api('POST', `/messages/${m.id}/pin`, { pinned: action === 'pin' });
       if (action === 'delete' && confirm('این پیام برای همه حذف شود؟')) await api('DELETE', `/messages/${m.id}`);
       if (action === 'report') {
@@ -227,6 +229,7 @@ export default function ChatView({ chatId }) {
           canPin={canPin}
           canDelete={menu.m.sender?.id === me.id || canDeleteOthers}
           canReport={menu.m.sender?.id !== me.id && chat.type !== 'saved'}
+          canReaders={(chat.type === 'group' || chat.type === 'channel') && (menu.m.sender?.id === me.id || chat.myRole === 'owner' || chat.myRole === 'admin')}
           onAction={(a, extra) => act(a, menu.m, extra)}
           onClose={() => setMenu(null)}
         />
@@ -275,6 +278,7 @@ function ChatHeader({ chat }) {
         <div>
           <div className="title">
             {chat.title} {chat.autoDelete > 0 && <Timer size={14} className="inline-icon" aria-label="حذف خودکار فعال است" />}
+            {isChatMuted(chat) && <BellOff size={14} className="inline-icon muted-icon" aria-label="بی‌صدا" />}
           </div>
           <div className={`subtitle ${typers.length || (chat.type === 'dm' && online) ? 'accent' : ''}`}>{subtitle}</div>
         </div>
@@ -336,7 +340,7 @@ function PinnedBar({ chat, messages, onJump }) {
   );
 }
 
-function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, onAction, onClose }) {
+function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, canReaders, onAction, onClose }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ left: x, top: y });
 
@@ -389,6 +393,11 @@ function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, onAction, on
         {!deleted && m.text && (
           <button onClick={() => onAction('copy')}>
             <Copy size={17} /> کپی متن
+          </button>
+        )}
+        {!deleted && canReaders && (
+          <button onClick={() => onAction('readers')}>
+            <Eye size={17} /> دیده‌شده توسط
           </button>
         )}
         {!deleted && mine && (

@@ -47,6 +47,8 @@ export default async function adminRoutes(app) {
         overrides: parseJSON(u.limits, {}),
         limits: effectiveLimits(u),
         banned: !!u.banned,
+        twoFactor: !!u.totp_enabled,
+        locked: !!(u.locked_until && u.locked_until > now()),
         createdAt: u.created_at,
         online: isOnline(u.id),
       })),
@@ -95,7 +97,7 @@ export default async function adminRoutes(app) {
     const u = targetUser(req.params.id);
     assertOutranks(req.user, u);
     const password = randomCode(8);
-    run('UPDATE users SET password_hash = ? WHERE id = ?', await hashPassword(password), u.id);
+    run('UPDATE users SET password_hash = ?, failed_logins = 0, locked_until = NULL WHERE id = ?', await hashPassword(password), u.id);
     run('DELETE FROM sessions WHERE user_id = ?', u.id);
     disconnectUser(u.id);
     audit(req.user.id, 'user.reset_password', u.id, { username: u.username });

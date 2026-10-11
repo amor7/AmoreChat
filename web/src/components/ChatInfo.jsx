@@ -15,6 +15,7 @@ import {
 } from '../util';
 import { Modal, UserSearch } from './Modals';
 import Avatar from './Avatar';
+import { NotifyMute, MediaGallery } from './ChatExtras';
 import { Camera, Settings, Link, UserPlus, VolumeX, MessageCircle, Timer } from 'lucide-react';
 
 const MUTE_OPTIONS = [
@@ -59,6 +60,7 @@ export default function ChatInfo({ chatId, onClose }) {
       <InfoHeader chat={chat} canEdit={can('edit_info') && !chat.isEmergency} />
       {chat.description && <p className="description">{chat.description}</p>}
 
+      <NotifyMute chat={chat} />
       {can('edit_info') && <EditChat chat={chat} />}
       {can('invite_links') && !chat.isEmergency && <InviteLinks chatId={chat.id} />}
 
@@ -71,6 +73,9 @@ export default function ChatInfo({ chatId, onClose }) {
           <MemberRow key={m.id} m={m} chat={chat} me={me} isOwner={isOwner} run={run} />
         ))}
       </ul>
+
+      <h4>رسانه‌ها و فایل‌ها</h4>
+      <MediaGallery chatId={chat.id} />
 
       {data?.bans?.length > 0 && (
         <>
@@ -468,7 +473,7 @@ function PeerProfile({ chat, onClose }) {
   const u = user || chat.peer;
   if (!u) return null;
   return (
-    <Modal title="اطلاعات کاربر" onClose={onClose} size="small">
+    <Modal title="اطلاعات کاربر" onClose={onClose}>
       <div className="center">
         <Avatar id={u.id} name={u.displayName} file={u.avatar} size={96} />
         <h3>{u.displayName}</h3>
@@ -489,6 +494,9 @@ function PeerProfile({ chat, onClose }) {
           }
         />
       </div>
+      <NotifyMute chat={chat} />
+      <h4>رسانه‌ها و فایل‌ها</h4>
+      <MediaGallery chatId={chat.id} />
     </Modal>
   );
 }

@@ -3,6 +3,7 @@ import { useStore } from '../store';
 import { formatClock } from '../util';
 import { useSmartFit } from '../smartFit';
 import Avatar from './Avatar';
+import Ping from './Ping';
 import { ChevronDown, Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, SwitchCamera, ScreenShare, ScreenShareOff, Volume2 } from 'lucide-react';
 import { setMic, setCamera, flipCamera, hangUp, canShareScreen, startScreenShare, stopScreenShare, enableAudioPlayback } from '../rtc';
 
@@ -151,6 +152,10 @@ export default function CallView() {
       <Video key="remote" pub={remoteVideo} {...roleProps(remoteRole, `call-main ${remote?.screen ? 'contain' : ''}`)} />
       <Video key="local" pub={localVideo} mirror {...roleProps(localRole, 'call-main')} />
 
+      {/* Outside .call-top so it stays visible when the controls auto-hide. */}
+      <div className="call-ping">
+        <Ping dark />
+      </div>
       <div className="call-top">
         <button
           className="icon-btn"

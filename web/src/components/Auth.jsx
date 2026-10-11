@@ -10,6 +10,9 @@ export default function Auth({ invite: initialInvite }) {
   const [form, setForm] = useState({ username: '', password: '', displayName: '', invite: initialInvite || '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Two-step login: the password was right, now the authenticator code (or a recovery code).
+  const [ticket, setTicket] = useState(null);
+  const [code, setCode] = useState('');
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -18,13 +21,55 @@ export default function Auth({ invite: initialInvite }) {
     setError('');
     setBusy(true);
     try {
-      const { user } = await api('POST', mode === 'login' ? '/auth/login' : '/auth/register', form);
+      const res = ticket
+        ? await api('POST', '/auth/2fa', { ticket, code: code.trim() })
+        : await api('POST', mode === 'login' ? '/auth/login' : '/auth/register', form);
+      if (res.twoFactor) {
+        setTicket(res.ticket);
+        setBusy(false);
+        return;
+      }
+      const { user } = res;
       if (location.hash.startsWith('#/invite/')) history.replaceState(null, '', '/');
       useStore.setState({ me: user, config: { ...config, needsSetup: false } });
     } catch (err) {
       setError(err.message);
+      if (ticket && err.status === 401 && /زمان/.test(err.message)) setTicket(null);
     }
     setBusy(false);
+  }
+
+  if (ticket) {
+    return (
+      <div className="auth-page">
+        <form className="auth-card" onSubmit={submit}>
+          <img src="/icon.svg" alt="" width="64" height="64" />
+          <h1>ورود دومرحله‌ای</h1>
+          <p className="hint">کد ۶ رقمی برنامهٔ احراز هویت (مثل Google Authenticator) را وارد کنید. اگر گوشی در دسترس نیست، یکی از کدهای بازیابی را بزنید.</p>
+          <label>
+            کد
+            <input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              required
+              dir="ltr"
+              autoFocus
+              autoComplete="one-time-code"
+              inputMode="text"
+              maxLength={20}
+              className="otp-input"
+            />
+          </label>
+          {error && <div className="error">{error}</div>}
+          <button className="btn primary" disabled={busy || code.trim().length < 6}>
+            {busy ? '…' : 'تأیید'}
+          </button>
+          <button type="button" className="btn" onClick={() => (setTicket(null), setCode(''), setError(''))}>
+            بازگشت
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (

@@ -1,0 +1,441 @@
+/* v0.5 additions: ping indicator, mentions, per-chat mute, media gallery, security, backups.
+   Loaded after theme.css. */
+
+/* ---------- Ping / connection indicator ---------- */
+.site-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: auto;
+  background: none;
+  color: inherit;
+  padding-inline-end: 12px;
+}
+.site-name > span:first-child {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ping {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: default;
+}
+.ping.dark {
+  background: rgb(0 0 0 / 0.4);
+  border-color: rgb(255 255 255 / 0.15);
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+.room-head .ping,
+.voice-bar .ping {
+  background: rgb(255 255 255 / 0.15);
+  border-color: transparent;
+  color: #fff;
+}
+.ping-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 10px;
+}
+.ping-bars b {
+  width: 3px;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.3;
+}
+.ping-bars b:nth-child(1) {
+  height: 4px;
+}
+.ping-bars b:nth-child(2) {
+  height: 7px;
+}
+.ping-bars b:nth-child(3) {
+  height: 10px;
+}
+.ping-good .ping-bars b {
+  background: #10b981;
+  opacity: 1;
+}
+.ping-mid .ping-bars b:nth-child(-n + 2) {
+  background: #f59e0b;
+  opacity: 1;
+}
+.ping-bad .ping-bars b:nth-child(1) {
+  background: #ef4444;
+  opacity: 1;
+}
+.ping-bad > span {
+  color: #ef4444;
+}
+.ping.dark.ping-bad > span,
+.room-head .ping-bad > span,
+.voice-bar .ping-bad > span {
+  color: #fecaca;
+}
+.call-ping {
+  position: absolute;
+  top: calc(18px + env(safe-area-inset-top));
+  inset-inline-end: 12px;
+  z-index: 6;
+}
+
+/* ---------- Mentions ---------- */
+.mention {
+  color: var(--accent);
+  font-weight: 600;
+}
+.msg-row.mine .mention {
+  color: inherit;
+  text-decoration: underline;
+}
+.bubble.mentions-me {
+  box-shadow: inset -3px 0 0 var(--accent), var(--shadow-sm);
+}
+.badge.mention {
+  background: var(--grad);
+  color: #fff;
+  min-width: 20px;
+  margin-inline-end: 4px;
+}
+.badge.quiet {
+  background: var(--muted);
+}
+.muted-icon {
+  color: var(--muted);
+  margin-inline-start: 4px;
+  vertical-align: -2px;
+  flex-shrink: 0;
+}
+.composer-wrap {
+  position: relative;
+}
+.mention-list {
+  position: absolute;
+  bottom: 100%;
+  inset-inline: 8px;
+  margin: 0 0 6px;
+  padding: 4px;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  max-height: 260px;
+  overflow-y: auto;
+  z-index: 20;
+}
+.mention-list button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.mention-list button.active,
+.mention-list button:hover {
+  background: var(--hover);
+}
+.mention-list small {
+  color: var(--muted);
+  margin-inline-start: auto;
+}
+
+/* ---------- Per-chat mute ---------- */
+.notify-mute {
+  margin: 10px 0;
+}
+.notify-mute > .row-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.notify-mute > .row-item .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.notify-mute .chips {
+  margin-top: 8px;
+}
+
+/* ---------- Media gallery ---------- */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 3px;
+}
+.gallery-cell {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+.gallery-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.gallery-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #312e81, #6d28d9);
+}
+.gallery-badge {
+  position: absolute;
+  bottom: 4px;
+  inset-inline-start: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+  font-size: 11px;
+}
+.gallery-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.gallery-list li {
+  border-bottom: 1px solid var(--border);
+  padding: 4px 0;
+}
+.gallery-list .row-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+.gallery-list .row-item .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.gallery-list .row-item b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gallery-link {
+  display: block;
+  padding: 4px;
+  overflow-wrap: anywhere;
+  color: var(--accent);
+}
+.link-btn {
+  border: 0;
+  background: none;
+  padding: 0 4px 4px;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------- Security ---------- */
+.tiny {
+  font-size: 12px;
+}
+.modal-body h5 {
+  margin: 16px 0 8px;
+  font-size: 14px;
+}
+.device-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.device-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.device-list li > div {
+  flex: 1;
+  min-width: 0;
+}
+.device-list li > svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.device-list .icon-btn {
+  color: var(--danger);
+}
+.badge-current {
+  margin-inline-start: 8px;
+  padding: 1px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ok) 15%, transparent);
+  color: var(--ok);
+  font-size: 11px;
+  font-weight: 600;
+}
+.twofa-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.twofa-status > div {
+  flex: 1;
+}
+.twofa-status > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.twofa-status.on > svg {
+  color: var(--ok);
+}
+.twofa-box {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.twofa-box p {
+  margin: 0;
+}
+.twofa-box .qr {
+  align-self: center;
+  width: 200px;
+  height: 200px;
+  image-rendering: pixelated;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px;
+}
+.twofa-box .secret {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  letter-spacing: 1px;
+  user-select: all;
+}
+.otp-input {
+  font-size: 22px !important;
+  letter-spacing: 6px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.recovery-codes {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px dashed var(--border);
+  font-size: 16px;
+  line-height: 1.8;
+  text-align: center;
+  user-select: all;
+}
+.row-gap {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* ---------- Backups ---------- */
+.backup-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.backup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 0.12s,
+    box-shadow 0.15s;
+}
+.backup-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+}
+.backup-card svg {
+  color: var(--accent);
+}
+.backup-card small {
+  color: var(--muted);
+}
+.backup-list {
+  list-style: none;
+  margin: 10px 0;
+  padding: 0;
+}
+.backup-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.backup-list .grow {
+  flex: 1;
+}
+.backup-list a.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}

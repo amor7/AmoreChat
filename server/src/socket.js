@@ -26,13 +26,17 @@ export function setupSocket(app) {
     }
     const user = userFromToken(app.parseCookie(cookie || '')[SESSION_COOKIE]);
     if (!user) return next(new Error('unauthorized'));
-    socket.data.user = { id: user.id, name: user.display_name };
+    socket.data.user = { id: user.id, name: user.display_name, sessionId: user.session_id };
     next();
   });
 
   io.on('connection', (socket) => {
     const uid = socket.data.user.id;
     socket.join(`user:${uid}`);
+    if (socket.data.user.sessionId) socket.join(`session:${socket.data.user.sessionId}`);
+
+    // Round-trip probe for the connection indicator: the client times the acknowledgement.
+    socket.on('rtt', (_t, ack) => typeof ack === 'function' && ack());
     for (const r of all('SELECT chat_id FROM chat_members WHERE user_id = ?', uid)) socket.join(`chat:${r.chat_id}`);
 
     const count = (online.get(uid) || 0) + 1;

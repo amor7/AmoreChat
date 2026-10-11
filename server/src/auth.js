@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 import { promisify } from 'node:util';
-import { get, run, now } from './db.js';
+import { get, all, run, now } from './db.js';
 import { effectiveLimits } from './limits.js';
+import { disconnectSessions } from './realtime.js';
 
 const scrypt = promisify(crypto.scrypt);
 export const SESSION_COOKIE = 'ac_session';
@@ -24,15 +25,21 @@ export async function verifyPassword(password, stored) {
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
 export const randomCode = (bytes = 9) => crypto.randomBytes(bytes).toString('base64url');
 
-export function createSession(userId, userAgent) {
+// Each login is a session (one per device). `id` is a public handle for the device list;
+// the cookie token itself is only ever stored hashed.
+export function createSession(userId, userAgent, ip = '') {
   const token = crypto.randomBytes(32).toString('base64url');
+  const id = crypto.randomBytes(8).toString('hex');
   run(
-    'INSERT INTO sessions (token_hash, user_id, created_at, expires_at, user_agent) VALUES (?, ?, ?, ?, ?)',
+    'INSERT INTO sessions (token_hash, id, user_id, created_at, last_seen, expires_at, user_agent, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     sha256(token),
+    id,
     userId,
     now(),
+    now(),
     now() + SESSION_TTL,
-    String(userAgent || '').slice(0, 200),
+    String(userAgent || '').slice(0, 300),
+    String(ip || '').slice(0, 64),
   );
   return token;
 }
@@ -41,16 +48,25 @@ export function destroySession(token) {
   if (token) run('DELETE FROM sessions WHERE token_hash = ?', sha256(token));
 }
 
+// The user for a cookie token, with `session_id` / `session_last_seen` of that login attached.
 export function userFromToken(token) {
   if (!token) return null;
   const user = get(
-    `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
+    `SELECT u.*, s.id AS session_id, s.last_seen AS session_last_seen FROM sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ?`,
     sha256(token),
     now(),
   );
   if (!user || user.banned) return null;
   return user;
+}
+
+// Log out a user's other devices (or all of them): deletes the sessions and drops their live sockets.
+export function revokeSessions(userId, { except = null } = {}) {
+  const ids = all('SELECT id FROM sessions WHERE user_id = ? AND id IS NOT ?', userId, except).map((r) => r.id);
+  run('DELETE FROM sessions WHERE user_id = ? AND id IS NOT ?', userId, except);
+  disconnectSessions(ids);
+  return ids.length;
 }
 
 export const cookieOptions = (req) => ({
@@ -77,5 +93,5 @@ export function publicUser(u) {
 }
 
 export function selfUser(u) {
-  return { ...publicUser(u), adminPerms: JSON.parse(u.admin_perms || '[]'), limits: effectiveLimits(u) };
+  return { ...publicUser(u), adminPerms: JSON.parse(u.admin_perms || '[]'), limits: effectiveLimits(u), twoFactor: !!u.totp_enabled };
 }

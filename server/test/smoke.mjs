@@ -27,9 +27,9 @@ const bob = client();
 const eve = client();
 
 // Registration requires the setup code first.
-let r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'password1', displayName: 'Owner' });
+let r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'Str0ng-Pass-77', displayName: 'Owner' });
 assert.equal(r.status, 403);
-r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'password1', displayName: 'مدیر', invite: SETUP });
+r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'Str0ng-Pass-77', displayName: 'مدیر', invite: SETUP });
 assert.equal(r.status, 200, JSON.stringify(r));
 assert.equal(r.user.role, 'owner');
 
@@ -40,12 +40,12 @@ assert.equal(noHeader.status, 403);
 // Invite-only signup
 r = await owner.call('POST', '/api/admin/invites', { maxUses: 2, note: 'test' });
 const code = r.invite.code;
-r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'password1', displayName: 'Bob' });
+r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'Str0ng-Pass-77', displayName: 'Bob' });
 assert.equal(r.status, 403);
-r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'password1', displayName: 'باب', invite: code });
+r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'Str0ng-Pass-77', displayName: 'باب', invite: code });
 assert.equal(r.status, 200);
 const bobId = r.user.id;
-r = await eve.call('POST', '/api/auth/register', { username: 'eve', password: 'password1', displayName: 'Eve', invite: code });
+r = await eve.call('POST', '/api/auth/register', { username: 'eve', password: 'Str0ng-Pass-77', displayName: 'Eve', invite: code });
 const eveId = r.user.id;
 
 // Everyone has saved messages + emergency channel
@@ -162,7 +162,7 @@ assert.ok(r.messages.some((m) => m.id === firstMsg.id));
 // Search only covers chats you are in
 r = await owner.call('POST', '/api/admin/invites', { maxUses: 1 });
 const carol = client();
-r = await carol.call('POST', '/api/auth/register', { username: 'carol', password: 'password1', displayName: 'Carol', invite: r.invite.code });
+r = await carol.call('POST', '/api/auth/register', { username: 'carol', password: 'Str0ng-Pass-77', displayName: 'Carol', invite: r.invite.code });
 const ownerId = (await owner.call('GET', '/api/auth/me')).user.id;
 r = await bob.call('POST', '/api/chats/dm', { userId: ownerId });
 const secretDm = r.chat.id;

@@ -5,6 +5,7 @@ import { useStore } from '../store';
 import { emitTyping } from '../socket';
 import { EmojiPicker, RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
+import Avatar from './Avatar';
 import { Pencil, Reply, X, Paperclip, SendHorizontal, Mic, FileText, Smile } from 'lucide-react';
 import { postBlockReason, messagePreview, compressImage, imageSize, formatSize, formatClock, toFa, computeWaveform } from '../util';
 
@@ -35,6 +36,7 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
   }
   const inputRef = useRef(null);
   const fileRef = useRef(null);
+  const mention = useMentions(chat, text, inputRef);
 
   useEffect(() => {
     if (editing) {
@@ -86,6 +88,7 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
   }
 
   function onKeyDown(e) {
+    if (mention.onKeyDown(e, (t) => setText(t))) return;
     if (e.key === 'Enter' && !e.shiftKey && !isTouch) {
       e.preventDefault();
       send();
@@ -129,7 +132,35 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
           </button>
         </div>
       )}
+      {mention.list.length > 0 && (
+        <ul className="mention-list" role="listbox">
+          {mention.list.map((u, i) => (
+            <li key={u.id}>
+              <button
+                className={i === mention.index ? 'active' : ''}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  setText(mention.apply(u));
+                }}
+              >
+                <Avatar id={u.id} name={u.displayName} file={u.avatar} size={30} />
+                <b>{u.displayName}</b>
+                <small dir="ltr">@{u.username}</small>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="composer">
+        {text.trim() || editing ? (
+          <button className="send-btn" aria-label="ارسال" disabled={!text.trim() || busy} onClick={send}>
+            <SendHorizontal size={20} />
+          </button>
+        ) : (
+          <button className="send-btn mic" aria-label="ضبط پیام صوتی" onClick={() => setRecording(true)}>
+            <Mic size={21} />
+          </button>
+        )}
         {!editing && (
           <button className="icon-btn" aria-label="پیوست" onClick={() => fileRef.current.click()}>
             <Paperclip size={22} />
@@ -164,20 +195,73 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
           </button>
           {emojiOpen && <EmojiPicker onPick={insertEmoji} onClose={() => setEmojiOpen(false)} />}
         </div>
-        {text.trim() || editing ? (
-          <button className="send-btn" aria-label="ارسال" disabled={!text.trim() || busy} onClick={send}>
-            <SendHorizontal size={20} />
-          </button>
-        ) : (
-          <button className="send-btn mic" aria-label="ضبط پیام صوتی" onClick={() => setRecording(true)}>
-            <Mic size={21} />
-          </button>
-        )}
       </div>
       {recording && <VoiceRecorder chat={chat} onDone={() => setRecording(false)} />}
       {pending && <SendFileDialog file={pending} chat={chat} onClose={() => setPending(null)} />}
     </div>
   );
+}
+
+// "@na" before the cursor -> suggest chat members; Tab/Enter picks, arrows move.
+const membersCache = new Map();
+function useMentions(chat, text, inputRef) {
+  const [members, setMembers] = useState(membersCache.get(chat.id) || null);
+  const [index, setIndex] = useState(0);
+  const [closed, setClosed] = useState(null);
+  const el = inputRef.current;
+  const caret = el?.selectionStart ?? text.length;
+  const m = /(^|\s)@([A-Za-z0-9_]{0,32})$/.exec(text.slice(0, caret));
+  const query = m && closed !== text ? m[2].toLowerCase() : null;
+  const enabled = chat.type === 'group' || chat.type === 'channel' || chat.type === 'voice';
+  const me = useStore((s) => s.me);
+
+  useEffect(() => {
+    if (query == null || !enabled || members) return;
+    api('GET', `/chats/${chat.id}`)
+      .then((r) => {
+        membersCache.set(chat.id, r.members);
+        setMembers(r.members);
+      })
+      .catch(() => {});
+  }, [query != null, chat.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setMembers(membersCache.get(chat.id) || null), [chat.id]);
+  useEffect(() => setIndex(0), [query]);
+
+  const list =
+    query == null || !members
+      ? []
+      : members
+          .filter((u) => u.id !== me.id && (u.username.toLowerCase().startsWith(query) || u.displayName.toLowerCase().includes(query)))
+          .slice(0, 6);
+
+  const apply = (u) => {
+    const before = text.slice(0, caret).replace(/@[A-Za-z0-9_]*$/, `@${u.username} `);
+    const next = before + text.slice(caret);
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(before.length, before.length);
+    });
+    return next;
+  };
+  const onKeyDown = (e, set) => {
+    if (!list.length) return false;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndex((i) => (i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length);
+      return true;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      set(apply(list[index] || list[0]));
+      return true;
+    }
+    if (e.key === 'Escape') {
+      setClosed(text);
+      return true;
+    }
+    return false;
+  };
+  return { list, index, apply, onKeyDown };
 }
 
 function pickAudioMime() {
@@ -279,15 +363,15 @@ function VoiceRecorder({ chat, onDone }) {
 
   return (
     <div className="recorder">
-      <button className="btn danger" onClick={() => finish(false)} disabled={sending}>
-        لغو
+      <button className="send-btn" aria-label="ارسال پیام صوتی" onClick={() => finish(true)} disabled={sending}>
+        <SendHorizontal size={20} />
       </button>
       <div className="rec-status">
         <span className="rec-dot" style={{ transform: `scale(${1 + level * 1.5})` }} />
         <span>{sending ? 'در حال ارسال…' : formatClock(seconds)}</span>
       </div>
-      <button className="send-btn" aria-label="ارسال پیام صوتی" onClick={() => finish(true)} disabled={sending}>
-        <SendHorizontal size={20} />
+      <button className="btn danger" onClick={() => finish(false)} disabled={sending}>
+        لغو
       </button>
     </div>
   );

@@ -11,6 +11,7 @@ import NewChat from './NewChat';
 import Profile from './Profile';
 import ChatInfo from './ChatInfo';
 import Admin from './Admin';
+import { Readers } from './ChatExtras';
 
 export function Modal({ title, onClose, children, size = '' }) {
   useEffect(() => {
@@ -321,6 +322,8 @@ export default function Modals() {
       return <ImageViewer fileId={modal.fileId} name={modal.name} onClose={close} />;
     case 'forward':
       return <Forward message={modal.message} onClose={close} />;
+    case 'readers':
+      return <Readers message={modal.message} onClose={close} />;
     case 'search':
       return <Search chatId={modal.chatId} onClose={close} />;
     default:

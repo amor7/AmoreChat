@@ -6,7 +6,8 @@ export const DATA_DIR = path.resolve(process.env.DATA_DIR || 'data');
 export const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-export const db = new DatabaseSync(path.join(DATA_DIR, 'amorechat.db'));
+export const DB_FILE = path.join(DATA_DIR, 'amorechat.db');
+export const db = new DatabaseSync(DB_FILE);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;');
 
 // Prepared statements are cached by SQL text.
@@ -197,6 +198,22 @@ const migrations = [
   // v3: per-user limit/permission overrides (JSON; missing keys fall back to site defaults)
   `
   ALTER TABLE users ADD COLUMN limits TEXT NOT NULL DEFAULT '{}';
+  `,
+  // v4: account security (devices, two-step login, lockout), mentions, per-chat mute
+  `
+  ALTER TABLE sessions ADD COLUMN id TEXT;
+  ALTER TABLE sessions ADD COLUMN last_seen INTEGER;
+  ALTER TABLE sessions ADD COLUMN ip TEXT NOT NULL DEFAULT '';
+  UPDATE sessions SET id = substr(token_hash, 1, 16), last_seen = created_at;
+  CREATE UNIQUE INDEX sessions_id ON sessions(id);
+  ALTER TABLE users ADD COLUMN totp_secret TEXT;
+  ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN totp_last_step INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN recovery_codes TEXT NOT NULL DEFAULT '[]';
+  ALTER TABLE users ADD COLUMN failed_logins INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN locked_until INTEGER;
+  ALTER TABLE chat_members ADD COLUMN notify_muted_until INTEGER;
+  ALTER TABLE messages ADD COLUMN mentions TEXT;
   `,
 ];
 

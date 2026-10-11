@@ -88,8 +88,30 @@ export function serializeMessage(m, reactions = []) {
       : null,
     editedAt: m.edited_at,
     pinned: !!m.pinned,
+    mentions: deleted || !m.mentions ? [] : parseJSON(m.mentions, []),
     createdAt: m.created_at,
   };
+}
+
+// Members named as @username in the text, plus the author of the replied-to message
+// (like Telegram). These users are notified even when they muted the chat.
+export function findMentions(chatId, text, replyTo = null, senderId = null) {
+  const names = [...new Set([...String(text || '').matchAll(/(?:^|[^\w@.])@([A-Za-z][A-Za-z0-9_]{2,31})/g)].map((x) => x[1].toLowerCase()))].slice(0, 50);
+  const ids = new Set();
+  if (names.length) {
+    for (const r of all(
+      'SELECT u.id FROM users u JOIN chat_members cm ON cm.user_id = u.id AND cm.chat_id = ? WHERE lower(u.username) IN (SELECT value FROM json_each(?))',
+      chatId,
+      JSON.stringify(names),
+    ))
+      ids.add(r.id);
+  }
+  if (replyTo) {
+    const r = get('SELECT sender_id FROM messages WHERE id = ? AND chat_id = ?', replyTo, chatId);
+    if (r?.sender_id) ids.add(r.sender_id);
+  }
+  ids.delete(senderId);
+  return [...ids];
 }
 
 export function loadMessage(id) {
@@ -119,10 +141,12 @@ export const loadMessagesByIds = (ids) =>
   ids.length ? withReactions(all(`${MSG_SELECT} WHERE m.id IN (SELECT value FROM json_each(?)) ORDER BY m.id DESC`, JSON.stringify(ids))) : [];
 
 const SUMMARY_SELECT = `
-  SELECT c.*, cm.role AS my_role, cm.perms AS my_perms, cm.last_read, cm.muted_until,
+  SELECT c.*, cm.role AS my_role, cm.perms AS my_perms, cm.last_read, cm.muted_until, cm.notify_muted_until,
     (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id = c.id) AS member_count,
     (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id AND m.id > cm.last_read
        AND m.deleted = 0 AND m.type != 'system' AND IFNULL(m.sender_id, 0) != cm.user_id) AS unread,
+    (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id AND m.id > cm.last_read AND m.deleted = 0
+       AND m.mentions IS NOT NULL AND EXISTS (SELECT 1 FROM json_each(m.mentions) j WHERE j.value = cm.user_id)) AS unread_mentions,
     (SELECT MAX(id) FROM messages m WHERE m.chat_id = c.id) AS last_msg_id,
     (SELECT MAX(o.last_read) FROM chat_members o WHERE o.chat_id = c.id AND o.user_id != cm.user_id) AS others_read
   FROM chats c JOIN chat_members cm ON cm.chat_id = c.id AND cm.user_id = ?`;
@@ -146,6 +170,8 @@ function formatSummary(c, userId) {
     lastRead: c.last_read,
     othersRead: c.others_read || 0,
     unread: c.unread,
+    unreadMentions: c.unread_mentions,
+    notifyMutedUntil: c.notify_muted_until && c.notify_muted_until > now() ? c.notify_muted_until : null,
     lastMessage: c.last_msg_id ? loadMessage(c.last_msg_id) : null,
     createdAt: c.created_at,
     peer: null,
@@ -180,9 +206,10 @@ export function listChats(userId) {
 export function postMessage({ chatId, senderId = null, type = 'text', text = '', fileId = null, replyTo = null, forwardedFrom = null }) {
   const t = now();
   const autoDelete = type === 'system' ? 0 : get('SELECT auto_delete FROM chats WHERE id = ?', chatId)?.auto_delete;
+  const mentions = type === 'system' || forwardedFrom ? [] : findMentions(chatId, type === 'call' ? '' : text, replyTo, senderId);
   const id = tx(() => {
     const r = run(
-      'INSERT INTO messages (chat_id, sender_id, type, text, file_id, reply_to, forwarded_from, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO messages (chat_id, sender_id, type, text, file_id, reply_to, forwarded_from, expires_at, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       chatId,
       senderId,
       type,
@@ -191,6 +218,7 @@ export function postMessage({ chatId, senderId = null, type = 'text', text = '',
       replyTo,
       forwardedFrom,
       autoDelete ? t + autoDelete * 1000 : null,
+      mentions.length ? JSON.stringify(mentions) : null,
       t,
     );
     const msgId = Number(r.lastInsertRowid);

@@ -6,7 +6,7 @@ import { Modal } from './Modals';
 import Avatar from './Avatar';
 import { LimitsEditor, Live, RtcSettings } from './AdminRtc';
 import { EmojiImg } from './Emoji';
-import { ChartColumn, Flag, Users as UsersIcon, Ticket, MessagesSquare, Radio, Settings as SettingsIcon, ScrollText, TriangleAlert, Megaphone, Volume2, SlidersHorizontal } from 'lucide-react';
+import { ChartColumn, Flag, Users as UsersIcon, Ticket, MessagesSquare, Radio, Settings as SettingsIcon, ScrollText, TriangleAlert, Megaphone, Volume2, SlidersHorizontal, DatabaseBackup, Download } from 'lucide-react';
 
 const TABS = [
   ['stats', 'آمار', 'view_audit', ChartColumn],
@@ -17,11 +17,12 @@ const TABS = [
   ['live', 'زنده', 'manage_chats', Radio],
   ['settings', 'تنظیمات', 'manage_settings', SettingsIcon],
   ['audit', 'گزارش فعالیت', 'view_audit', ScrollText],
+  ['backup', 'پشتیبان', 'owner', DatabaseBackup],
 ];
 
 export default function Admin({ onClose }) {
   const me = useStore((s) => s.me);
-  const tabs = TABS.filter(([, , perm]) => hasSitePerm(me, perm));
+  const tabs = TABS.filter(([, , perm]) => (perm === 'owner' ? me.role === 'owner' : hasSitePerm(me, perm)));
   const [tab, setTab] = useState(tabs[0]?.[0]);
 
   return (
@@ -41,6 +42,7 @@ export default function Admin({ onClose }) {
       {tab === 'settings' && <Settings />}
       {tab === 'audit' && <Audit />}
       {tab === 'live' && <Live />}
+      {tab === 'backup' && <Backups />}
     </Modal>
   );
 }
@@ -143,6 +145,8 @@ function Users() {
               <span className="grow">
                 <b>
                   {u.displayName} {u.banned && <span className="tag danger">مسدود</span>}
+                  {u.locked && <span className="tag danger">قفل موقت</span>}
+                  {u.twoFactor && <span className="tag">ورود دومرحله‌ای</span>}
                   {Object.keys(u.overrides || {}).length > 0 && <span className="tag">محدودیت سفارشی</span>}
                 </b>
                 <small dir="ltr">@{u.username}</small>
@@ -209,8 +213,90 @@ function UserActions({ u, me, run }) {
           >
             بازنشانی رمز
           </button>
+          <button
+            className="btn sm"
+            onClick={async () => {
+              if (!confirm(`${u.displayName} از همهٔ دستگاه‌ها خارج شود؟`)) return;
+              const r = await run(() => api('POST', `/admin/users/${u.id}/logout-all`));
+              if (r) useStore.getState().showToast(`${toFa(r.loggedOut)} دستگاه خارج شد`);
+            }}
+          >
+            خروج از همه دستگاه‌ها
+          </button>
+          {(u.twoFactor || u.locked) && (
+            <button
+              className="btn sm"
+              onClick={() =>
+                confirm('ورود دومرحله‌ای این کاربر خاموش و قفل حسابش باز شود؟ (برای وقتی که گوشی‌اش را گم کرده)') &&
+                run(() => api('POST', `/admin/users/${u.id}/reset-2fa`), 'انجام شد')
+              }
+            >
+              {u.twoFactor ? 'خاموش کردن ورود دومرحله‌ای' : 'باز کردن قفل'}
+            </button>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Owner only: download a fresh copy of everything without SSH access to the server.
+function Backups() {
+  const showToast = useStore((s) => s.showToast);
+  const [data, load] = useLoad('/admin/backups');
+  const [busy, setBusy] = useState(false);
+  if (!data) return <p className="muted">…</p>;
+  return (
+    <div className="backup-tab">
+      <p className="hint">
+        پشتیبان شامل همهٔ پیام‌ها، کاربران و هش رمزهاست؛ فایلش را جای امن نگه دارید. سرور هر روز خودکار یک نسخه از دیتابیس می‌گیرد.
+      </p>
+      <div className="backup-cards">
+        <a className="backup-card" href="/api/admin/backup/db" download>
+          <DatabaseBackup size={26} />
+          <b>دیتابیس (پیام‌ها و تنظیمات)</b>
+          <small>حدود {formatSize(data.dbSize)} · سریع</small>
+        </a>
+        <a className="backup-card" href="/api/admin/backup/full" download>
+          <Download size={26} />
+          <b>پشتیبان کامل (دیتابیس + همهٔ فایل‌ها)</b>
+          <small>حدود {formatSize(data.dbSize + data.uploadsSize)} · فایل tar</small>
+        </a>
+      </div>
+      <h4>نسخه‌های خودکار روزانه</h4>
+      <button
+        className="btn sm"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await api('POST', '/admin/backups');
+            load();
+          } catch (e) {
+            showToast(e.message);
+          }
+          setBusy(false);
+        }}
+      >
+        ساخت نسخهٔ جدید روی سرور
+      </button>
+      <ul className="backup-list">
+        {data.files.map((f) => (
+          <li key={f.name}>
+            <span className="grow">
+              {formatDateTime(f.createdAt)} <small className="muted">· {formatSize(f.size)}</small>
+            </span>
+            <a className="btn sm" href={`/api/admin/backups/${f.name}`} download>
+              <Download size={15} /> دانلود
+            </a>
+          </li>
+        ))}
+        {!data.files.length && <li className="muted">هنوز نسخه‌ای ساخته نشده</li>}
+      </ul>
+      <details className="hint">
+        <summary>بازگردانی پشتیبان روی سرور</summary>
+        <p>روی سرور: برنامه را متوقف کنید، فایل را جای data/amorechat.db بگذارید (و برای پشتیبان کامل پوشهٔ uploads را هم از tar باز کنید) و دوباره اجرا کنید. جزئیات در README.</p>
+      </details>
     </div>
   );
 }

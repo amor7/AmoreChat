@@ -12,6 +12,8 @@ export const toAll = (event, data) => io?.emit(event, data);
 export const joinChat = (userId, chatId) => io?.in(`user:${userId}`).socketsJoin(`chat:${chatId}`);
 export const leaveChat = (userId, chatId) => io?.in(`user:${userId}`).socketsLeave(`chat:${chatId}`);
 export const disconnectUser = (userId) => io?.in(`user:${userId}`).disconnectSockets(true);
+// Each socket joins `session:<id>` so a single logged-out device can be dropped.
+export const disconnectSessions = (ids) => ids.forEach((id) => io?.in(`session:${id}`).disconnectSockets(true));
 
 // userId -> number of open sockets
 export const online = new Map();

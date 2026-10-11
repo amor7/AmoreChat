@@ -22,6 +22,8 @@ import fileRoutes from './routes/files.js';
 import adminRoutes from './routes/admin.js';
 import rtcRoutes from './routes/rtc.js';
 import caHelpRoutes from './routes/ca-help.js';
+import accountRoutes from './routes/account.js';
+import backupRoutes from './routes/backup.js';
 import { startVoiceSync } from './voice.js';
 import { setupRtcProxy } from './rtc-proxy.js';
 
@@ -31,7 +33,8 @@ const WEB_DIR = path.resolve(process.env.WEB_DIR || path.join(import.meta.dirnam
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL || 'info' },
-  trustProxy: true,
+  // Only Caddy (docker network) or a local proxy may set X-Forwarded-For; clients can't fake their IP.
+  trustProxy: 'loopback, linklocal, uniquelocal',
   bodyLimit: 1024 * 1024,
 });
 
@@ -60,6 +63,10 @@ app.addHook('onRequest', async (req, reply) => {
   if (user) {
     req.user = user;
     if (!user.last_seen || now() - user.last_seen > 60_000) run('UPDATE users SET last_seen = ? WHERE id = ?', now(), user.id);
+    // Per-device activity for the "logged-in devices" list.
+    if (user.session_id && (!user.session_last_seen || now() - user.session_last_seen > 60_000)) {
+      run('UPDATE sessions SET last_seen = ?, ip = ? WHERE id = ?', now(), String(req.ip || '').slice(0, 64), user.session_id);
+    }
   } else if (!req.routeOptions.config?.public) {
     return reply.code(401).send({ error: 'ابتدا وارد شوید' });
   }
@@ -84,10 +91,12 @@ app.setErrorHandler((err, req, reply) => {
 });
 
 await app.register(authRoutes);
+await app.register(accountRoutes);
 await app.register(chatRoutes);
 await app.register(messageRoutes);
 await app.register(fileRoutes);
 await app.register(adminRoutes);
+await app.register(backupRoutes);
 // LiveKit posts webhooks as application/webhook+json; keep the raw text to verify its signature.
 app.addContentTypeParser('application/webhook+json', { parseAs: 'string' }, (_req, body, done) => done(null, body));
 await app.register(rtcRoutes);

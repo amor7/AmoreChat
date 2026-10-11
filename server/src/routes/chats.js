@@ -190,6 +190,17 @@ export default async function chatRoutes(app) {
     return { ok: true };
   });
 
+  // Personal notification mute (not the moderation mute): null = on, -1 = forever, or a timestamp.
+  app.patch('/api/chats/:id/notify', async (req) => {
+    const { chat, member } = requireChat(req, req.params.id);
+    if (!member) fail(403, 'شما عضو این گفتگو نیستید');
+    const v = req.body?.mutedUntil;
+    const until = v == null || v === false ? null : v === -1 || v === true ? 32503680000000 : Math.max(0, Number(v) || 0) || null;
+    run('UPDATE chat_members SET notify_muted_until = ? WHERE chat_id = ? AND user_id = ?', until, chat.id, req.user.id);
+    toUser(req.user.id, 'chat:new', chatSummary(chat.id, req.user.id));
+    return { notifyMutedUntil: until };
+  });
+
   app.post('/api/chats/:id/leave', async (req) => {
     const { chat, member } = requireChat(req, req.params.id);
     if (!isRoom(chat) || chat.is_emergency) fail(400, 'از این گفتگو نمی‌توان خارج شد');

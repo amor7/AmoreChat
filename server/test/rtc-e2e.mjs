@@ -25,10 +25,10 @@ async function apiClient() {
 
 const owner = await apiClient();
 const bob = await apiClient();
-let r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'password1', displayName: 'Owner', invite: SETUP });
+let r = await owner.call('POST', '/api/auth/register', { username: 'owner', password: 'Str0ng-Pass-77', displayName: 'Owner', invite: SETUP });
 assert.equal(r.status, 200);
 r = await owner.call('POST', '/api/admin/invites', { maxUses: 1 });
-r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'password1', displayName: 'Bob', invite: r.invite.code });
+r = await bob.call('POST', '/api/auth/register', { username: 'bob', password: 'Str0ng-Pass-77', displayName: 'Bob', invite: r.invite.code });
 const bobId = r.user.id;
 r = await owner.call('POST', '/api/chats', { type: 'voice', title: 'Lobby', isPublic: true });
 const lobby = r.chat.id;
@@ -72,6 +72,14 @@ async function clickText(page, selector, text) {
 try {
   step('desktop: the send-file dialog is fully on screen (regression: it slid below the window)');
   await A.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
+  await waitFor(A, () => /\d/.test(document.querySelector('.site-name .ping')?.textContent || ''), null, 'ping indicator on the main screen');
+  // Send / mic button sits at the right edge of the composer (Telegram-style).
+  const sendRight = await A.evaluate(() => {
+    const c = document.querySelector('.composer').getBoundingClientRect();
+    const b = document.querySelector('.composer .send-btn').getBoundingClientRect();
+    return c.right - b.right < 20;
+  });
+  if (!sendRight) throw new Error('send button is not on the right');
   const tmp = (await import('node:path')).join((await import('node:os')).tmpdir(), `ac-e2e-${Date.now()}.mp4`);
   (await import('node:fs')).writeFileSync(tmp, Buffer.alloc(200_000));
   const input = await A.$('.composer input[type=file]');
@@ -156,6 +164,9 @@ try {
   if (process.env.FAKE_VIDEO) {
     await waitFor(A, () => document.querySelector('.call-main')?.dataset.fit === 'contain', null, 'desktop: portrait caller shown whole, not zoomed');
     await waitFor(B, () => document.querySelector('.call-main')?.dataset.fit === 'cover', null, 'phone: portrait caller fills the screen');
+  }
+  for (const p of [A, B]) {
+    await waitFor(p, () => /\d/.test(document.querySelector('.call-ping .ping')?.textContent || ''), null, 'ping (ms) shown during the call');
   }
   await A.screenshot({ path: 'shot-call-desktop.png' });
   await B.screenshot({ path: 'shot-call-mobile.png' });
