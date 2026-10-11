@@ -84,7 +84,8 @@ let lastPing = 0;
 function measurePing() {
   const st = useStore.getState();
   if (!socket?.connected) return useStore.setState({ ping: null });
-  if (document.hidden && !st.rtc) return;
+  // Hidden tab: one sample after connecting, then pause (unless in a call).
+  if (document.hidden && !st.rtc && st.ping != null) return;
   const interval = st.rtc ? 2000 : 5000;
   if (Date.now() - lastPing < interval - 100) return;
   lastPing = Date.now();

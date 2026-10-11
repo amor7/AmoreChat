@@ -72,7 +72,8 @@ async function clickText(page, selector, text) {
 try {
   step('desktop: the send-file dialog is fully on screen (regression: it slid below the window)');
   await A.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
-  await waitFor(A, () => /\d/.test(document.querySelector('.site-name .ping')?.textContent || ''), null, 'ping indicator on the main screen');
+  // The ms value is shown with Persian digits (۴۲ms).
+  await waitFor(A, () => /[0-9۰-۹]+ms/.test(document.querySelector('.site-name .ping')?.textContent || ''), null, 'ping indicator on the main screen');
   // Send / mic button sits at the right edge of the composer (Telegram-style).
   const sendRight = await A.evaluate(() => {
     const c = document.querySelector('.composer').getBoundingClientRect();
@@ -166,7 +167,7 @@ try {
     await waitFor(B, () => document.querySelector('.call-main')?.dataset.fit === 'cover', null, 'phone: portrait caller fills the screen');
   }
   for (const p of [A, B]) {
-    await waitFor(p, () => /\d/.test(document.querySelector('.call-ping .ping')?.textContent || ''), null, 'ping (ms) shown during the call');
+    await waitFor(p, () => /[0-9۰-۹]+ms/.test(document.querySelector('.call-ping .ping')?.textContent || ''), null, 'ping (ms) shown during the call');
   }
   await A.screenshot({ path: 'shot-call-desktop.png' });
   await B.screenshot({ path: 'shot-call-mobile.png' });
