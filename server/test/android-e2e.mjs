@@ -78,7 +78,13 @@ async function devtools() {
   const evaluate = (expression) =>
     new Promise((ok, bad) => {
       const n = ++id;
-      waiting.set(n, (d) => (d.result?.exceptionDetails ? bad(new Error(d.result.exceptionDetails.text + ' ' + JSON.stringify(d.result.exceptionDetails.exception?.description))) : ok(d.result?.result?.value)));
+      // A page that's reloading may never answer: give up after a while so callers retry.
+      const t = setTimeout(() => (waiting.delete(n), bad(new Error('devtools timeout'))), 8000);
+      waiting.set(n, (d) => {
+        clearTimeout(t);
+        if (d.result?.exceptionDetails) bad(new Error(d.result.exceptionDetails.text + ' ' + JSON.stringify(d.result.exceptionDetails.exception?.description)));
+        else ok(d.result?.result?.value);
+      });
       ws.send(JSON.stringify({ id: n, method: 'Runtime.evaluate', params: { expression, awaitPromise: true, returnByValue: true } }));
     });
   return { evaluate, close: () => ws.close() };
