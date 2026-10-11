@@ -8,6 +8,9 @@ export const setIO = (instance) => {
 export const toChat = (chatId, event, data) => io?.to(`chat:${chatId}`).emit(event, data);
 export const toUser = (userId, event, data) => io?.to(`user:${userId}`).emit(event, data);
 export const toAll = (event, data) => io?.emit(event, data);
+// Everyone in the chat except the given users (each user's sockets share the `user:<id>` room).
+export const toChatExcept = (chatId, userIds, event, data) =>
+  io?.to(`chat:${chatId}`).except(userIds.map((id) => `user:${id}`)).emit(event, data);
 
 export const joinChat = (userId, chatId) => io?.in(`user:${userId}`).socketsJoin(`chat:${chatId}`);
 export const leaveChat = (userId, chatId) => io?.in(`user:${userId}`).socketsLeave(`chat:${chatId}`);

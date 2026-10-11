@@ -1,7 +1,7 @@
 import { get, all, run, now } from '../db.js';
 import { hasSitePerm, hasChatPerm } from '../perms.js';
-import { toChat, toAll } from '../realtime.js';
-import { fail, getMember, loadMessage, loadMessages, loadMessagesByIds, postMessage, systemMessage, audit, findMentions } from '../chats.js';
+import { toChat, toAll, toChatExcept } from '../realtime.js';
+import { fail, getMember, loadMessage, loadMessages, loadMessagesByIds, postMessage, systemMessage, audit, findMentions, withMine, membersHidden } from '../chats.js';
 import { requireChat } from './chats.js';
 import { deleteMessage } from '../sweeper.js';
 
@@ -42,7 +42,7 @@ export default async function messageRoutes(app) {
     const { chat } = requireChat(req, req.params.id, { allowModerator: true });
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
     const n = (k) => Number(req.query[k]) || null;
-    return { messages: loadMessages(chat.id, { before: n('before'), after: n('after'), around: n('around'), limit }) };
+    return { messages: withMine(loadMessages(chat.id, { before: n('before'), after: n('after'), around: n('around'), limit }), req.user.id) };
   });
 
   app.get('/api/search', async (req) => {
@@ -84,7 +84,7 @@ export default async function messageRoutes(app) {
     }
     const msg = loadMessage(m.id);
     toChat(m.chat_id, 'message:edit', msg);
-    return { message: msg };
+    return { message: withMine([structuredClone(msg)], req.user.id)[0] };
   });
 
   app.post('/api/messages/:id/forward', async (req) => {
@@ -203,8 +203,10 @@ export default async function messageRoutes(app) {
 
   // "Seen by": members whose read pointer passed this message (groups and channels).
   app.get('/api/messages/:id/readers', async (req) => {
-    const { m: msg, member } = requireMessage(req, req.params.id);
-    if (msg.sender_id !== req.user.id && !(member && (member.role === 'owner' || member.role === 'admin'))) fail(403, 'فقط فرستنده می‌تواند ببیند');
+    const { m: msg, chat, member } = requireMessage(req, req.params.id);
+    const staff = member && (member.role === 'owner' || member.role === 'admin');
+    // With a hidden member list only admins may see who read (it would reveal members).
+    if (!staff && (msg.sender_id !== req.user.id || membersHidden(chat))) fail(403, 'فقط فرستنده یا مدیران می‌توانند ببینند');
     const users = all(
       `SELECT u.id, u.username, u.display_name, u.avatar_file_id FROM chat_members cm JOIN users u ON u.id = cm.user_id
        WHERE cm.chat_id = ? AND cm.last_read >= ? AND cm.user_id != IFNULL(?, 0) ORDER BY u.display_name LIMIT 500`,
@@ -243,7 +245,10 @@ export default async function messageRoutes(app) {
     const messageId = Number(req.body?.messageId) || 0;
     if (messageId > member.last_read) {
       run('UPDATE chat_members SET last_read = ? WHERE chat_id = ? AND user_id = ?', messageId, chatId, req.user.id);
-      toChat(chatId, 'read', { chatId, userId: req.user.id, messageId });
+      // With a hidden member list, don't reveal who read: others only learn that someone did.
+      const chat = get('SELECT type, hide_members FROM chats WHERE id = ?', chatId);
+      if (membersHidden(chat)) toChatExcept(chatId, [req.user.id], 'read', { chatId, userId: 0, messageId });
+      else toChat(chatId, 'read', { chatId, userId: req.user.id, messageId });
     }
     return { ok: true };
   });

@@ -65,8 +65,9 @@ export default function ChatInfo({ chatId, onClose }) {
       {can('invite_links') && !chat.isEmergency && <InviteLinks chatId={chat.id} />}
 
       <h4>
-        اعضا ({toFa(chat.memberCount)})
+        {chat.type === 'channel' ? 'مشترکان' : 'اعضا'} ({toFa(chat.memberCount)})
       </h4>
+      {data?.membersHidden && <p className="muted tiny">لیست {chat.type === 'channel' ? 'مشترکان' : 'اعضا'} فقط برای مدیران قابل مشاهده است. اینجا فقط مدیران را می‌بینید.</p>}
       {can('add_members') && !chat.isEmergency && <AddMembers chatId={chat.id} members={data?.members || []} onDone={load} />}
       <ul className="user-list">
         {data?.members.map((m) => (
@@ -179,6 +180,7 @@ function EditChat({ chat }) {
     slowMode: chat.slowMode,
     locked: chat.locked,
     autoDelete: chat.autoDelete || 0,
+    ...(chat.type === 'group' ? { voiceStage: chat.voiceStage, hideMembers: chat.hideMembers } : {}),
   });
 
   async function save(e) {
@@ -233,6 +235,14 @@ function EditChat({ chat }) {
           <label className="check">
             <input type="checkbox" checked={f.locked} onChange={(e) => setF({ ...f, locked: e.target.checked })} />
             قفل گروه (فقط مدیران پیام بدهند)
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={f.hideMembers} onChange={(e) => setF({ ...f, hideMembers: e.target.checked })} />
+            مخفی کردن لیست اعضا (فقط مدیران اعضا را ببینند)
+          </label>
+          <label className="check">
+            <input type="checkbox" checked={f.voiceStage} onChange={(e) => setF({ ...f, voiceStage: e.target.checked })} />
+            ویس‌چت مدیریت‌شده: فقط مدیران شروع می‌کنند و صحبت می‌کنند، بقیه با ✋ اجازه می‌گیرند
           </label>
         </>
       )}

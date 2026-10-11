@@ -119,10 +119,72 @@ r = await owner.call('POST', '/api/upload', null, { form: twoMb() });
 assert.equal(r.status, 201, 'owner is never limited');
 await owner.call('PATCH', '/api/admin/settings', { max_upload_mb: 100 });
 
-// Listen-only: channel members who may not post, and muted group members
-r = await owner.call('POST', '/api/chats', { type: 'channel', title: 'رادیو', memberIds: [bobId] });
-c = claims((await bob.call('POST', '/api/rtc/join', { chatId: r.chat.id })).token);
-assert.equal(c.video.canPublish, false);
+// ---- Channel voice chat = "stage": admins start & speak, others raise a hand ----
+r = await owner.call('POST', '/api/chats', { type: 'channel', title: 'رادیو', memberIds: [bobId, carolId] });
+const radio = r.chat.id;
+r = await bob.call('POST', '/api/rtc/join', { chatId: radio });
+assert.equal(r.status, 403, 'only admins can start a channel voice chat');
+r = await owner.call('POST', '/api/rtc/join', { chatId: radio });
+assert.equal(r.canSpeak, true);
+assert.equal(r.stage.admin, true);
+const ownerId = claims(r.token).sub.slice(1) * 1;
+await sendWebhook({ event: 'participant_joined', room: { name: `chat-${radio}` }, participant: { identity: `u${ownerId}`, name: 'Owner' } });
+r = await bob.call('POST', '/api/rtc/join', { chatId: radio });
+c = claims(r.token);
+assert.equal(c.video.canPublish, false, 'listener');
+assert.equal(c.video.hidden, true, 'channel listeners are invisible to other clients');
+assert.equal(r.stage.admin, false);
+await sendWebhook({ event: 'participant_joined', room: { name: `chat-${radio}` }, participant: { identity: `u${bobId}`, name: 'Bob' } });
+await sendWebhook({ event: 'participant_joined', room: { name: `chat-${radio}` }, participant: { identity: `u${carolId}`, name: 'Carol' } });
+await sleep(200);
+let st = carol.last('voice:state');
+assert.deepEqual(st.participants.map((p) => p.userId), [ownerId], 'members only see the speakers');
+assert.equal(st.listeners, 2);
+r = await bob.call('POST', `/api/rtc/${radio}/hand`, { up: true });
+assert.equal(r.hand, true);
+r = await owner.call('GET', '/api/rtc/state');
+let full = r.rooms.find((x) => x.chatId === radio);
+assert.deepEqual(full.hands, [bobId], 'admin sees the raised hand');
+assert.equal(full.participants.length, 3, 'admin sees the listeners');
+r = await carol.call('GET', '/api/rtc/state');
+assert.deepEqual(r.rooms.find((x) => x.chatId === radio).hands, []);
+r = await carol.call('POST', `/api/rtc/${radio}/moderate`, { action: 'grant', userId: carolId });
+assert.equal(r.status, 403, 'members cannot grant');
+r = await owner.call('POST', `/api/rtc/${radio}/moderate`, { action: 'grant', userId: bobId });
+assert.equal(r.ok, true);
+await sleep(200);
+assert.equal(bob.last('rtc:speak')?.canSpeak, true);
+r = await bob.call('POST', '/api/rtc/join', { chatId: radio });
+assert.equal(r.canSpeak, true, 'granted speaker rejoins with publish rights');
+assert.ok(!claims(r.token).video.hidden);
+st = carol.last('voice:state');
+assert.deepEqual(st.participants.map((p) => p.userId).sort(), [ownerId, bobId].sort());
+r = await owner.call('POST', `/api/rtc/${radio}/moderate`, { action: 'revoke', userId: bobId });
+assert.equal(r.ok, true);
+assert.equal((await bob.call('POST', '/api/rtc/join', { chatId: radio })).canSpeak, false);
+r = await owner.call('POST', `/api/rtc/${radio}/moderate`, { action: 'kick', userId: carolId, ban: true });
+r = await carol.call('POST', '/api/rtc/join', { chatId: radio });
+assert.equal(r.status, 403, 'banned from this voice chat');
+// The voice chat ends when everyone leaves: bans reset
+for (const id of [ownerId, bobId, carolId]) await sendWebhook({ event: 'participant_left', room: { name: `chat-${radio}` }, participant: { identity: `u${id}` } });
+await owner.call('POST', '/api/rtc/join', { chatId: radio });
+await sendWebhook({ event: 'participant_joined', room: { name: `chat-${radio}` }, participant: { identity: `u${ownerId}`, name: 'Owner' } });
+assert.equal((await carol.call('POST', '/api/rtc/join', { chatId: radio })).status, 200, 'new voice chat, ban lifted');
+await sendWebhook({ event: 'participant_left', room: { name: `chat-${radio}` }, participant: { identity: `u${ownerId}` } });
+// Channel members are hidden from regular subscribers, reactions are anonymous
+r = await carol.call('GET', `/api/chats/${radio}`);
+assert.deepEqual(r.members.map((m) => m.id).sort(), [ownerId, carolId].sort(), 'subscriber sees only admins and self');
+assert.equal(r.membersHidden, true);
+r = await owner.call('GET', `/api/chats/${radio}`);
+assert.equal(r.members.length, 3);
+r = await owner.call('POST', `/api/chats/${radio}/messages`, { text: 'خبر' });
+const post = r.message.id;
+r = await carol.call('POST', `/api/messages/${post}/react`, { emoji: '👍' });
+assert.deepEqual(r.message.reactions, [{ emoji: '👍', users: [], count: 1, mine: true }]);
+r = await bob.call('GET', `/api/chats/${radio}/messages`);
+assert.deepEqual(r.messages.find((m) => m.id === post).reactions, [{ emoji: '👍', users: [], count: 1, mine: false }]);
+
+// Groups stay open by default; the admin can turn on the managed mode
 r = await owner.call('POST', '/api/chats', { type: 'group', title: 'جمع', memberIds: [bobId] });
 const group = r.chat.id;
 await owner.call('PATCH', `/api/chats/${group}/members/${bobId}`, { mutedUntil: Date.now() + 60000 });
@@ -130,6 +192,16 @@ c = claims((await bob.call('POST', '/api/rtc/join', { chatId: group })).token);
 assert.equal(c.video.canPublish, false);
 r = await carol.call('POST', '/api/rtc/join', { chatId: group });
 assert.equal(r.status, 403, 'non-members cannot join a private group room');
+await owner.call('PATCH', `/api/chats/${group}/members/${bobId}`, { mutedUntil: null });
+r = await bob.call('POST', '/api/rtc/join', { chatId: group });
+assert.ok(!r.stage, 'groups are open by default');
+r = await owner.call('PATCH', `/api/chats/${group}`, { voiceStage: true, hideMembers: true });
+assert.equal(r.chat.voiceStage, true);
+assert.equal(r.chat.hideMembers, true);
+r = await bob.call('POST', '/api/rtc/join', { chatId: group });
+assert.equal(r.status, 403, 'managed group voice chat: only admins start it');
+r = await bob.call('GET', `/api/chats/${group}`);
+assert.equal(r.membersHidden, true);
 
 // ---- Webhooks drive "who is in the room" ----
 assert.equal(await sendWebhook({ event: 'participant_joined', room: { name: `chat-${lobby}` }, participant: { identity: `u${bobId}`, name: 'Bob' } }, 'Bearer bad.token.here'), 401);

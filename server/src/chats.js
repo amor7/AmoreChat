@@ -1,5 +1,6 @@
 import { get, all, run, now, tx, parseJSON } from './db.js';
 import { toChat, toUser, joinChat, leaveChat, isOnline } from './realtime.js';
+import { hasSitePerm } from './perms.js';
 
 export function fail(statusCode, message) {
   const e = new Error(message);
@@ -17,12 +18,13 @@ const MSG_SELECT = `
     f.mime AS f_mime, f.size AS f_size, f.name AS f_name, f.kind AS f_kind,
     f.width AS f_w, f.height AS f_h, f.duration AS f_dur, f.status AS f_status,
     f.variants AS f_variants, f.thumb AS f_thumb, f.waveform AS f_wave, f.purged AS f_purged,
-    r.text AS r_text, r.type AS r_type, r.deleted AS r_deleted, ru.display_name AS r_sender
+    ch.type AS chat_type, r.text AS r_text, r.type AS r_type, r.deleted AS r_deleted, ru.display_name AS r_sender
   FROM messages m
   LEFT JOIN users u ON u.id = m.sender_id
   LEFT JOIN files f ON f.id = m.file_id
   LEFT JOIN messages r ON r.id = m.reply_to
-  LEFT JOIN users ru ON ru.id = r.sender_id`;
+  LEFT JOIN users ru ON ru.id = r.sender_id
+  LEFT JOIN chats ch ON ch.id = m.chat_id`;
 
 // Reactions grouped per emoji: [{ emoji, users: [userId, ...] }]
 function reactionsFor(ids) {
@@ -75,7 +77,8 @@ export function serializeMessage(m, reactions = []) {
             variants: parseJSON(m.f_variants, []).map((v) => ({ q: v.q, size: v.size })),
           }
         : null,
-    reactions: deleted ? [] : reactions,
+    // Channels: anonymous reactions (counts only), like Telegram. `mine` is added per request.
+    reactions: deleted ? [] : m.chat_type === 'channel' ? reactions.map((r) => ({ emoji: r.emoji, users: [], count: r.users.length })) : reactions,
     forwardedFrom: m.forwarded_from,
     expiresAt: m.expires_at,
     replyTo: m.reply_to
@@ -113,6 +116,24 @@ export function findMentions(chatId, text, replyTo = null, senderId = null) {
   ids.delete(senderId);
   return [...ids];
 }
+
+// Marks which anonymous (channel) reactions are the viewer's own.
+export function withMine(messages, userId) {
+  const anon = messages.filter((m) => m?.reactions?.some((r) => r.count != null));
+  if (!anon.length) return messages;
+  const rows = all(
+    'SELECT message_id, emoji FROM reactions WHERE user_id = ? AND message_id IN (SELECT value FROM json_each(?))',
+    userId,
+    JSON.stringify(anon.map((m) => m.id)),
+  );
+  const mine = new Set(rows.map((r) => `${r.message_id}:${r.emoji}`));
+  for (const m of anon) m.reactions = m.reactions.map((r) => ({ ...r, mine: mine.has(`${m.id}:${r.emoji}`) }));
+  return messages;
+}
+
+// Channels always hide their member list from regular members; groups when the admin turns it on.
+export const membersHidden = (chat) => chat.type === 'channel' || (chat.type === 'group' && !!chat.hide_members);
+export const isChatStaff = (user, member) => hasSitePerm(user, 'manage_chats') || member?.role === 'owner' || member?.role === 'admin';
 
 export function loadMessage(id) {
   const row = get(`${MSG_SELECT} WHERE m.id = ?`, id);
@@ -163,6 +184,8 @@ function formatSummary(c, userId) {
     slowMode: c.slow_mode,
     locked: !!c.locked,
     autoDelete: c.auto_delete,
+    voiceStage: c.type === 'channel' || !!c.voice_stage,
+    hideMembers: c.type === 'channel' || !!c.hide_members,
     memberCount: c.member_count,
     myRole: c.my_role,
     myPerms: parseJSON(c.my_perms, []),

@@ -215,6 +215,11 @@ const migrations = [
   ALTER TABLE chat_members ADD COLUMN notify_muted_until INTEGER;
   ALTER TABLE messages ADD COLUMN mentions TEXT;
   `,
+  // v5: Telegram-style voice chats ("stage": admins speak, others raise a hand) and hidden member lists
+  `
+  ALTER TABLE chats ADD COLUMN voice_stage INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE chats ADD COLUMN hide_members INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 const current = db.prepare('PRAGMA user_version').get().user_version;

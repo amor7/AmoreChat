@@ -25,16 +25,22 @@ export const useStore = create((set, get) => ({
   rtc: null, // active voice room / call connection (see rtc.js)
   call: null, // 1:1 call being rung / in progress
   voiceRooms: {}, // chatId -> participants currently in that chat's voice room
+  voiceMeta: {}, // chatId -> { stage, hands: [userId], listeners: hidden listener count }
   voiceChannels: [], // voice channels visible to me (public ones included)
   async loadVoice() {
     if (!get().config?.rtc) return null;
     const [state, ch] = await Promise.all([api('GET', '/rtc/state'), api('GET', '/rtc/voice-channels')]);
-    set({ voiceRooms: Object.fromEntries(state.rooms.map((r) => [r.chatId, r.participants])), voiceChannels: ch.channels });
+    set({
+      voiceRooms: Object.fromEntries(state.rooms.map((r) => [r.chatId, r.participants])),
+      voiceMeta: Object.fromEntries(state.rooms.map((r) => [r.chatId, { stage: !!r.stage, hands: r.hands || [], listeners: r.listeners || 0 }])),
+      voiceChannels: ch.channels,
+    });
     return state;
   },
-  setVoiceRoom({ chatId, participants }) {
+  setVoiceRoom({ chatId, participants, stage, hands, listeners }) {
     set((s) => ({
       voiceRooms: { ...s.voiceRooms, [chatId]: participants },
+      voiceMeta: { ...s.voiceMeta, [chatId]: { stage: !!stage, hands: hands || [], listeners: listeners || 0 } },
       voiceChannels: s.voiceChannels.map((c) => (c.id === chatId ? { ...c, participants } : c)),
     }));
   },
@@ -147,6 +153,10 @@ export const useStore = create((set, get) => ({
     });
   },
   updateMessage(m) {
+    const old = get().messages[m.chatId]?.find((x) => x.id === m.id);
+    if (old && m.reactions?.some((r) => r.count != null && r.mine == null)) {
+      m = { ...m, reactions: m.reactions.map((r) => (r.mine == null ? { ...r, mine: !!old.reactions?.find((o) => o.emoji === r.emoji)?.mine } : r)) };
+    }
     set((s) => {
       const chat = s.chats[m.chatId];
       return {

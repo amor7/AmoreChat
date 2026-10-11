@@ -57,13 +57,17 @@ function Content({ m, mine }) {
 function Reactions({ m, meId }) {
   const showToast = useStore((s) => s.showToast);
   if (!m.reactions?.length) return null;
-  const toggle = (emoji) => api('POST', `/messages/${m.id}/react`, { emoji }).catch((e) => showToast(e.message));
+  const toggle = (emoji) =>
+    api('POST', `/messages/${m.id}/react`, { emoji })
+      .then((r) => useStore.getState().updateMessage(r.message))
+      .catch((e) => showToast(e.message));
   return (
     <div className="reactions">
       {m.reactions.map((r) => (
-        <button key={r.emoji} className={`reaction ${r.users.includes(meId) ? 'mine' : ''}`} onClick={() => toggle(r.emoji)}>
+        // Channels send anonymous counts (count + mine) instead of the list of users.
+        <button key={r.emoji} className={`reaction ${(r.mine ?? r.users.includes(meId)) ? 'mine' : ''}`} onClick={() => toggle(r.emoji)}>
           <EmojiImg ch={r.emoji} size={19} />
-          <span>{toFa(r.users.length)}</span>
+          <span>{toFa(r.count ?? r.users.length)}</span>
         </button>
       ))}
     </div>
@@ -73,6 +77,7 @@ function Reactions({ m, meId }) {
 function Message({ m, chat, mine, grouped, onJump, onMenu }) {
   const meId = useStore((s) => s.me.id);
   const press = useRef(null);
+  const pressedAt = useRef(0);
 
   if (m.type === 'call') return <CallLog m={m} mine={mine} chat={chat} />;
 
@@ -92,15 +97,27 @@ function Message({ m, chat, mine, grouped, onJump, onMenu }) {
 
   const openMenu = (e) => {
     e.preventDefault();
+    // Android fires its own contextmenu right after our long-press timer: opening the menu
+    // a second time (or letting that event reach the new backdrop) made it vanish at once.
+    if (e.type === 'contextmenu' && Date.now() - pressedAt.current < 1500) return;
     const p = e.touches?.[0] || e;
     onMenu(p.clientX, p.clientY);
   };
   // Long-press for touch screens.
   const touchStart = (e) => {
     const t = e.touches[0];
-    press.current = setTimeout(() => onMenu(t.clientX, t.clientY), 500);
+    clearTimeout(press.current);
+    press.current = setTimeout(() => {
+      pressedAt.current = Date.now();
+      navigator.vibrate?.(12);
+      onMenu(t.clientX, t.clientY);
+    }, 450);
   };
-  const touchEnd = () => clearTimeout(press.current);
+  const touchEnd = (e) => {
+    clearTimeout(press.current);
+    // Lifting the finger after a long-press must not "click" whatever is under it now.
+    if (e?.type === 'touchend' && Date.now() - pressedAt.current < 1500) e.preventDefault();
+  };
 
   return (
     <div className={`msg-row ${mine ? 'mine' : ''} ${grouped ? 'grouped' : ''}`} id={`msg-${m.id}`}>

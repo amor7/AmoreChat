@@ -2,7 +2,7 @@ import { io } from 'socket.io-client';
 import { useStore } from './store';
 import { api } from './api';
 import { messagePreview } from './util';
-import { callEvents, restoreCall, leave } from './rtc';
+import { callEvents, restoreCall, leave, onSpeakChanged } from './rtc';
 import { ensureLatest } from './update';
 
 let socket = null;
@@ -67,7 +67,12 @@ export function connectSocket() {
   socket.on('call:ended', callEvents.ended);
   socket.on('rtc:notice', (n) => {
     st().showToast(n.text);
-    if (n.action === 'kick' && st().rtc?.chatId === n.chatId) leave();
+    if ((n.action === 'kick' || n.action === 'end') && st().rtc?.chatId === n.chatId) leave();
+  });
+  socket.on('rtc:speak', (d) => onSpeakChanged(d));
+  socket.on('rtc:hand', ({ chatId, name }) => {
+    beep();
+    st().showToast(`✋ ${name} دست بلند کرد${st().rtc?.chatId === chatId ? '' : ` (${st().chats[chatId]?.title || ''})`}`);
   });
   socket.on('emergency', (m) => m.sender?.id !== st().me?.id && useStore.setState({ emergency: m }));
 }

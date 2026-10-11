@@ -34,6 +34,10 @@ r = await owner.call('POST', '/api/chats', { type: 'voice', title: 'Lobby', isPu
 const lobby = r.chat.id;
 r = await owner.call('POST', '/api/chats/dm', { userId: bobId });
 const dm = r.chat.id;
+r = await owner.call('POST', '/api/chats', { type: 'channel', title: 'Radio', memberIds: [bobId] });
+const radio = r.chat.id;
+await owner.call('POST', `/api/chats/${dm}/messages`, { text: 'long-press me' });
+const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 
 const browser = await puppeteer.launch({
   args: [
@@ -57,6 +61,8 @@ async function openAs(client, label) {
 }
 const A = await openAs(owner, 'owner');
 const B = await openAs(bob, 'bob');
+A.on('dialog', (d) => d.accept());
+B.on('dialog', (d) => d.accept());
 
 const waitFor = (page, fn, arg, what, timeout = 20000) =>
   page.waitForFunction(fn, { timeout, polling: 250 }, arg).catch(async (e) => {
@@ -200,8 +206,60 @@ try {
   await waitFor(B, () => document.querySelector('.spot-main .mtile.screen video')?.videoWidth > 0, null, 'watched stream shown big');
   await waitFor(B, () => document.querySelectorAll('.filmstrip .mtile').length === 2, null, 'people in the side strip');
   await B.screenshot({ path: 'shot-room-stream.png' });
+
+  step('volume: bob turns the owner up to 150% (and the stream separately)');
+  await B.$eval('.mtile.person:not(.speaking) .tile-more, .mtile.person .tile-more', (b) => b.click());
+  await waitFor(B, () => document.querySelectorAll('.tile-menu .vol-slider input').length === 2, null, 'voice + stream volume sliders');
+  await B.$eval('.tile-menu .vol-slider input', (el) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, '150');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await waitFor(B, () => document.querySelector('.tile-menu .vol-head b')?.textContent.includes('۱۵۰'), null, 'volume shows 150%');
+  assert.equal(await B.evaluate(() => JSON.parse(localStorage.getItem('amorechat:volumes'))[1].voice), 1.5, 'remembered on this device');
+
   await A.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
   await waitFor(B, () => !document.querySelector('.mtile.screen'), null, 'stream ends for viewer');
+  for (const p of [A, B]) {
+    await p.$eval('.room-view .ctl.hangup', (b) => b.click());
+    await waitFor(p, () => !document.querySelector('.room-view'), null, 'left the lobby');
+  }
+
+  step('channel voice chat: only the admin starts it; bob listens hidden, raises a hand, gets to speak');
+  await B.goto(`${BASE}/#/chat/${radio}`, { waitUntil: 'networkidle0' });
+  if (await B.$('.chat-head button[aria-label="شروع ویس‌چت"]')) throw new Error('subscriber can start a channel voice chat');
+  await A.goto(`${BASE}/#/chat/${radio}`, { waitUntil: 'networkidle0' });
+  await A.click('.chat-head button[aria-label="شروع ویس‌چت"]');
+  await waitFor(A, () => document.querySelector('.voice-bar .dot.connected'), null, 'admin started the voice chat');
+  await A.click('.vbar-info');
+  await clickText(B, '.voice-banner button', 'پیوستن');
+  await waitFor(B, () => document.querySelector('.voice-bar .dot.connected'), null, 'bob joined as listener');
+  await B.click('.vbar-info');
+  await waitFor(B, () => document.querySelector('.room-view .ctl.hand') && !document.querySelector('.room-view .ctl[title="بستن میکروفون"]'), null, 'listener: hand button, no mic');
+  await waitFor(A, () => /شنونده‌ها \(۱\)/.test(document.querySelector('.stage-panel')?.textContent || ''), null, 'admin sees one listener');
+  assert.equal(await count(A, '.mtile.person'), 1, 'hidden listener has no tile');
+  await B.click('.room-view .ctl.hand');
+  await waitFor(A, () => document.querySelector('.stage-panel .hand-count'), null, 'admin sees the raised hand');
+  await clickText(A, '.stage-panel .stage-list button', 'اجازه صحبت');
+  await waitFor(B, () => document.querySelector('.room-view .ctl[title="بستن میکروفون"]'), null, 'bob can speak now (mic on)');
+  await waitFor(A, () => document.querySelectorAll('.mtile.person').length === 2, null, 'speaker visible to the admin');
+  await A.screenshot({ path: 'shot-stage-admin.png' });
+  await clickText(A, '.stage-panel .stage-actions button', 'پایان برای همه');
+  await waitFor(B, () => !document.querySelector('.voice-bar') && !document.querySelector('.room-view'), null, 'voice chat ended for bob');
+
+  step('phone: long-press a message opens the menu and it stays open');
+  await B.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
+  await B.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
+  const pt = await B.$$eval('.msg-row .bubble', (els) => {
+    const el = els.find((e) => e.textContent.includes('long-press me'));
+    const r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await B.touchscreen.touchStart(pt.x, pt.y);
+  await sleep(800);
+  await B.touchscreen.touchEnd();
+  await sleep(800);
+  if (!(await B.$('.menu.floating .quick-reactions'))) throw new Error('message menu closed right after the long-press');
+  await B.screenshot({ path: 'shot-longpress.png' });
 
   console.log('\nRTC E2E TEST PASSED');
 } finally {

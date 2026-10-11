@@ -2,10 +2,10 @@ import { get, all, now } from '../db.js';
 import { settingNumber } from '../settings.js';
 import { hasSitePerm, hasChatPerm } from '../perms.js';
 import { effectiveLimits } from '../limits.js';
-import { toUser } from '../realtime.js';
-import { fail, getChat, getMember, addMember, audit } from '../chats.js';
-import { rtcEnabled, accessToken, verifyWebhook, removeParticipant, muteSources, deleteRoom, userIdOf } from '../livekit.js';
-import { applyWebhook, chatRoom, chatIdOfRoom, roomParticipants, activeRooms } from '../voice.js';
+import { toUser, toChat } from '../realtime.js';
+import { fail, getChat, getMember, addMember, audit, membersHidden } from '../chats.js';
+import { rtcEnabled, accessToken, verifyWebhook, removeParticipant, muteSources, deleteRoom, revokePublish, userIdOf } from '../livekit.js';
+import { applyWebhook, chatRoom, chatIdOfRoom, roomParticipants, activeRooms, isStage, isStageAdmin, stageOf, endStage, stageSpeaker, stageAdminsOf, broadcastRoom, roomStateFor } from '../voice.js';
 import { startCall, acceptCall, endCall, getCall, userCall, callRoom, listCalls } from '../calls.js';
 
 const ROOM_TYPES = ['group', 'channel', 'voice'];
@@ -72,8 +72,9 @@ export default async function rtcRoutes(app) {
     );
     return {
       rooms: activeRooms()
-        .map((r) => ({ chatId: chatIdOfRoom(r.room), participants: r.participants }))
-        .filter((r) => r.chatId && visible.has(r.chatId)),
+        .map((r) => chatIdOfRoom(r.room))
+        .filter((id) => id && visible.has(id))
+        .map((id) => roomStateFor(req.user, id)),
       call: userCall(req.user.id) ? callInfo(req.user) : null,
     };
   });
@@ -89,16 +90,49 @@ export default async function rtcRoutes(app) {
       member = getMember(chat.id, req.user.id);
     }
     if (!member && !hasSitePerm(req.user, 'manage_chats')) fail(403, 'شما عضو این گفتگو نیستید');
-    const speak = canSpeak(req.user, chat, member);
+    const room = chatRoom(chat.id);
+    let speak = canSpeak(req.user, chat, member);
+    let stage = null;
+    if (isStage(chat)) {
+      const admin = isStageAdmin(req.user, chat, member);
+      if (!admin && stageOf(room).bans.has(req.user.id)) fail(403, 'مدیر شما را از این ویس‌چت بیرون کرده است');
+      if (!admin && !roomParticipants(room).length) fail(403, 'ویس‌چت هنوز شروع نشده؛ فقط مدیران می‌توانند آن را شروع کنند');
+      const muted = member?.muted_until && member.muted_until > now();
+      speak = admin || (!muted && stageOf(room).speakers.has(req.user.id));
+      stage = { admin, hand: stageOf(room).hands.has(req.user.id) };
+    }
     const limits = effectiveLimits(req.user);
     return {
-      room: chatRoom(chat.id),
-      token: accessToken({ user: req.user, room: chatRoom(chat.id), canPublish: speak, sources: sourcesFor(req.user) }),
+      room,
+      // In channels (and groups with a hidden member list) listeners are invisible to other clients.
+      token: accessToken({ user: req.user, room, canPublish: speak, sources: sourcesFor(req.user), hidden: !!stage && !speak && membersHidden(chat) }),
+      stage,
       canSpeak: speak,
       canStream: speak && limits.canStream,
       streamQuality: limits.streamQuality,
       maxStreams: settingNumber('max_streams_per_room'),
     };
+  });
+
+  // ✋ Raise / lower a hand in a stage voice chat.
+  app.post('/api/rtc/:chatId/hand', async (req) => {
+    needRtc();
+    const chat = getChat(Number(req.params.chatId));
+    if (!chat || !isStage(chat)) fail(400, 'این ویس‌چت دست بلند کردن ندارد');
+    const member = getMember(chat.id, req.user.id);
+    if (!member) fail(403, 'شما عضو این گفتگو نیستید');
+    if (member.muted_until && member.muted_until > now()) fail(403, 'شما در این گفتگو بی‌صدا هستید');
+    const room = chatRoom(chat.id);
+    if (!roomParticipants(room).some((p) => p.userId === req.user.id)) fail(400, 'اول وارد ویس‌چت شوید');
+    const stage = stageOf(room);
+    const up = req.body?.up !== false;
+    if (up && !stage.hands.has(req.user.id)) {
+      stage.hands.set(req.user.id, now());
+      for (const id of stageAdminsOf(chat)) toUser(id, 'rtc:hand', { chatId: chat.id, userId: req.user.id, name: req.user.display_name });
+    }
+    if (!up) stage.hands.delete(req.user.id);
+    broadcastRoom(room);
+    return { hand: up };
   });
 
   app.post('/api/rtc/:chatId/moderate', async (req) => {
@@ -108,14 +142,60 @@ export default async function rtcRoutes(app) {
     const member = getMember(chat.id, req.user.id);
     const targetId = Number(req.body?.userId);
     const action = req.body?.action;
-    const perm = action === 'kick' ? 'ban_members' : 'mute_members';
-    if (!['mute', 'stop_stream', 'kick'].includes(action)) fail(400, 'عملیات نامعتبر');
-    if (!canModerate(req.user, member, chat.id, targetId, perm)) fail(403, 'دسترسی ندارید');
     const room = chatRoom(chat.id);
+    const STAGE_ACTIONS = ['grant', 'revoke', 'dismiss_hand', 'mute_all', 'end'];
+    if (![...STAGE_ACTIONS, 'mute', 'stop_stream', 'kick'].includes(action)) fail(400, 'عملیات نامعتبر');
+
+    if (isStage(chat)) {
+      // Stage rooms: the voice-chat admins moderate (they can't act on other admins unless they outrank them).
+      if (!isStageAdmin(req.user, chat, member)) fail(403, 'دسترسی ندارید');
+      if (targetId && targetId !== req.user.id && isStageAdmin(get('SELECT * FROM users WHERE id = ?', targetId), chat, getMember(chat.id, targetId))) {
+        if (!canModerate(req.user, member, chat.id, targetId, 'mute_members')) fail(403, 'روی این مدیر دسترسی ندارید');
+      }
+      const stage = stageOf(room);
+      if (action === 'grant') {
+        stage.speakers.add(targetId);
+        stage.hands.delete(targetId);
+        toUser(targetId, 'rtc:speak', { chatId: chat.id, canSpeak: true, text: 'مدیر به شما اجازه صحبت داد 🎙' });
+      }
+      if (action === 'revoke') {
+        stage.speakers.delete(targetId);
+        stage.hands.delete(targetId);
+        await revokePublish(room, targetId).catch(() => removeParticipant(room, targetId).catch(() => {}));
+        toUser(targetId, 'rtc:speak', { chatId: chat.id, canSpeak: false, text: 'اجازه صحبت شما برداشته شد' });
+      }
+      if (action === 'dismiss_hand') stage.hands.delete(targetId);
+      if (action === 'kick') {
+        if (req.body?.ban) stage.bans.add(targetId);
+        stage.speakers.delete(targetId);
+        stage.hands.delete(targetId);
+      }
+      if (action === 'mute_all') {
+        for (const p of roomParticipants(room)) {
+          if (p.userId !== req.user.id && !isStageAdmin(get('SELECT * FROM users WHERE id = ?', p.userId), chat, getMember(chat.id, p.userId))) {
+            await muteSources(room, p.userId, ['MICROPHONE']).catch(() => {});
+          }
+        }
+      }
+      if (action === 'end') {
+        toChat(chat.id, 'rtc:notice', { chatId: chat.id, action: 'end', text: 'مدیر ویس‌چت را تمام کرد' });
+        await deleteRoom(room);
+        endStage(room);
+      }
+      if (['grant', 'revoke', 'dismiss_hand', 'kick'].includes(action)) broadcastRoom(room);
+      if (STAGE_ACTIONS.includes(action)) {
+        audit(req.user.id, `voice.${action}`, `${chat.id}:${targetId || ''}`);
+        return { ok: true };
+      }
+    } else {
+      if (STAGE_ACTIONS.includes(action)) fail(400, 'این عملیات فقط در ویس‌چت مدیریت‌شده است');
+      const perm = action === 'kick' ? 'ban_members' : 'mute_members';
+      if (!canModerate(req.user, member, chat.id, targetId, perm)) fail(403, 'دسترسی ندارید');
+    }
     if (action === 'kick') await removeParticipant(room, targetId);
     if (action === 'mute') await muteSources(room, targetId, ['MICROPHONE']);
     if (action === 'stop_stream') await muteSources(room, targetId, ['SCREEN_SHARE', 'SCREEN_SHARE_AUDIO', 'CAMERA']);
-    const notice = { mute: 'یک مدیر میکروفون شما را بست', stop_stream: 'یک مدیر استریم شما را متوقف کرد', kick: 'یک مدیر شما را از ویس‌چت بیرون کرد' }[action];
+    const notice = { mute: 'یک مدیر میکروفون شما را بست', stop_stream: 'یک مدیر استریم شما را متوقف کرد', kick: req.body?.ban ? 'مدیر شما را از این ویس‌چت بیرون کرد و تا پایانش نمی‌توانید برگردید' : 'یک مدیر شما را از ویس‌چت بیرون کرد' }[action];
     toUser(targetId, 'rtc:notice', { chatId: chat.id, action, text: notice });
     audit(req.user.id, `voice.${action}`, `${chat.id}:${targetId}`);
     return { ok: true };

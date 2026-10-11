@@ -4,6 +4,7 @@ import { formatClock } from '../util';
 import { useSmartFit } from '../smartFit';
 import Avatar from './Avatar';
 import Ping from './Ping';
+import { VolumeButton } from './VoiceTools';
 import { ChevronDown, Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, SwitchCamera, ScreenShare, ScreenShareOff, Volume2 } from 'lucide-react';
 import { setMic, setCamera, flipCamera, hangUp, canShareScreen, startScreenShare, stopScreenShare, enableAudioPlayback } from '../rtc';
 
@@ -198,6 +199,7 @@ export default function CallView() {
         <button className="ctl hangup" onClick={() => run(hangUp)} aria-label="قطع تماس">
           <PhoneOff size={28} />
         </button>
+        {remote && <VolumeButton userId={remote.userId} />}
         {rtc.camOn && isTouch && (
           <button className="ctl" onClick={() => run(flipCamera)} aria-label="تعویض دوربین">
             <SwitchCamera size={24} />

@@ -15,6 +15,8 @@ import {
   getOrCreateDm,
   systemMessage,
   audit,
+  membersHidden,
+  isChatStaff,
 } from '../chats.js';
 
 function formatDuration(secs) {
@@ -132,7 +134,9 @@ export default async function chatRoutes(app) {
     const canSeeBans = hasChatPerm(req.user, member, 'ban_members');
     return {
       chat: member ? chatSummary(chat.id, req.user.id) : { id: chat.id, type: chat.type, title: chat.title, description: chat.description },
-      members: chat.type === 'saved' ? [] : membersOf(chat.id),
+      // Hidden list: regular members only see the admins (and themselves), like Telegram.
+      members: chat.type === 'saved' ? [] : membersOf(chat.id).filter((u) => !membersHidden(chat) || isChatStaff(req.user, member) || u.chatRole !== 'member' || u.id === req.user.id),
+      membersHidden: membersHidden(chat) && !isChatStaff(req.user, member),
       bans: canSeeBans
         ? all(
             `SELECT u.id, u.username, u.display_name AS displayName FROM chat_bans b JOIN users u ON u.id = b.user_id WHERE b.chat_id = ?`,
@@ -167,6 +171,8 @@ export default async function chatRoutes(app) {
     if (b.isPublic !== undefined && !chat.is_emergency) run('UPDATE chats SET is_public = ? WHERE id = ?', b.isPublic ? 1 : 0, chat.id);
     if (b.slowMode !== undefined) run('UPDATE chats SET slow_mode = ? WHERE id = ?', Math.max(0, Math.min(3600, Number(b.slowMode) || 0)), chat.id);
     if (b.locked !== undefined) run('UPDATE chats SET locked = ? WHERE id = ?', b.locked ? 1 : 0, chat.id);
+    if (b.voiceStage !== undefined && chat.type === 'group') run('UPDATE chats SET voice_stage = ? WHERE id = ?', b.voiceStage ? 1 : 0, chat.id);
+    if (b.hideMembers !== undefined && chat.type === 'group') run('UPDATE chats SET hide_members = ? WHERE id = ?', b.hideMembers ? 1 : 0, chat.id);
     if (b.avatar !== undefined) {
       if (b.avatar !== null && !get("SELECT 1 FROM files WHERE id = ? AND owner_id = ? AND kind = 'image'", b.avatar, req.user.id)) {
         fail(400, 'تصویر نامعتبر است');

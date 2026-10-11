@@ -96,6 +96,35 @@ export function setStreamQuality(pub, level) {
   pub?.setVideoQuality({ low: VideoQuality.LOW, medium: VideoQuality.MEDIUM, high: VideoQuality.HIGH }[level]);
 }
 
+// ---------- Per-person volume (0–200%), remembered on this device, like Discord ----------
+const VOL_KEY = 'amorechat:volumes';
+let volumes = {};
+try {
+  volumes = JSON.parse(localStorage.getItem(VOL_KEY) || '{}');
+} catch {
+  /* storage unavailable */
+}
+export const getVolume = (userId, kind = 'voice') => volumes[userId]?.[kind] ?? 1;
+
+function applyVolume(p) {
+  if (!lk || !p || p === room?.localParticipant) return;
+  const id = Number(p.identity.slice(1));
+  const off = !!st().rtc?.deafened;
+  p.setVolume(off ? 0 : getVolume(id, 'voice'), lk.Track.Source.Microphone);
+  p.setVolume(off ? 0 : getVolume(id, 'stream'), lk.Track.Source.ScreenShareAudio);
+}
+
+export function setVolume(userId, kind, value) {
+  volumes[userId] = { ...volumes[userId], [kind]: value };
+  try {
+    localStorage.setItem(VOL_KEY, JSON.stringify(volumes));
+  } catch {
+    /* ignore */
+  }
+  applyVolume(room?.remoteParticipants.get(`u${userId}`));
+  useStore.setState({ volumesVersion: Date.now() });
+}
+
 function attachAudio(track) {
   if (track.kind !== 'audio') return;
   if (!audioBox) {
@@ -118,8 +147,9 @@ function wire(r) {
     p.trackPublications.forEach((pub) => applySubscription(pub, p));
     refresh();
   });
-  r.on(E.TrackSubscribed, (track) => {
+  r.on(E.TrackSubscribed, (track, _pub, participant) => {
     attachAudio(track);
+    applyVolume(participant);
     refresh();
   });
   r.on(E.TrackUnsubscribed, (track) => {
@@ -149,11 +179,13 @@ async function connect(session, token, { video = false, speak = true } = {}) {
     dynacast: true,
     audioCaptureDefaults: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     publishDefaults: { simulcast: true, dtx: true, red: true },
+    // Mix through Web Audio so a person's volume can go above 100%.
+    webAudioMix: true,
   });
   room = r;
   wire(r);
   useStore.setState({
-    rtc: { state: 'connecting', participants: [], micOn: false, camOn: false, screenOn: false, deafened: false, ptt: false, expanded: false, ...session },
+    rtc: { state: 'connecting', participants: [], micOn: false, camOn: false, screenOn: false, deafened: false, ptt: false, expanded: false, stage: null, hand: false, ...session },
   });
   try {
     await r.connect(wsUrl(), token, { autoSubscribe: session.kind === 'call' });
@@ -192,14 +224,31 @@ export async function leave() {
   await r.disconnect().catch(() => {});
 }
 
-export async function joinVoice(chatId) {
+export async function joinVoice(chatId, { expanded = false } = {}) {
   const chat = st().chats[chatId];
   const info = await api('POST', '/rtc/join', { chatId });
   await connect(
-    { kind: 'room', chatId, title: chat?.title || '', canSpeak: info.canSpeak, canStream: info.canStream, streamQuality: info.streamQuality },
+    { kind: 'room', chatId, title: chat?.title || '', canSpeak: info.canSpeak, canStream: info.canStream, streamQuality: info.streamQuality, stage: info.stage, hand: !!info.stage?.hand, expanded },
     info.token,
     { speak: info.canSpeak },
   );
+}
+
+// ✋ Raise / lower my hand in a stage voice chat.
+export async function setHand(up) {
+  const chatId = st().rtc?.chatId;
+  if (!chatId) return;
+  await api('POST', `/rtc/${chatId}/hand`, { up });
+  setRtc({ hand: up });
+}
+
+// An admin let me speak (or took it back): reconnect with the new permissions.
+export async function onSpeakChanged({ chatId, canSpeak, text }) {
+  if (st().rtc?.chatId !== chatId) return;
+  st().showToast(text);
+  const expanded = st().rtc.expanded;
+  await joinVoice(chatId, { expanded }).catch((e) => st().showToast(e.message));
+  if (canSpeak) setRtc({ hand: false });
 }
 
 // ---------- Local controls ----------
@@ -247,6 +296,7 @@ export async function stopScreenShare() {
 export function setDeafened(on) {
   setRtc({ deafened: on });
   audioBox?.querySelectorAll('audio').forEach((el) => (el.muted = on));
+  room?.remoteParticipants.forEach(applyVolume);
   if (on) setMic(false);
 }
 

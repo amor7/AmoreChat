@@ -6,6 +6,7 @@ import Avatar from './Avatar';
 import Message from './Message';
 import Composer from './Composer';
 import { VoiceBanner } from './Voice';
+import { isStageAdmin } from './VoiceTools';
 import { EmojiImg, EmojiPicker, RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
 import { ArrowRight, ChevronDown, Timer, Phone, Video, Mic, Search, Pin, PinOff, Reply, Forward, Copy, Pencil, Flag, Trash2, Plus, Eye, BellOff } from 'lucide-react';
@@ -150,7 +151,7 @@ export default function ChatView({ chatId }) {
   async function act(action, m, extra) {
     setMenu(null);
     try {
-      if (action === 'react') await api('POST', `/messages/${m.id}/react`, { emoji: extra });
+      if (action === 'react') st().updateMessage((await api('POST', `/messages/${m.id}/react`, { emoji: extra })).message);
       if (action === 'reply') useStore.setState({ replyTo: m, editing: null });
       if (action === 'edit') useStore.setState({ editing: m, replyTo: null });
       if (action === 'copy') (await copyText(m.text)) && st().showToast('کپی شد');
@@ -253,6 +254,7 @@ function useTypers(chatId) {
 }
 
 function ChatHeader({ chat }) {
+  const me = useStore((s) => s.me);
   const openModal = useStore((s) => s.openModal);
   const online = useStore((s) => isUserOnline(s, chat.peer));
   const typers = useTypers(chat.id);
@@ -293,7 +295,7 @@ function ChatHeader({ chat }) {
           </button>
         </>
       )}
-      {rtcOn && (chat.type === 'group' || chat.type === 'channel') && !inRoom && !roomActive && (
+      {rtcOn && (chat.type === 'group' || chat.type === 'channel') && !inRoom && !roomActive && (!chat.voiceStage || isStageAdmin(me, chat)) && (
         <button className="icon-btn" aria-label="شروع ویس‌چت" title="شروع ویس‌چت" onClick={() => joinVoice(chat.id).catch((e) => showToast(e.message))}>
           <Mic size={20} />
         </button>
@@ -340,8 +342,14 @@ function PinnedBar({ chat, messages, onJump }) {
   );
 }
 
-function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, canReaders, onAction, onClose }) {
+function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, canReaders, onAction, onClose: close }) {
   const ref = useRef(null);
+  // Ignore the touch events that opened the menu (finger lifting, Android's own contextmenu).
+  const openedAt = useRef(Date.now());
+  const onClose = (e) => {
+    e?.preventDefault?.();
+    if (Date.now() - openedAt.current > 450) close();
+  };
   const [pos, setPos] = useState({ left: x, top: y });
 
   useLayoutEffect(() => {
@@ -359,15 +367,15 @@ function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, canReaders, 
       <>
         <div className="menu-backdrop" onClick={onClose} />
         <div className="menu floating picker-host" ref={ref} style={pos}>
-          <EmojiPicker onPick={(ch) => onAction('react', ch)} onClose={onClose} />
+          <EmojiPicker onPick={(ch) => onAction('react', ch)} onClose={close} />
         </div>
       </>
     );
   }
   return (
     <>
-      <div className="menu-backdrop" onClick={onClose} onContextMenu={(e) => (e.preventDefault(), onClose())} />
-      <div className="menu floating" ref={ref} style={pos}>
+      <div className="menu-backdrop" onClick={onClose} onContextMenu={onClose} />
+      <div className="menu floating" ref={ref} style={pos} onContextMenu={(e) => e.preventDefault()}>
         {!deleted && (
           <div className="quick-reactions">
             {QUICK_REACTIONS.map((e) => (

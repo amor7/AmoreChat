@@ -22,6 +22,8 @@ import {
   Users,
   Phone,
   MonitorPlay,
+  Hand,
+  Ban,
 } from 'lucide-react';
 import { api } from '../api';
 import { useStore } from '../store';
@@ -29,6 +31,7 @@ import { hasChatPerm, toFa } from '../util';
 import Avatar from './Avatar';
 import Ping from './Ping';
 import CallView from './CallView';
+import { VolumeSlider, StagePanel, isStageAdmin } from './VoiceTools';
 import { useSmartFit } from '../smartFit';
 import {
   joinVoice,
@@ -47,6 +50,7 @@ import {
   acceptCall,
   declineCall,
   hangUp,
+  setHand,
 } from '../rtc';
 
 const run = (fn) =>
@@ -115,10 +119,12 @@ export function VoiceChannels() {
 export function VoiceBanner({ chat }) {
   const config = useStore((s) => s.config);
   const participants = useStore((s) => s.voiceRooms[chat.id]) || [];
+  const listeners = useStore((s) => s.voiceMeta[chat.id]?.listeners) || 0;
   const rtc = useStore((s) => s.rtc);
   if (!config.rtc || !['group', 'channel', 'voice'].includes(chat.type)) return null;
   const inside = rtc?.chatId === chat.id;
   if (!participants.length && chat.type !== 'voice' && !inside) return null;
+  const total = participants.length + listeners;
   return (
     <div className={`voice-banner ${inside ? 'inside' : ''}`}>
       <div className="vb-faces">
@@ -132,7 +138,7 @@ export function VoiceBanner({ chat }) {
         )}
       </div>
       <span className="grow vb-text">
-        {participants.length ? `ویس‌چت · ${toFa(participants.length)} نفر` : 'کسی داخل نیست'}
+        {participants.length ? `ویس‌چت · ${toFa(total)} نفر` : 'کسی داخل نیست'}
         {participants.some((p) => p.screen) && <span className="live-badge">LIVE</span>}
       </span>
       {inside ? (
@@ -181,6 +187,11 @@ function Controls({ compact }) {
   const s = compact ? 18 : 22;
   return (
     <div className={`rtc-controls ${compact ? 'compact' : ''}`}>
+      {rtc.stage && !speak && (
+        <button className={`ctl hand ${rtc.hand ? 'on' : ''}`} onClick={() => run(() => setHand(!rtc.hand))} title={rtc.hand ? 'پایین آوردن دست' : 'دست بلند کردن (درخواست صحبت)'}>
+          <Hand size={s} />
+        </button>
+      )}
       {speak && !rtc.ptt && (
         <button className={`ctl ${rtc.micOn ? '' : 'off'}`} onClick={() => run(() => setMic(!rtc.micOn))} title={rtc.micOn ? 'بستن میکروفون' : 'باز کردن میکروفون'}>
           {rtc.micOn ? <Mic size={s} /> : <MicOff size={s} />}
@@ -322,7 +333,8 @@ export function RoomView() {
   if (rtc.kind === 'call') return <CallView />;
 
   const collapse = () => useStore.setState((s) => ({ rtc: { ...s.rtc, expanded: false } }));
-  const canMod = (perm) => !!chat && hasChatPerm(me, chat, perm);
+  const stageAdmin = !!rtc.stage?.admin;
+  const canMod = (perm) => stageAdmin || (!rtc.stage && !!chat && hasChatPerm(me, chat, perm));
 
   // One tile per person (camera or avatar) plus one per screen share.
   const tiles = [
@@ -347,6 +359,7 @@ export function RoomView() {
     chatId: rtc.chatId,
     canMute: canMod('mute_members'),
     canKick: canMod('ban_members'),
+    stageAdmin,
     // Tap: open in spotlight; tap the spotlighted one again: back to everyone.
     onClick: () => setSpot(mode === 'main' ? 'grid' : t.key),
     onWatch: () => {
@@ -368,19 +381,21 @@ export function RoomView() {
             {rtc.state === 'reconnecting' && 'اتصال قطع شد؛ در حال اتصال دوباره…'}
             {rtc.state === 'connected' && (
               <>
-                <Users size={13} /> {toFa(rtc.participants.length)} نفر
+                <Users size={13} /> <RoomCount chatId={rtc.chatId} fallback={rtc.participants.length} stage={!!rtc.stage} />
               </>
             )}
           </small>
         </div>
         <Ping />
-        {rtc.canSpeak === false && <span className="tag">فقط شنونده</span>}
+        {rtc.canSpeak === false && <span className="tag">{rtc.hand ? '✋ منتظر اجازه' : 'فقط شنونده'}</span>}
         {main && tiles.length > 1 && (
           <button className="icon-btn" onClick={() => setSpot('grid')} title="نمایش همه" aria-label="نمایش همه">
             <LayoutGrid size={20} />
           </button>
         )}
       </header>
+
+      {stageAdmin && <StagePanel chatId={rtc.chatId} />}
 
       {!rtc.canPlayAudio && (
         <button className="btn primary audio-unlock" onClick={() => run(enableAudioPlayback)}>
@@ -424,9 +439,23 @@ export function RoomView() {
   );
 }
 
+// "3 speakers · 12 listeners" in stage voice chats, otherwise "N people".
+function RoomCount({ chatId, fallback, stage }) {
+  const participants = useStore((s) => s.voiceRooms[chatId]);
+  const listeners = useStore((s) => s.voiceMeta[chatId]?.listeners) || 0;
+  if (!stage || !participants) return <>{toFa(fallback)} نفر</>;
+  const speakers = participants.filter((p) => p.speaker).length;
+  const hearing = participants.length - speakers + listeners;
+  return (
+    <>
+      {toFa(speakers)} سخنران · {toFa(hearing)} شنونده
+    </>
+  );
+}
+
 const AVATAR_SIZE = { main: 128, grid: 84, strip: 48, pip: 40 };
 
-function MeetTile({ t, mode, chatId, canMute, canKick, onClick, onWatch }) {
+function MeetTile({ t, mode, chatId, canMute, canKick, stageAdmin, onClick, onWatch }) {
   const { p, pub, type } = t;
   const [menu, setMenu] = useState(false);
   const [level, setLevel] = useState('high');
@@ -434,11 +463,12 @@ function MeetTile({ t, mode, chatId, canMute, canKick, onClick, onWatch }) {
   const hasVideo = !!pub?.videoTrack && !needsWatch;
   // Screens are always shown whole; cameras fill the tile only when the shapes match.
   const fit = type === 'screen' ? 'contain' : mode === 'strip' || mode === 'pip' ? 'cover' : 'smart';
-  const showMod = type === 'person' && !p.isLocal && (canMute || canKick) && (mode === 'grid' || mode === 'main');
+  // Everyone gets the menu on other people (volume); moderators also get the actions.
+  const showMenu = type === 'person' && !p.isLocal && mode !== 'pip';
 
-  const mod = (action) =>
+  const mod = (action, extra = {}) =>
     run(async () => {
-      await api('POST', `/rtc/${chatId}/moderate`, { userId: p.userId, action });
+      await api('POST', `/rtc/${chatId}/moderate`, { userId: p.userId, action, ...extra });
       setMenu(false);
     });
 
@@ -506,7 +536,7 @@ function MeetTile({ t, mode, chatId, canMute, canKick, onClick, onWatch }) {
         </button>
       )}
 
-      {showMod && (
+      {showMenu && (
         <button
           className="tile-more"
           onClick={(e) => {
@@ -520,6 +550,13 @@ function MeetTile({ t, mode, chatId, canMute, canKick, onClick, onWatch }) {
       )}
       {menu && (
         <div className="tile-menu" onClick={(e) => e.stopPropagation()}>
+          <VolumeSlider userId={p.userId} label={`صدای ${p.name}`} />
+          {p.screen && <VolumeSlider userId={p.userId} kind="stream" label="صدای استریم" />}
+          {stageAdmin && (
+            <button onClick={() => mod('revoke')}>
+              <MicOff size={16} /> پس گرفتن اجازه صحبت
+            </button>
+          )}
           {canMute && (
             <button onClick={() => mod('mute')}>
               <MicOff size={16} /> بستن میکروفون
@@ -533,6 +570,11 @@ function MeetTile({ t, mode, chatId, canMute, canKick, onClick, onWatch }) {
           {canKick && (
             <button className="danger" onClick={() => mod('kick')}>
               <LogOut size={16} /> بیرون کردن
+            </button>
+          )}
+          {stageAdmin && (
+            <button className="danger" onClick={() => confirm(`${p.name} بیرون شود و تا پایان این ویس‌چت نتواند برگردد؟`) && mod('kick', { ban: true })}>
+              <Ban size={16} /> بیرون کردن و منع ورود
             </button>
           )}
         </div>

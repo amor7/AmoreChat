@@ -439,3 +439,170 @@
   gap: 4px;
   text-decoration: none;
 }
+
+/* ---------- v0.6: long-press on phones, volume, stage voice chats ---------- */
+@media (pointer: coarse) {
+  /* No native text-selection / callout on long-press: it fought with the message menu. */
+  .bubble {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+.tile-menu {
+  min-width: 220px;
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 5;
+}
+.tile-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  font: inherit;
+}
+.vol-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  font-size: 13px;
+  cursor: default;
+}
+.vol-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vol-head b {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+.vol-slider input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+  direction: ltr;
+}
+.vol-anchor {
+  position: relative;
+}
+.vol-pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 240px;
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+.ctl.hand.on {
+  background: #f59e0b;
+  color: #fff;
+}
+.stage-panel {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: rgb(255 255 255 / 0.08);
+  color: #fff;
+  backdrop-filter: blur(10px);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.stage-toggle,
+.stage-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: start;
+}
+.stage-sub {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+.hand-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-inline-start: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #f59e0b;
+  color: #fff;
+  font-size: 12px;
+  animation: hand-pulse 1.4s ease-in-out infinite;
+}
+@keyframes hand-pulse {
+  50% {
+    transform: scale(1.08);
+  }
+}
+.hand-icon {
+  color: #f59e0b;
+  vertical-align: -2px;
+}
+.stage-list {
+  list-style: none;
+  margin: 4px 0;
+  padding: 0;
+}
+.stage-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+  font-size: 14px;
+}
+.stage-list .grow {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stage-list .icon-btn {
+  width: 34px;
+  height: 34px;
+  color: #fff;
+}
+.stage-list .icon-btn.danger {
+  color: #fca5a5;
+}
+.stage-list .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.stage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.stage-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.stage-panel .btn:not(.primary) {
+  background: rgb(255 255 255 / 0.12);
+  border-color: transparent;
+  color: #fff;
+}
+.stage-panel .btn.danger {
+  color: #fecaca;
+}

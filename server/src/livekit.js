@@ -33,7 +33,7 @@ export const identityOf = (userId) => `u${userId}`;
 export const userIdOf = (identity) => (/^u\d+$/.test(identity || '') ? Number(identity.slice(1)) : null);
 
 // Client access token. `sources` limits what the user may publish (mic only, or camera/screen too).
-export function accessToken({ user, room, canPublish, sources, ttlSeconds = 6 * 3600 }) {
+export function accessToken({ user, room, canPublish, sources, hidden = false, ttlSeconds = 6 * 3600 }) {
   const now = Math.floor(Date.now() / 1000);
   return signJwt({
     iss: API_KEY,
@@ -50,6 +50,7 @@ export function accessToken({ user, room, canPublish, sources, ttlSeconds = 6 * 
       canPublishData: false,
       canPublishSources: canPublish ? sources : [],
       canUpdateOwnMetadata: false,
+      ...(hidden ? { hidden: true } : {}),
     },
   });
 }
@@ -74,6 +75,9 @@ async function roomService(method, body) {
 export const listRooms = async () => (await roomService('ListRooms', {})).rooms || [];
 export const listParticipants = async (room) => (await roomService('ListParticipants', { room })).participants || [];
 export const removeParticipant = (room, userId) => roomService('RemoveParticipant', { room, identity: identityOf(userId) });
+// Take publishing rights away live (the speaker becomes a listener without reconnecting).
+export const revokePublish = (room, userId) =>
+  roomService('UpdateParticipant', { room, identity: identityOf(userId), permission: { can_subscribe: true, can_publish: false, can_publish_data: false } });
 export const deleteRoom = (room) => roomService('DeleteRoom', { room }).catch(() => {});
 
 // Server-side mute of a participant's tracks of the given sources (e.g. MICROPHONE, SCREEN_SHARE).
