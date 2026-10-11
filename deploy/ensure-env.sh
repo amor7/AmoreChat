@@ -41,6 +41,16 @@ if [ -f Caddyfile ] && ! grep -q 'tls-{\$TLS_MODE' Caddyfile; then
   fi
 fi
 
+# v0.7: the stock Caddyfile gained /app over plain HTTP (Android app download on offline servers).
+if [ -f Caddyfile ] && ! grep -q "handle /app" Caddyfile; then
+  cur=$(grep -v '^\s*#' Caddyfile | tr -d ' \t\n' | sha256sum | cut -c1-64)
+  if [ "$cur" = "521a0302684650842e80790d6924693146a659dd3f8471a3517a44498423de50" ]; then
+    cp Caddyfile Caddyfile.bak
+    cp deploy/Caddyfile Caddyfile
+    echo ">> Updated Caddyfile (Android app download). Old one saved as Caddyfile.bak"
+  fi
+fi
+
 # Open the media ports on ufw if it is active (the provider's cloud firewall must be opened by hand).
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
   for p in 80/tcp 443/tcp 443/udp 7881/tcp 7882/udp 3478/udp; do ufw allow "$p" >/dev/null; done

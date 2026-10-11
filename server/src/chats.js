@@ -1,6 +1,7 @@
 import { get, all, run, now, tx, parseJSON } from './db.js';
 import { toChat, toUser, joinChat, leaveChat, isOnline } from './realtime.js';
 import { hasSitePerm } from './perms.js';
+import { notifyMessage } from './push.js';
 
 export function fail(statusCode, message) {
   const e = new Error(message);
@@ -255,6 +256,7 @@ export function postMessage({ chatId, senderId = null, type = 'text', text = '',
   });
   const msg = loadMessage(id);
   toChat(chatId, 'message:new', msg);
+  notifyMessage(msg, senderId);
   return msg;
 }
 

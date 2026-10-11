@@ -191,6 +191,77 @@ assert.equal(r.messages.length, 1);
 r = await bob.call('GET', `/api/chats/${g}/media?kind=media`);
 assert.equal(r.messages.length, 0);
 
+// ---- Android app: background notification stream (server-sent events) ----
+async function openStream(cl) {
+  const ctrl = new AbortController();
+  const res = await fetch(`${BASE}/api/notify/stream`, { headers: { cookie: cl.cookie(), 'x-forwarded-for': '10.0.8.8' }, signal: ctrl.signal });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/event-stream/);
+  const events = [];
+  let closed = false;
+  (async () => {
+    const dec = new TextDecoder();
+    let buf = '';
+    try {
+      for await (const chunk of res.body) {
+        buf += dec.decode(chunk, { stream: true });
+        let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const block = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          if (block.startsWith('data:')) events.push(JSON.parse(block.slice(5)));
+        }
+      }
+    } catch {
+      /* aborted */
+    }
+    closed = true;
+  })();
+  return { events, close: () => ctrl.abort(), isClosed: () => closed };
+}
+// A fresh user (bob is locked out by the lockout test above)
+const dave = client();
+r = await dave.call('POST', '/api/auth/register', { username: 'dave', password: PASS, displayName: 'Dave' });
+const daveId = r.user.id;
+await owner.call('POST', `/api/chats/${g}/members`, { userIds: [daveId] });
+const bobStream = await openStream(dave);
+await sleep(100);
+await alice.call('POST', `/api/chats/${g}/messages`, { text: 'سلام دیو' });
+await sleep(200);
+let ev = bobStream.events.at(-1);
+assert.equal(ev.type, 'message');
+assert.equal(ev.chatId, g);
+assert.equal(ev.title, 'تیم');
+assert.equal(ev.body, 'Alice: سلام دیو');
+assert.equal(ev.mentioned, false);
+await dave.call('PATCH', `/api/chats/${g}/notify`, { mutedUntil: -1 });
+let n = bobStream.events.length;
+await alice.call('POST', `/api/chats/${g}/messages`, { text: 'بی‌صدا' });
+await alice.call('POST', `/api/chats/${g}/messages`, { text: 'ولی @dave ببین' });
+await sleep(200);
+assert.equal(bobStream.events.length, n + 1, 'muted chat: only the mention gets through');
+assert.equal(bobStream.events.at(-1).mentioned, true);
+await dave.call('PATCH', `/api/chats/${g}/notify`, { mutedUntil: null });
+await dave.call('POST', `/api/chats/${g}/read`, { messageId: 1e9 });
+await sleep(100);
+assert.deepEqual(bobStream.events.at(-1), { type: 'read', chatId: g }, 'reading clears the phone notification');
+n = bobStream.events.length;
+await dave.call('POST', `/api/chats/${g}/messages`, { text: 'خودم' });
+await sleep(150);
+assert.equal(bobStream.events.length, n, 'no notification for my own message');
+// Logging that device out closes its stream
+const sid = (await dave.call('GET', '/api/me/sessions')).sessions.find((x) => x.current).id;
+await dave.call('DELETE', `/api/me/sessions/${sid}`);
+await sleep(300);
+assert.ok(bobStream.isClosed(), 'stream closed when the session is revoked');
+
+// ---- Android app download page ----
+let res2 = await fetch(`${BASE}/app`);
+assert.equal(res2.status, 200);
+assert.match(await res2.text(), /اندروید/);
+r = await alice.call('GET', '/api/app/android');
+assert.ok('apk' in r);
+
 // ---- Resumable uploads ----
 async function putChunk(cl, id, offset, buf) {
   const res = await fetch(`${BASE}/api/uploads/${id}`, {

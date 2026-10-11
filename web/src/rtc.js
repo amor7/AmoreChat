@@ -3,6 +3,7 @@
 import { api } from './api';
 import { useStore } from './store';
 import { startRing, stopRing } from './sounds';
+import { nativeInCall, takePendingAnswer } from './native';
 
 let lk = null;
 let room = null;
@@ -194,6 +195,8 @@ async function connect(session, token, { video = false, speak = true } = {}) {
     throw new Error('اتصال به سرور صدا برقرار نشد' + (e?.message ? ` (${e.message})` : ''));
   }
   setRtc({ state: 'connected' });
+  // Android app: keep the microphone and the call alive with the screen off.
+  nativeInCall(true, session.title);
   r.remoteParticipants.forEach((p) => p.trackPublications.forEach((pub) => applySubscription(pub, p)));
   if (speak) {
     try {
@@ -214,6 +217,7 @@ function cleanup() {
   window.removeEventListener('keydown', onPttKey);
   window.removeEventListener('keyup', onPttKey);
   useStore.setState({ rtc: null });
+  nativeInCall(false);
   r?.removeAllListeners();
 }
 
@@ -375,6 +379,8 @@ export const callEvents = {
     if (st().call) return; // already in a call: the server only rings idle users, but stay safe
     const peer = call.caller;
     useStore.setState({ call: { ...call, role: 'callee', peer, state: 'ringing' } });
+    // "Answer" was already pressed on the Android notification.
+    if (takePendingAnswer(call.id)) return acceptCall().catch((e) => st().showToast(e.message));
     startRing('incoming');
     if (document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       navigator.serviceWorker?.ready.then((reg) =>

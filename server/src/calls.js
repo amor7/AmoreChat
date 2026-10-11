@@ -4,6 +4,7 @@ import { toUser } from './realtime.js';
 import { deleteRoom } from './livekit.js';
 import { getOrCreateDm, postMessage } from './chats.js';
 import { onParticipantLeft } from './voice.js';
+import { pushTo } from './push.js';
 
 // One-to-one calls. Signaling (ring / accept / end) goes over Socket.IO;
 // the media itself flows through a private LiveKit room per call.
@@ -45,7 +46,10 @@ export function startCall(callerId, calleeId, video) {
   calls.set(call.id, call);
   byUser.set(callerId, call.id);
   byUser.set(calleeId, call.id);
-  toUser(calleeId, 'call:incoming', publicCall(call));
+  const info = publicCall(call);
+  toUser(calleeId, 'call:incoming', info);
+  // The Android app rings even when it is closed.
+  pushTo([calleeId], { type: 'call', callId: call.id, name: info.caller.displayName, video: call.video });
   return call;
 }
 
@@ -57,6 +61,7 @@ export function acceptCall(call) {
   toUser(call.callerId, 'call:accepted', info);
   // Stops the ringing on the callee's other devices.
   toUser(call.calleeId, 'call:handled', info);
+  pushTo([call.calleeId], { type: 'call_end', callId: call.id });
 }
 
 // reason: missed | declined | cancelled | ended | busy
@@ -70,6 +75,7 @@ export function endCall(id, reason) {
   const status = call.state === 'active' ? 'ended' : reason;
   const duration = call.answeredAt ? Math.round((now() - call.answeredAt) / 1000) : 0;
   for (const uid of [call.callerId, call.calleeId]) toUser(uid, 'call:ended', { id, reason: status });
+  pushTo([call.calleeId], { type: 'call_end', callId: id });
   deleteRoom(callRoom(id));
   // A log entry in the DM, like other messengers show.
   const dm = getOrCreateDm(call.callerId, call.calleeId);

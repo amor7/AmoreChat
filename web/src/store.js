@@ -26,6 +26,7 @@ export const useStore = create((set, get) => ({
   call: null, // 1:1 call being rung / in progress
   voiceRooms: {}, // chatId -> participants currently in that chat's voice room
   voiceMeta: {}, // chatId -> { stage, hands: [userId], listeners: hidden listener count }
+  pendingShare: null, // { chatId, files: [File], text } shared into the Android app, waiting for its chat
   voiceChannels: [], // voice channels visible to me (public ones included)
   async loadVoice() {
     if (!get().config?.rtc) return null;

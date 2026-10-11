@@ -5,7 +5,8 @@ COPY server/package.json server/
 COPY web/package.json web/
 RUN npm ci --no-audit --no-fund
 COPY . .
-RUN npm run build && npm prune --omit=dev
+# android-dist/amorechat.apk is added by the release workflow (served at /app); optional.
+RUN npm run build && npm prune --omit=dev && mkdir -p android-dist
 
 FROM node:24-alpine
 # ffmpeg is used for voice/video processing (bundled now so offline installs already have it).
@@ -15,6 +16,7 @@ COPY --from=build /app/package.json ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/server ./server
 COPY --from=build /app/web/dist ./web/dist
+COPY --from=build /app/android-dist ./android-dist
 ENV NODE_ENV=production DATA_DIR=/data PORT=3000 NODE_NO_WARNINGS=1
 USER node
 VOLUME /data

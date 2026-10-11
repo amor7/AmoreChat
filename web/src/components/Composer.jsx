@@ -47,6 +47,14 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
   useEffect(() => {
     if (replyTo) inputRef.current?.focus();
   }, [replyTo]);
+  // Text shared into the Android app lands in the message box.
+  const draft = useStore((s) => (s.draftText?.chatId === chat.id ? s.draftText.text : null));
+  useEffect(() => {
+    if (draft == null) return;
+    setText(draft);
+    useStore.setState({ draftText: null });
+    inputRef.current?.focus();
+  }, [draft]);
   useEffect(() => {
     if (droppedFile) {
       setPending(droppedFile);

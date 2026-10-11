@@ -51,3 +51,50 @@ jobs:
         with:
           name: android-apk
           path: android-dist/
+
+  # The debug APK on a real Android emulator against a real AmoreChat server:
+  # sign-in in the WebView, background notifications without Google, ringing call.
+  emulator:
+    needs: build
+    if: ${{ !inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: android-dist
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run build
+      - name: Start AmoreChat
+        run: |
+          export LIVEKIT_API_KEY=amorechat LIVEKIT_API_SECRET=ci-secret-0123456789abcdefghijklmnopqrstuv LIVEKIT_URL=http://127.0.0.1:7999
+          DATA_DIR=/tmp/hs-android PORT=3100 nohup node server/src/index.js > server-android.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3100/healthz && break; sleep 1; done
+          echo "SETUP_CODE=$(grep -oP 'SETUP CODE: \K\S+' server-android.log)" >> "$GITHUB_ENV"
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Emulator test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: node server/test/android-e2e.mjs "$SETUP_CODE" android-dist/amorechat-debug.apk
+      - name: Server log
+        if: always()
+        run: cat server-android.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-screenshots
+          path: android-*.png

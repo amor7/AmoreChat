@@ -24,6 +24,7 @@ import rtcRoutes from './routes/rtc.js';
 import caHelpRoutes from './routes/ca-help.js';
 import accountRoutes from './routes/account.js';
 import backupRoutes from './routes/backup.js';
+import appRoutes from './routes/app.js';
 import { startVoiceSync } from './voice.js';
 import { setupRtcProxy } from './rtc-proxy.js';
 
@@ -97,6 +98,7 @@ await app.register(messageRoutes);
 await app.register(fileRoutes);
 await app.register(adminRoutes);
 await app.register(backupRoutes);
+await app.register(appRoutes);
 // LiveKit posts webhooks as application/webhook+json; keep the raw text to verify its signature.
 app.addContentTypeParser('application/webhook+json', { parseAs: 'string' }, (_req, body, done) => done(null, body));
 await app.register(rtcRoutes);

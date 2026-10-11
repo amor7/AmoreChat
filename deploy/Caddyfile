@@ -23,8 +23,8 @@
 	reverse_proxy app:3000
 }
 
-# Plain HTTP: the CA download page (must work before a device trusts the CA);
-# everything else goes to HTTPS.
+# Plain HTTP: the CA download page (must work before a device trusts the CA) and the
+# Android app download (the app trusts the CA by itself); everything else goes to HTTPS.
 http://{$DOMAIN} {
 	handle /ca.crt {
 		root * /data/caddy/pki/authorities/local
@@ -35,6 +35,9 @@ http://{$DOMAIN} {
 	}
 	handle /ca {
 		rewrite * /ca-help
+		reverse_proxy app:3000
+	}
+	handle /app* {
 		reverse_proxy app:3000
 	}
 	handle {

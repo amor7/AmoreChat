@@ -7,6 +7,7 @@ import { compressImage, formatSize, ROLE_LABELS, toFa } from '../util';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
 import Security from './Security';
+import { AndroidSettings } from './AndroidApp';
 
 export default function Profile({ onClose }) {
   const me = useStore((s) => s.me);
@@ -118,6 +119,8 @@ export default function Profile({ onClose }) {
       )}
       {notif === 'denied' && <p className="muted">اعلان‌ها در تنظیمات مرورگر مسدود شده‌اند.</p>}
       {notif === 'unsupported' && <p className="muted">این مرورگر از اعلان پشتیبانی نمی‌کند. برنامه را نصب کنید (افزودن به صفحه اصلی).</p>}
+
+      <AndroidSettings />
 
       <Security />
 

@@ -7,3 +7,5 @@ offline-bundle
 .git
 .claude
 .env
+android
+android-signing

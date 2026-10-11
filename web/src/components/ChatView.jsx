@@ -30,6 +30,15 @@ export default function ChatView({ chatId }) {
   const [menu, setMenu] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [droppedFile, setDroppedFile] = useState(null);
+  // Something shared into the Android app for this chat: open it in the send dialog.
+  const pendingShare = useStore((s) => (s.pendingShare?.chatId === chatId ? s.pendingShare : null));
+  useEffect(() => {
+    if (!pendingShare) return;
+    if (pendingShare.files[0]) setDroppedFile(pendingShare.files[0]);
+    if (!pendingShare.files.length && pendingShare.text) useStore.setState({ draftText: { chatId, text: pendingShare.text } });
+    useStore.setState({ pendingShare: null });
+  }, [pendingShare]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Public voice channels are open to everyone: opening one joins it (like Discord).
   const publicVoice = useStore((s) => s.voiceChannels.some((c) => c.id === chatId && c.isPublic && !c.isMember));

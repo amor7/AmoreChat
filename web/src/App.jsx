@@ -10,6 +10,8 @@ import Sidebar from './components/Sidebar';
 import ChatView from './components/ChatView';
 import Modals from './components/Modals';
 import { VoiceBar, RoomView, IncomingCall, useAutoExpandCalls } from './components/Voice';
+import { initNative } from './native';
+import { useAndroidVersionToast } from './components/AndroidApp';
 
 function parseHash() {
   const [, kind, value] = location.hash.match(/^#\/(\w+)\/(.+)$/) || [];
@@ -67,6 +69,7 @@ function Main() {
   const connected = useStore((s) => s.connected);
   const [ready, setReady] = useState(false);
   useAutoExpandCalls();
+  useAndroidVersionToast();
 
   useEffect(() => {
     useStore
@@ -75,6 +78,7 @@ function Main() {
       .finally(() => setReady(true));
     connectSocket();
     loadEmoji();
+    initNative();
 
     const onHash = () => {
       const { kind, value } = parseHash();

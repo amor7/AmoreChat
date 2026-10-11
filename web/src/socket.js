@@ -4,6 +4,7 @@ import { api } from './api';
 import { messagePreview } from './util';
 import { callEvents, restoreCall, leave, onSpeakChanged } from './rtc';
 import { ensureLatest } from './update';
+import { isAndroidApp } from './native';
 
 let socket = null;
 
@@ -150,6 +151,8 @@ function notify(m) {
   // A muted chat stays silent unless the message @mentions me or replies to me.
   const mentioned = m.mentions?.includes(s.me?.id);
   if (isChatMuted(s.chats[m.chatId]) && !mentioned) return;
+  // In the Android app the system notification (with its own sound) covers the background.
+  if (isAndroidApp && document.hidden) return;
   beep();
   if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const chat = s.chats[m.chatId];

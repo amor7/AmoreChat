@@ -606,3 +606,27 @@
 .stage-panel .btn.danger {
   color: #fecaca;
 }
+
+/* ---------- Android app ---------- */
+.share-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.share-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+.share-file small {
+  color: var(--muted);
+  margin-inline-start: auto;
+}
+.user-list .row-item {
+  width: 100%;
+}

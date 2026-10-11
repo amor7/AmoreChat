@@ -1,4 +1,5 @@
 import { useStore } from './store';
+import { nativeDownload } from './native';
 
 // In-app downloads with progress and cancel (a plain <a download> gives neither).
 const controllers = new Map();
@@ -14,6 +15,8 @@ function setEntry(key, value) {
 
 export async function startDownload(key, url, filename) {
   if (controllers.has(key)) return;
+  // Android app: saved straight into the phone's Downloads folder.
+  if (nativeDownload(url, filename)) return;
   const ctrl = new AbortController();
   controllers.set(key, ctrl);
   setEntry(key, { progress: 0, received: 0 });

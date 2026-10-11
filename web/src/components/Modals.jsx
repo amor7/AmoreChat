@@ -12,6 +12,7 @@ import Profile from './Profile';
 import ChatInfo from './ChatInfo';
 import Admin from './Admin';
 import { Readers } from './ChatExtras';
+import { ShareTarget } from './AndroidApp';
 
 export function Modal({ title, onClose, children, size = '' }) {
   useEffect(() => {
@@ -322,6 +323,8 @@ export default function Modals() {
       return <ImageViewer fileId={modal.fileId} name={modal.name} onClose={close} />;
     case 'forward':
       return <Forward message={modal.message} onClose={close} />;
+    case 'shareTarget':
+      return <ShareTarget files={modal.files} text={modal.text} onClose={close} />;
     case 'readers':
       return <Readers message={modal.message} onClose={close} />;
     case 'search':

@@ -4,6 +4,7 @@ import { toChat, toAll, toChatExcept } from '../realtime.js';
 import { fail, getMember, loadMessage, loadMessages, loadMessagesByIds, postMessage, systemMessage, audit, findMentions, withMine, membersHidden } from '../chats.js';
 import { requireChat } from './chats.js';
 import { deleteMessage } from '../sweeper.js';
+import { pushTo } from '../push.js';
 
 const MAX_TEXT = 4000;
 // Which file kinds each message type accepts.
@@ -251,6 +252,8 @@ export default async function messageRoutes(app) {
       const chat = get('SELECT type, hide_members FROM chats WHERE id = ?', chatId);
       if (membersHidden(chat)) toChatExcept(chatId, [req.user.id], 'read', { chatId, userId: 0, messageId });
       else toChat(chatId, 'read', { chatId, userId: req.user.id, messageId });
+      // Read on one device: clear the notification on my phone.
+      pushTo([req.user.id], { type: 'read', chatId });
     }
     return { ok: true };
   });

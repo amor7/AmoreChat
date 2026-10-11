@@ -10,10 +10,26 @@ permissions:
   contents: write
 
 jobs:
+  android:
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+    with:
+      version: ${{ github.ref_name }}
+
   bundle:
+    needs: android
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: android-dist
+      - name: Android APK (served by the server at /app, and attached to the release)
+        run: |
+          rm -f android-dist/amorechat-debug.apk
+          cp android-dist/amorechat.apk "amorechat-android-${GITHUB_REF_NAME}.apk"
+          ls -lh android-dist
       - name: Build image
         run: docker build -t amorechat:latest .
       - name: Create offline bundle
@@ -36,5 +52,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: '*.tar.gz'
+          files: |
+            *.tar.gz
+            *.apk
           body_path: notes.md
