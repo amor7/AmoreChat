@@ -128,6 +128,11 @@ try {
   assert.equal(info.background, true);
   assert.equal(info.server, 'http://10.0.2.2:3100');
   assert.ok(await dt.evaluate("document.documentElement.classList.contains('android-app')"));
+  const pages = (await (await fetch('http://127.0.0.1:9333/json/list')).json()).filter((t) => t.type === 'page');
+  console.log('webview pages:', pages.map((p) => `${p.url} ${p.description}`));
+  assert.equal(pages.length, 1, 'exactly one WebView page');
+  await sleep(3000); // software-rendered emulator: let it paint
+  assert.equal(await dt.evaluate("!!document.querySelector('.splash')"), false, 'not stuck on the loading screen');
   screenshot('chats');
 
   step('background connection: the service is running');
