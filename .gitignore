@@ -11,3 +11,8 @@ data-test.log
 .claude/
 /Caddyfile
 certs/
+android-signing/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
