@@ -70,6 +70,17 @@ jobs:
           echo "rtc/validate -> $code"; [ "$code" = "401" ]
           docker compose logs livekit | grep -q 'starting LiveKit server'
           ! docker compose logs livekit | grep -i 'secret is too short'
+      - name: Android app through Caddy (download page over HTTP, notification stream not buffered)
+        run: |
+          set -x
+          curl -sf http://127.0.0.1/app | grep -q 'اندروید'
+          CODE=$(docker compose logs app | grep -oP 'SETUP CODE: \K\S+' | tail -1)
+          curl -sf --cacert /tmp/ca.crt -c /tmp/jar -H 'x-requested-with: amorechat' -H 'content-type: application/json' \
+            -d "{\"username\":\"owner\",\"password\":\"Str0ng-Pass-77\",\"displayName\":\"O\",\"invite\":\"$CODE\"}" https://127.0.0.1/api/auth/register > /dev/null
+          # The first bytes must arrive at once (compression must not hold them back).
+          curl -sN --compressed --cacert /tmp/ca.crt -b /tmp/jar --max-time 5 https://127.0.0.1/api/notify/stream > /tmp/sse.txt || true
+          cat /tmp/sse.txt
+          grep -q 'connected' /tmp/sse.txt
       - name: Logs
         if: always()
         run: |
