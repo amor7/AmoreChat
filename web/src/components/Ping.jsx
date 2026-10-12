@@ -17,11 +17,13 @@ export default function Ping({ dark = false }) {
   const connected = useStore((s) => s.connected);
   const lk = useStore((s) => s.rtc?.participants?.find((p) => p.isLocal)?.quality);
   const rtcState = useStore((s) => s.rtc?.state);
+  const weak = useStore((s) => s.netWeak);
   const level = rtcState === 'reconnecting' ? 'bad' : pingLevel(ping ?? 0, connected, lk);
   const text = !connected ? 'قطع' : ping == null ? '…' : `${toFa(ping)}ms`;
   const title = [
     connected ? `پینگ تا سرور: ${ping ?? '…'} میلی‌ثانیه` : 'ارتباط با سرور قطع است',
     lk && lk !== 'unknown' ? `کیفیت تماس: ${LK_LABEL[lk] || lk}` : '',
+    weak ? 'اینترنت ضعیف: حالت کم‌مصرف خودکار' : '',
   ]
     .filter(Boolean)
     .join(' · ');
@@ -33,6 +35,7 @@ export default function Ping({ dark = false }) {
         <b />
       </i>
       <span dir="ltr">{text}</span>
+      {weak && <span className="weak-tag">کم‌مصرف</span>}
     </span>
   );
 }

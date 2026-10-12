@@ -5,7 +5,7 @@ import { formatTime, messagePreview, toFa, callSummary } from '../util';
 import { startCall } from '../rtc';
 import { EmojiImg, RichText, isBigEmoji } from './Emoji';
 import PreviewIcon from './PreviewIcon';
-import { Hourglass, Forward, Timer, Pin, Check, CheckCheck, EllipsisVertical, PhoneMissed, PhoneOutgoing, PhoneIncoming, Phone, Video } from 'lucide-react';
+import { Clock, AlertCircle, Hourglass, Forward, Timer, Pin, Check, CheckCheck, EllipsisVertical, PhoneMissed, PhoneOutgoing, PhoneIncoming, Phone, Video } from 'lucide-react';
 import Avatar from './Avatar';
 import { VoicePlayer, ImageMessage, VideoMessage, FileCard } from './Media';
 
@@ -157,7 +157,9 @@ function Message({ m, chat, mine, grouped, onJump, onMenu }) {
             {m.pinned && <Pin size={12} />}
             {m.editedAt && <span>ویرایش‌شده</span>}
             <span>{formatTime(m.createdAt)}</span>
-            {ticks && <span className={`ticks ${ticks}`}>{ticks === 'read' ? <CheckCheck size={15} /> : <Check size={15} />}</span>}
+            {m.pending && <Clock size={13} aria-label="در صف ارسال" className="pending-icon" />}
+            {m.failed && <AlertCircle size={14} aria-label="ارسال نشد" className="failed-icon" />}
+            {ticks && !m.pending && !m.failed && <span className={`ticks ${ticks}`}>{ticks === 'read' ? <CheckCheck size={15} /> : <Check size={15} />}</span>}
           </div>
           <button className="msg-more" aria-label="گزینه‌ها" onClick={openMenu}>
             <EllipsisVertical size={18} />

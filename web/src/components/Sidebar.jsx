@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { FolderTabs, ChatMenu, inFolder, sortChats } from './Folders';
 import { MessageResults, openMessage } from './Modals';
 import { VoiceChannels } from './Voice';
 import { RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
-import { Menu, SquarePen, UserRound, Compass, Shield, LogOut, Users, Megaphone, Volume2, BellOff } from 'lucide-react';
+import { Menu, SquarePen, UserRound, Compass, Shield, LogOut, Users, Megaphone, Volume2, BellOff, Pin, FolderPlus } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api';
 import { disconnectSocket, isChatMuted } from '../socket';
+import { clearOffline } from '../offline';
 import { formatListTime, messagePreview, toFa, hasSitePerm } from '../util';
 import Avatar from './Avatar';
 import Ping from './Ping';
@@ -27,6 +29,26 @@ export default function Sidebar() {
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState(false);
   const [found, setFound] = useState(null);
+  const folders = useStore((s) => s.folders);
+  const [folderId, setFolderId] = useState(() => {
+    try {
+      return Number(localStorage.getItem('amorechat:folder')) || null;
+    } catch {
+      return null;
+    }
+  });
+  const pickFolder = (id) => {
+    setFolderId(id);
+    try {
+      localStorage.setItem('amorechat:folder', id || '');
+    } catch {
+      /* ignore */
+    }
+  };
+  const folder = folders.find((f) => f.id === folderId) || null;
+  const [chatMenu, setChatMenu] = useState(null);
+  const press = useRef(null);
+  const pressedAt = useRef(0);
 
   useEffect(() => {
     const q = query.trim();
@@ -42,18 +64,40 @@ export default function Sidebar() {
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return Object.values(chats)
-      .filter((c) => c.type !== 'voice' || q)
+      .filter((c) => (q ? true : inFolder(folder, c)))
       .filter((c) => !q || c.title.toLowerCase().includes(q) || c.peer?.username?.toLowerCase().includes(q))
-      .sort((a, b) => {
-        if (a.isEmergency !== b.isEmergency) return a.isEmergency ? -1 : 1;
-        return (b.lastMessage?.createdAt || b.createdAt) - (a.lastMessage?.createdAt || a.createdAt);
-      });
-  }, [chats, query]);
+      .sort(sortChats);
+  }, [chats, query, folder]);
+
+  // Long-press (phones) or right-click (desktop) on a chat: pin, mute, read, folders.
+  const itemProps = (c) => ({
+    onContextMenu: (e) => {
+      e.preventDefault();
+      if (Date.now() - pressedAt.current < 1500) return;
+      setChatMenu({ chat: c, x: e.clientX, y: e.clientY });
+    },
+    onTouchStart: (e) => {
+      const t = e.touches[0];
+      clearTimeout(press.current);
+      press.current = setTimeout(() => {
+        pressedAt.current = Date.now();
+        navigator.vibrate?.(12);
+        setChatMenu({ chat: c, x: t.clientX, y: t.clientY });
+      }, 450);
+    },
+    onTouchMove: () => clearTimeout(press.current),
+    onTouchEnd: (e) => {
+      clearTimeout(press.current);
+      if (Date.now() - pressedAt.current < 1500) e.preventDefault();
+    },
+  });
 
   const isAdmin = me.role === 'owner' || me.role === 'admin';
 
   async function logout() {
     await api('POST', '/auth/logout').catch(() => {});
+    await clearOffline().catch(() => {});
+    await globalThis.caches?.delete('files').catch(() => {});
     disconnectSocket();
     location.hash = '';
     location.reload();
@@ -91,6 +135,7 @@ export default function Sidebar() {
               {item(<><UserRound size={18} /> پروفایل و تنظیمات</>, () => openModal('profile'))}
               {item(<><SquarePen size={18} /> گفتگوی جدید</>, () => openModal('newChat'))}
               {item(<><Compass size={18} /> کاوش گروه‌ها و کانال‌ها</>, () => openModal('discover'))}
+              {item(<><FolderPlus size={18} /> پوشه‌های گفتگو</>, () => openModal('folders'))}
               {isAdmin && hasAnyAdminPerm(me) && item(<><Shield size={18} /> پنل مدیریت</>, () => openModal('admin'))}
               {item(<><LogOut size={18} /> خروج</>, logout)}
             </div>
@@ -101,8 +146,9 @@ export default function Sidebar() {
         <span>{siteName}</span>
         <Ping />
       </div>
+      {!query && <FolderTabs value={folderId} onChange={pickFolder} />}
       <ul className="chat-list">
-        {!query && (
+        {!query && !folder && (
           <li>
             <VoiceChannels />
           </li>
@@ -112,7 +158,7 @@ export default function Sidebar() {
           const sender = last?.sender && c.type === 'group' ? (last.sender.id === me.id ? 'شما: ' : last.sender.displayName + ': ') : '';
           return (
             <li key={c.id}>
-              <a href={`#/chat/${c.id}`} className={`chat-item ${c.id === activeChatId ? 'active' : ''} ${c.isEmergency ? 'emergency' : ''}`}>
+              <a href={`#/chat/${c.id}`} className={`chat-item ${c.id === activeChatId ? 'active' : ''} ${c.isEmergency ? 'emergency' : ''}`} {...itemProps(c)}>
                 <Avatar id={c.id} name={c.title} file={c.avatar} saved={c.type === 'saved'} online={c.peer?.online} />
                 <div className="chat-item-body">
                   <div className="row">
@@ -131,6 +177,7 @@ export default function Sidebar() {
                     </span>
                     {c.unreadMentions > 0 && <span className="badge mention">@</span>}
                     {c.unread > 0 && <span className={`badge ${isChatMuted(c) ? 'quiet' : ''}`}>{toFa(c.unread)}</span>}
+                    {!c.unread && c.pinnedAt && <Pin size={14} className="pin-mark" aria-label="سنجاق‌شده" />}
                   </div>
                 </div>
               </a>
@@ -145,6 +192,7 @@ export default function Sidebar() {
           </li>
         )}
       </ul>
+      {chatMenu && <ChatMenu {...chatMenu} onClose={() => setChatMenu(null)} />}
       <button className="fab" aria-label="گفتگوی جدید" onClick={() => openModal('newChat')}>
         <SquarePen size={24} />
       </button>

@@ -92,6 +92,17 @@ export function watchStream(identity, on = true) {
   refresh();
 }
 
+let lastWeak = false;
+useStore.subscribe((s) => {
+  const weak = s.netWeak && s.prefs.autoSaver !== false;
+  if (weak === lastWeak) return;
+  lastWeak = weak;
+  if (!room || !lk) return;
+  room.remoteParticipants.forEach((p) =>
+    p.trackPublications.forEach((pub) => pub.kind === 'video' && pub.setVideoQuality(weak ? lk.VideoQuality.LOW : lk.VideoQuality.HIGH)),
+  );
+});
+
 export function setStreamQuality(pub, level) {
   const { VideoQuality } = lk;
   pub?.setVideoQuality({ low: VideoQuality.LOW, medium: VideoQuality.MEDIUM, high: VideoQuality.HIGH }[level]);

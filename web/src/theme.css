@@ -23,7 +23,7 @@
   --radius: 16px;
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-mode]) {
     --bg: #0b0e1a;
     --panel: #121729;
     --panel-2: #0f1424;
@@ -41,6 +41,24 @@
     --shadow-sm: 0 2px 10px rgb(0 0 0 / 0.35);
     --glass: rgb(18 23 41 / 0.8);
   }
+}
+:root[data-mode='dark'] {
+  --bg: #0b0e1a;
+  --panel: #121729;
+  --panel-2: #0f1424;
+  --border: #222a44;
+  --text: #e6e8f5;
+  --muted: #8f97b8;
+  --accent: #818cf8;
+  --accent-2: #c084fc;
+  --accent-soft: #252b55;
+  --grad: linear-gradient(135deg, #6366f1 0%, #7c3aed 60%, #9333ea 100%);
+  --bubble-in: #1b2138;
+  --chat-bg: #0d1120;
+  --hover: #1a2036;
+  --shadow: 0 12px 40px rgb(0 0 0 / 0.55);
+  --shadow-sm: 0 2px 10px rgb(0 0 0 / 0.35);
+  --glass: rgb(18 23 41 / 0.8);
 }
 
 body {

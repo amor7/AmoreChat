@@ -11,6 +11,7 @@ import ChatView from './components/ChatView';
 import Modals from './components/Modals';
 import { VoiceBar, RoomView, IncomingCall, useAutoExpandCalls } from './components/Voice';
 import { initNative } from './native';
+import { saveBoot, loadBoot, startOutbox } from './offline';
 import { useAndroidVersionToast } from './components/AndroidApp';
 
 function parseHash() {
@@ -39,11 +40,19 @@ export default function App() {
         try {
           const { user } = await api('GET', '/auth/me');
           useStore.setState({ me: user });
+          saveBoot(config, user);
         } catch (e) {
           if (e.status !== 401) throw e;
         }
       } catch (e) {
-        setError(e.message);
+        // No connection: open with what this device saved last time (offline mode).
+        const boot = !e.status && (await loadBoot().catch(() => null));
+        if (boot?.me) {
+          document.title = boot.config.siteName;
+          useStore.setState({ config: boot.config, me: boot.me, offlineBoot: true });
+        } else {
+          setError(e.message);
+        }
       }
       setLoading(false);
     })();
@@ -77,7 +86,9 @@ function Main() {
       .loadChats()
       .finally(() => setReady(true));
     connectSocket();
+    startOutbox();
     loadEmoji();
+    useStore.getState().loadFolders().catch(() => {});
     initNative();
 
     const onHash = () => {
@@ -99,7 +110,7 @@ function Main() {
 
   return (
     <div className={`layout ${activeChatId ? 'has-chat' : ''}`}>
-      {!connected && <div className="offline-bar">اتصال قطع است؛ در حال تلاش برای اتصال دوباره…</div>}
+      {!connected && <OfflineBar />}
       <EmergencyBanner />
       <div className="voice-area">
         <VoiceBar />
@@ -110,6 +121,16 @@ function Main() {
       <RoomView />
       <IncomingCall />
       <Toast />
+    </div>
+  );
+}
+
+function OfflineBar() {
+  const queued = useStore((s) => s.outbox.filter((o) => !o.error).length);
+  return (
+    <div className="offline-bar">
+      آفلاین — پیام‌های ذخیره‌شده نمایش داده می‌شوند؛ در حال تلاش برای اتصال…
+      {queued > 0 && ` (${queued.toLocaleString('fa-IR')} پیام در صف ارسال)`}
     </div>
   );
 }

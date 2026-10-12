@@ -37,6 +37,18 @@ export default defineConfig({
         importScripts: ['sw-extra.js'],
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io/, /^\/healthz/, /^\/rtc/, /^\/app/, /^\/ca/],
+        // Pictures already seen (photos, avatars, video thumbnails) stay visible offline.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url, request }) => request.destination === 'image' && url.pathname.startsWith('/api/files/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'files',
+              expiration: { maxEntries: 600, maxAgeSeconds: 60 * 24 * 3600 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
       },
     }),
   ],

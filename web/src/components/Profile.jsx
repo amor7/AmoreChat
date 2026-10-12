@@ -8,6 +8,7 @@ import { Modal } from './Modals';
 import Avatar from './Avatar';
 import Security from './Security';
 import { AndroidSettings } from './AndroidApp';
+import Appearance from './Appearance';
 
 export default function Profile({ onClose }) {
   const me = useStore((s) => s.me);
@@ -98,10 +99,16 @@ export default function Profile({ onClose }) {
         <button className="btn primary">ذخیره</button>
       </form>
 
+      <Appearance />
+
       <h4>مصرف اینترنت</h4>
       <label className="check">
         <input type="checkbox" checked={prefs.dataSaver} onChange={(e) => setPrefs({ dataSaver: e.target.checked })} />
         حالت کم‌مصرف: عکس‌ها فقط با لمس بارگذاری شوند و ویدیوها با کمترین کیفیت پخش شوند
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={prefs.autoSaver !== false} onChange={(e) => setPrefs({ autoSaver: e.target.checked })} />
+        وقتی اینترنت ضعیف است، حالت کم‌مصرف خودکار روشن شود (و کیفیت تصویر تماس پایین بیاید)
       </label>
       {usage && (
         <p className="muted">

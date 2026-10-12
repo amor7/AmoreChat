@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { fileUrl } from '../api';
-import { useStore } from '../store';
+import { useStore, useDataSaver } from '../store';
 import { formatSize, formatClock, decodeWaveform } from '../util';
 import { startDownload, cancelDownload } from '../download';
 import { Play, Pause, Download, X, Image as ImageIcon } from 'lucide-react';
@@ -82,7 +82,7 @@ export function VoicePlayer({ file, mine }) {
 
 export function ImageMessage({ file }) {
   const openModal = useStore((s) => s.openModal);
-  const dataSaver = useStore((s) => s.prefs.dataSaver);
+  const dataSaver = useDataSaver();
   const [show, setShow] = useState(!dataSaver);
   const ratio = file.width && file.height ? `${file.width} / ${file.height}` : undefined;
   // Portrait photos get narrower instead of being cropped by the max height (420px).
@@ -108,7 +108,7 @@ export function ImageMessage({ file }) {
 const qualityLabel = (q) => (q === 'orig' ? 'اصلی' : `${q}p`);
 
 export function VideoMessage({ file }) {
-  const dataSaver = useStore((s) => s.prefs.dataSaver);
+  const dataSaver = useDataSaver();
   const video = useRef(null);
   const resumeAt = useRef(0);
   const [started, setStarted] = useState(false);

@@ -12,6 +12,7 @@ import PreviewIcon from './PreviewIcon';
 import { ArrowRight, ChevronDown, Timer, Phone, Video, Mic, Search, Pin, PinOff, Reply, Forward, Copy, Pencil, Flag, Trash2, Plus, Eye, BellOff } from 'lucide-react';
 import { startCall, joinVoice } from '../rtc';
 import { isChatMuted } from '../socket';
+import { outboxMessage, retryOutbox, dropFromOutbox } from '../offline';
 
 export default function ChatView({ chatId }) {
   const chat = useStore((s) => s.chats[chatId]);
@@ -226,6 +227,7 @@ export default function ChatView({ chatId }) {
           );
         })}
       </div>
+      <Outbox chat={chat} me={me} />
       {(showDown || hasNewer) && (
         <button className="to-bottom" onClick={toBottom} aria-label="رفتن به آخرین پیام">
           <ChevronDown size={22} />
@@ -246,6 +248,28 @@ export default function ChatView({ chatId }) {
       )}
       <Composer chat={chat} droppedFile={droppedFile} onDroppedHandled={() => setDroppedFile(null)} />
       {dragOver && <div className="drop-overlay">فایل را اینجا رها کنید</div>}
+    </div>
+  );
+}
+
+// Messages written offline: waiting (⏳) or refused by the server (tap to retry / delete).
+function Outbox({ chat, me }) {
+  const items = useStore((s) => s.outbox).filter((o) => o.chatId === chat.id);
+  if (!items.length) return null;
+  return (
+    <div className="outbox">
+      {items.map((o) => (
+        <div
+          key={o.tmpId}
+          onClick={() => {
+            if (!o.error) return;
+            if (confirm(`ارسال نشد: ${o.error}\nدوباره تلاش شود؟ (لغو = حذف پیام)`)) retryOutbox(o.tmpId);
+            else dropFromOutbox(o.tmpId);
+          }}
+        >
+          <Message m={outboxMessage(o, me)} chat={chat} mine grouped={false} onJump={() => {}} onMenu={() => {}} />
+        </div>
+      ))}
     </div>
   );
 }

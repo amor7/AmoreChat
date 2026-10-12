@@ -13,6 +13,7 @@ import ChatInfo from './ChatInfo';
 import Admin from './Admin';
 import { Readers } from './ChatExtras';
 import { ShareTarget } from './AndroidApp';
+import { FoldersModal, FolderEditor } from './Folders';
 
 export function Modal({ title, onClose, children, size = '' }) {
   useEffect(() => {
@@ -323,6 +324,10 @@ export default function Modals() {
       return <ImageViewer fileId={modal.fileId} name={modal.name} onClose={close} />;
     case 'forward':
       return <Forward message={modal.message} onClose={close} />;
+    case 'folders':
+      return <FoldersModal onClose={close} />;
+    case 'folderEdit':
+      return <FolderEditor folder={modal.folder} chatIds={modal.chatIds} onClose={close} />;
     case 'shareTarget':
       return <ShareTarget files={modal.files} text={modal.text} onClose={close} />;
     case 'readers':

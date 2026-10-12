@@ -18,7 +18,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-mode]) {
     --bg: #0b1220;
     --panel: #111a2e;
     --panel-2: #0f172a;
@@ -35,6 +35,23 @@
     --shadow: 0 8px 30px rgb(0 0 0 / 0.5);
     color-scheme: dark;
   }
+}
+:root[data-mode='dark'] {
+  --bg: #0b1220;
+  --panel: #111a2e;
+  --panel-2: #0f172a;
+  --border: #1e293b;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #3b82f6;
+  --accent-soft: #1e3a8a;
+  --danger: #f87171;
+  --bubble-in: #1e293b;
+  --bubble-out: #1d4ed8;
+  --chat-bg: #0b1324;
+  --hover: #1e293b;
+  --shadow: 0 8px 30px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
 }
 
 * {
@@ -643,13 +660,20 @@ code {
   background: var(--bubble-out);
 }
 @media (prefers-color-scheme: dark) {
-  .msg-row.mine .bubble {
+  :root:not([data-mode]) .msg-row.mine .bubble {
     color: #fff;
   }
-  .msg-row.mine .bubble .meta,
-  .msg-row.mine .bubble a {
+  :root:not([data-mode]) .msg-row.mine .bubble .meta,
+  :root:not([data-mode]) .msg-row.mine .bubble a {
     color: #dbeafe;
   }
+}
+:root[data-mode='dark'] .msg-row.mine .bubble {
+  color: #fff;
+}
+:root[data-mode='dark'] .msg-row.mine .bubble .meta,
+:root[data-mode='dark'] .msg-row.mine .bubble a {
+  color: #dbeafe;
 }
 .bubble.deleted {
   color: var(--muted);

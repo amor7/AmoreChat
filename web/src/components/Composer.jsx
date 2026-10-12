@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, upload, CANCELLED } from '../api';
-import { useStore } from '../store';
+import { useStore, dataSaverNow } from '../store';
 import { emitTyping } from '../socket';
+import { enqueue, flushOutbox } from '../offline';
 import { EmojiPicker, RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
 import Avatar from './Avatar';
@@ -82,6 +83,10 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
       if (editing) {
         const { message } = await api('PATCH', `/messages/${editing.id}`, { text: t });
         useStore.getState().updateMessage(message);
+      } else if (!useStore.getState().connected) {
+        // Offline: it goes into the outbox and is sent when the connection is back.
+        await enqueue(chat.id, t, replyTo?.id);
+        flushOutbox();
       } else {
         const { message } = await api('POST', `/chats/${chat.id}/messages`, { text: t, replyTo: replyTo?.id });
         useStore.getState().addMessage(message);
@@ -89,7 +94,13 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
       setText('');
       useStore.setState({ replyTo: null, editing: null });
     } catch (e) {
-      showToast(e.message);
+      if (!e.status && !editing) {
+        await enqueue(chat.id, t, replyTo?.id);
+        setText('');
+        useStore.setState({ replyTo: null });
+      } else {
+        showToast(e.message);
+      }
     }
     setBusy(false);
     inputRef.current?.focus();
@@ -395,7 +406,7 @@ function SendFileDialog({ file, chat, onClose }) {
   const [compress, setCompress] = useState(true);
   const tooBig = file.size > maxBytes && !(isImage && compress);
   const videoProcessing = useStore((s) => s.config.videoProcessing);
-  const [videoQ, setVideoQ] = useState(() => (useStore.getState().prefs.dataSaver ? '360' : '720'));
+  const [videoQ, setVideoQ] = useState(() => (dataSaverNow() ? '360' : '720'));
   const [caption, setCaption] = useState('');
   const [progress, setProgress] = useState(null);
   const [waiting, setWaiting] = useState(false);

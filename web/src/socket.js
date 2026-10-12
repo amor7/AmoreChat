@@ -5,6 +5,7 @@ import { messagePreview } from './util';
 import { callEvents, restoreCall, leave, onSpeakChanged } from './rtc';
 import { ensureLatest } from './update';
 import { isAndroidApp } from './native';
+import { flushOutbox } from './offline';
 
 let socket = null;
 
@@ -16,6 +17,7 @@ export function connectSocket() {
 
   socket.on('connect', () => {
     useStore.setState({ connected: true, ping: null });
+    flushOutbox();
     startPing();
     // After a reconnect, catch up on whatever we missed.
     if (connectedBefore) {
@@ -51,6 +53,7 @@ export function connectSocket() {
   socket.on('message:edit', (m) => st().updateMessage(m));
   socket.on('message:delete', (d) => st().markDeleted(d));
   socket.on('chat:new', (c) => st().upsertChat(c));
+  socket.on('folders:changed', () => st().loadFolders().catch(() => {}));
   socket.on('chat:removed', ({ chatId, reason }) => {
     const title = st().chats[chatId]?.title;
     st().removeChat(chatId);
@@ -101,9 +104,34 @@ function measurePing() {
   socket.timeout(8000).emit('rtt', Date.now(), (err) => {
     const ms = err ? 9999 : Math.round(performance.now() - t);
     const prev = useStore.getState().ping;
-    useStore.setState({ ping: prev == null || err ? ms : Math.round(prev * 0.5 + ms * 0.5) });
+    const ping = prev == null || err ? ms : Math.round(prev * 0.5 + ms * 0.5);
+    useStore.setState({ ping });
+    trackWeak(ms);
   });
 }
+// Weak connection: 3 slow samples in a row (or the browser says 2G) switch the app to
+// low-data mode automatically; 3 good samples switch it back.
+let slow = 0;
+let fast = 0;
+function trackWeak(ms) {
+  const conn = navigator.connection;
+  const verySlow = conn && /(^|-)2g$/.test(conn.effectiveType || '');
+  if (ms > 700 || verySlow) {
+    slow++;
+    fast = 0;
+  } else if (ms < 350) {
+    fast++;
+    slow = 0;
+  }
+  const s = useStore.getState();
+  if (!s.netWeak && slow >= 3) {
+    useStore.setState({ netWeak: true });
+    if (s.prefs.autoSaver !== false) s.showToast('اینترنت ضعیف است؛ حالت کم‌مصرف خودکار روشن شد');
+  } else if (s.netWeak && fast >= 3) {
+    useStore.setState({ netWeak: false });
+  }
+}
+
 function startPing() {
   clearInterval(pingTimer);
   lastPing = 0;

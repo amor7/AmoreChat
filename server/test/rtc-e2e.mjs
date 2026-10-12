@@ -266,6 +266,26 @@ try {
   await clickText(A, '.stage-panel .stage-actions button', 'پایان برای همه');
   await waitFor(B, () => !document.querySelector('.voice-bar') && !document.querySelector('.room-view'), null, 'voice chat ended for bob');
 
+  step('offline: the app opens without a connection, queues a message, sends it when back online');
+  await A.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });
+  await A.evaluate(() => navigator.serviceWorker?.ready);
+  await A.reload({ waitUntil: 'networkidle0' }); // now controlled by the service worker
+  await waitFor(A, () => [...document.querySelectorAll('.bubble')].some((b) => b.textContent.includes('long-press me')), null, 'chat loaded online');
+  await sleep(1500); // let the device copy be written
+  await A.setOfflineMode(true);
+  await A.reload({ waitUntil: 'domcontentloaded' });
+  await waitFor(A, () => document.querySelector('.offline-bar') && document.querySelectorAll('.chat-item').length > 0, null, 'app opened offline with the saved chat list');
+  await waitFor(A, () => [...document.querySelectorAll('.bubble')].some((b) => b.textContent.includes('long-press me')), null, 'saved messages shown offline');
+  await A.click('.composer textarea');
+  await A.type('.composer textarea', 'sent while offline');
+  await A.keyboard.press('Enter');
+  await waitFor(A, () => document.querySelector('.outbox .pending-icon'), null, 'message waits in the outbox (⏳)');
+  await A.screenshot({ path: 'shot-offline.png' });
+  await A.setOfflineMode(false);
+  await waitFor(A, () => !document.querySelector('.outbox'), null, 'outbox emptied after reconnecting', 40000);
+  const sent = await bob.call('GET', `/api/chats/${dm}/messages`);
+  assert.ok(sent.messages.some((m) => m.text === 'sent while offline'), 'queued message reached the server');
+
   step('phone: long-press a message opens the menu and it stays open');
   await B.setViewport({ width: 390, height: 844, isMobile: true, hasTouch: true });
   await B.goto(`${BASE}/#/chat/${dm}`, { waitUntil: 'networkidle0' });

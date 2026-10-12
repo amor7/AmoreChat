@@ -1,10 +1,18 @@
 import { create } from 'zustand';
 import { api } from './api';
+import { cacheChats, cachedChats, cacheMessages, cachedMessages } from './offline';
 import { getPrefs, setPrefs } from './util';
 
 const PAGE = 50;
 
 const replaceIn = (list, m) => list?.map((x) => (x.id === m.id ? m : x));
+
+// Low-data mode: chosen by the user, or automatic while the connection is weak.
+export const useDataSaver = () => useStore((s) => !!s.prefs.dataSaver || (s.prefs.autoSaver !== false && s.netWeak));
+export const dataSaverNow = () => {
+  const s = useStore.getState();
+  return !!s.prefs.dataSaver || (s.prefs.autoSaver !== false && s.netWeak);
+};
 
 export const useStore = create((set, get) => ({
   me: null,
@@ -24,6 +32,11 @@ export const useStore = create((set, get) => ({
   editing: null,
   rtc: null, // active voice room / call connection (see rtc.js)
   call: null, // 1:1 call being rung / in progress
+  folders: [], // the user's chat folders
+  async loadFolders() {
+    const { folders } = await api('GET', '/folders');
+    set({ folders });
+  },
   voiceRooms: {}, // chatId -> participants currently in that chat's voice room
   voiceMeta: {}, // chatId -> { stage, hands: [userId], listeners: hidden listener count }
   pendingShare: null, // { chatId, files: [File], text } shared into the Android app, waiting for its chat
@@ -57,9 +70,19 @@ export const useStore = create((set, get) => ({
     setTimeout(() => get().toast?.id === id && set({ toast: null }), 3500);
   },
 
+  outbox: [], // messages written offline, waiting to be sent (see offline.js)
+  netWeak: false, // slow connection detected (socket.js): low-data mode turns on by itself
   async loadChats() {
-    const { chats } = await api('GET', '/chats');
+    let chats;
+    try {
+      ({ chats } = await api('GET', '/chats'));
+    } catch (e) {
+      if (e.status) throw e;
+      chats = await cachedChats();
+      if (!chats) throw e;
+    }
     set({ chats: Object.fromEntries(chats.map((c) => [c.id, c])) });
+    cacheChats(get().chats);
   },
   upsertChat(c) {
     if (c?.id) set((s) => ({ chats: { ...s.chats, [c.id]: { ...s.chats[c.id], ...c } } }));
@@ -89,12 +112,21 @@ export const useStore = create((set, get) => ({
     const cur = get().messages[chatId];
     if (older && (!cur?.length || get().hasMore[chatId] === false)) return 0;
     const before = older ? `&before=${cur[0].id}` : '';
-    const { messages } = await api('GET', `/chats/${chatId}/messages?limit=${PAGE}${before}`);
+    let messages;
+    try {
+      ({ messages } = await api('GET', `/chats/${chatId}/messages?limit=${PAGE}${before}`));
+    } catch (e) {
+      // Offline: show what this device saved for the chat.
+      if (e.status || older) throw e;
+      messages = await cachedMessages(chatId);
+      if (!messages) throw e;
+    }
     set((s) => ({
       messages: { ...s.messages, [chatId]: older ? [...messages, ...(s.messages[chatId] || [])] : messages },
       hasMore: { ...s.hasMore, [chatId]: messages.length === PAGE },
       ...(older ? {} : { hasNewer: { ...s.hasNewer, [chatId]: false } }),
     }));
+    if (!older) cacheMessages(chatId, get().messages[chatId]);
     return messages.length;
   },
   // Load a window centred on one message (search results, reply quotes far up the history).
@@ -124,6 +156,10 @@ export const useStore = create((set, get) => ({
   jumpTo: null, // { chatId, messageId } requested by search / forward links
 
   addMessage(m) {
+    setTimeout(() => {
+      cacheMessages(m.chatId, get().messages[m.chatId]);
+      cacheChats(get().chats);
+    });
     set((s) => {
       const list = s.messages[m.chatId];
       const exists = list?.some((x) => x.id === m.id);

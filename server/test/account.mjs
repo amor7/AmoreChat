@@ -300,6 +300,25 @@ assert.equal((await bob.call('DELETE', `/api/uploads/${r.id}`)).ok, true, 'cance
 r = await bob.call('POST', '/api/uploads', { name: 'empty.txt', size: 0 });
 assert.equal((await putChunk(bob, r.id, 0, Buffer.alloc(0))).status, 201, 'empty file');
 
+// ---- Pinned chats and folders ----
+r = await alice.call('PATCH', `/api/chats/${g}/pin`, { pinned: true });
+assert.ok(r.chat.pinnedAt > 0);
+assert.ok((await alice.call('GET', '/api/chats')).chats.find((c) => c.id === g).pinnedAt);
+r = await alice.call('POST', '/api/folders', { name: 'کار', emoji: '💼', filters: ['groups', 'bogus'], chatIds: [g, 999999] });
+assert.deepEqual(r.folder.filters, ['groups']);
+assert.deepEqual(r.folder.chatIds, [g], 'only chats I am in');
+const fid = r.folder.id;
+r = await alice.call('PATCH', `/api/folders/${fid}`, { name: 'کار و تیم' });
+assert.equal(r.folder.name, 'کار و تیم');
+assert.equal((await bob.call('PATCH', `/api/folders/${fid}`, { name: 'x' })).status, 404, "someone else's folder");
+assert.equal((await alice.call('POST', '/api/folders', { name: 'خالی' })).status, 400);
+assert.equal((await alice.call('GET', '/api/folders')).folders.length, 1);
+await alice.call('DELETE', `/api/folders/${fid}`);
+assert.equal((await alice.call('GET', '/api/folders')).folders.length, 0);
+r = await alice.call('POST', `/api/chats/${g}/read-all`);
+assert.equal(r.chat.unread, 0);
+await alice.call('PATCH', `/api/chats/${g}/pin`, { pinned: false });
+
 // ---- Health dashboard ----
 r = await owner.call('GET', '/api/admin/health?range=1h');
 assert.equal(r.status, 200, JSON.stringify(r));

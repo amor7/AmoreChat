@@ -167,7 +167,7 @@ export const loadMessagesByIds = (ids) =>
   ids.length ? withReactions(all(`${MSG_SELECT} WHERE m.id IN (SELECT value FROM json_each(?)) ORDER BY m.id DESC`, JSON.stringify(ids))) : [];
 
 const SUMMARY_SELECT = `
-  SELECT c.*, cm.role AS my_role, cm.perms AS my_perms, cm.last_read, cm.muted_until, cm.notify_muted_until,
+  SELECT c.*, cm.role AS my_role, cm.perms AS my_perms, cm.last_read, cm.muted_until, cm.notify_muted_until, cm.pinned_at,
     (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id = c.id) AS member_count,
     (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id AND m.id > cm.last_read
        AND m.deleted = 0 AND m.type != 'system' AND IFNULL(m.sender_id, 0) != cm.user_id) AS unread,
@@ -199,6 +199,7 @@ function formatSummary(c, userId) {
     othersRead: c.others_read || 0,
     unread: c.unread,
     unreadMentions: c.unread_mentions,
+    pinnedAt: c.pinned_at || null,
     notifyMutedUntil: c.notify_muted_until && c.notify_muted_until > now() ? c.notify_muted_until : null,
     lastMessage: c.last_msg_id ? loadMessage(c.last_msg_id) : null,
     createdAt: c.created_at,
