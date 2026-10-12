@@ -81,7 +81,7 @@ async function connectPage() {
     new Promise((ok, bad) => {
       const n = ++id;
       // A page that's reloading may never answer: give up after a while so callers retry.
-      const t = setTimeout(() => (waiting.delete(n), bad(new Error('devtools timeout'))), 8000);
+      const t = setTimeout(() => (waiting.delete(n), bad(new Error('devtools timeout'))), 12000);
       waiting.set(n, (d) => {
         clearTimeout(t);
         if (d.result?.exceptionDetails) bad(new Error(d.result.exceptionDetails.text + ' ' + JSON.stringify(d.result.exceptionDetails.exception?.description)));

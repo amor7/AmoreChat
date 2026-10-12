@@ -540,15 +540,24 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String probe(String url) {
             if (!BuildConfig.DEBUG) return "disabled";
-            try {
+            // DNS lookups have no timeout of their own: bound the whole attempt.
+            java.util.concurrent.FutureTask<String> task = new java.util.concurrent.FutureTask<>(() -> {
                 HttpURLConnection c = (HttpURLConnection) new java.net.URL(url).openConnection();
-                c.setConnectTimeout(6000);
-                c.setReadTimeout(6000);
+                c.setConnectTimeout(5000);
+                c.setReadTimeout(5000);
                 int code = c.getResponseCode();
                 c.disconnect();
                 return "HTTP " + code;
+            });
+            new Thread(task).start();
+            try {
+                return task.get(7, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (java.util.concurrent.TimeoutException e) {
+                task.cancel(true);
+                return "ERR timeout (no network)";
             } catch (Exception e) {
-                return "ERR " + e.getClass().getSimpleName() + ": " + e.getMessage();
+                Throwable t = e.getCause() != null ? e.getCause() : e;
+                return "ERR " + t.getClass().getSimpleName() + ": " + t.getMessage();
             }
         }
 
