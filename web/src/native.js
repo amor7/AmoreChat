@@ -17,6 +17,7 @@ export function appInfo() {
 export const setBackgroundConnection = (on) => bridge?.setBackground(!!on);
 export const openBatterySettings = () => bridge?.batterySettings();
 export const openNotificationSettings = () => bridge?.notificationSettings();
+export const openFullScreenSettings = () => bridge?.fullScreenSettings?.();
 export const changeServer = () => bridge?.changeServer();
 export const nativeInCall = (on, title = '') => bridge?.inCall(!!on, String(title));
 

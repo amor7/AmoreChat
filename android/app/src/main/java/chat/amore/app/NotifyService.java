@@ -23,6 +23,10 @@ import java.nio.charset.StandardCharsets;
  * phone can reach the server. Shown as a silent "connected" notification, as Android requires.
  */
 public class NotifyService extends Service {
+    /** Last connection status, shown in the app's profile page. */
+    static volatile String lastStatus = "در حال اتصال…";
+    static volatile boolean connected;
+
     private volatile boolean running;
     private volatile HttpURLConnection conn;
     private Thread loop;
@@ -53,6 +57,7 @@ public class NotifyService extends Service {
     public void onCreate() {
         super.onCreate();
         Notifs.channels(this);
+        lastStatus = "در حال اتصال…";
         int type = Build.VERSION.SDK_INT >= 34 ? ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING : 0;
         try {
             ServiceCompat.startForeground(this, Notifs.ID_SERVICE, Notifs.service(this, "در حال اتصال…"), type);
@@ -78,7 +83,6 @@ public class NotifyService extends Service {
 
     private void run() {
         long backoff = 2000;
-        String lastStatus = null;
         while (running) {
             String server = Prefs.server(this);
             if (server == null) break;
@@ -90,22 +94,33 @@ public class NotifyService extends Service {
                 int code = c.getResponseCode();
                 if (code == 401) {
                     // Logged out: nothing to listen for until the user signs in again.
-                    status("برای دریافت اعلان وارد شوید");
-                    lastStatus = null;
+                    status("برای دریافت اعلان وارد شوید", false);
                     sleep(30000);
                     continue;
                 }
-                if (code != 200) throw new Exception("HTTP " + code);
-                status("متصل");
-                lastStatus = "متصل";
+                if (code == 404) {
+                    // The server runs a version from before the Android app (needs 0.7 or newer).
+                    status("سرور قدیمی است؛ مدیر باید سرور را به‌روزرسانی کند", false);
+                    sleep(300000);
+                    continue;
+                }
+                if (code != 200) throw new java.io.IOException("خطای سرور (HTTP " + code + ")");
+                status("متصل", true);
                 backoff = 2000;
                 BufferedReader r = new BufferedReader(new InputStreamReader(c.getInputStream(), StandardCharsets.UTF_8));
                 String line;
                 while (running && (line = r.readLine()) != null) {
                     if (line.startsWith("data:")) handle(line.substring(5).trim());
                 }
+            } catch (javax.net.ssl.SSLException e) {
+                status("خطای گواهی امنیتی (SSL) سرور؛ تلاش دوباره…", false);
+            } catch (java.net.SocketTimeoutException e) {
+                status("سرور جواب نمی‌دهد؛ تلاش دوباره…", false);
+            } catch (java.net.UnknownHostException | java.net.ConnectException e) {
+                status("سرور در دسترس نیست (اینترنت؟)؛ تلاش دوباره…", false);
             } catch (Exception e) {
-                if (!"قطع؛ تلاش دوباره…".equals(lastStatus)) status(lastStatus = "قطع؛ تلاش دوباره…");
+                String m = e.getMessage();
+                status(m != null && m.startsWith("خطای") ? m : "قطع شد؛ تلاش دوباره…", false);
             } finally {
                 HttpURLConnection c = conn;
                 if (c != null) c.disconnect();
@@ -121,7 +136,10 @@ public class NotifyService extends Service {
         }
     }
 
-    private void status(String text) {
+    private void status(String text, boolean ok) {
+        connected = ok;
+        if (text.equals(lastStatus)) return;
+        lastStatus = text;
         Notifs.updateService(this, text);
     }
 
@@ -160,9 +178,17 @@ public class NotifyService extends Service {
         }
     }
 
+    /** Swiped away from the recent apps: keep listening (the service is separate from the screen). */
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        start(getApplicationContext());
+        super.onTaskRemoved(rootIntent);
+    }
+
     @Override
     public void onDestroy() {
         running = false;
+        connected = false;
         HttpURLConnection c = conn;
         if (c != null) new Thread(c::disconnect).start();
         if (loop != null) loop.interrupt();

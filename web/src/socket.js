@@ -154,6 +154,11 @@ function notify(m) {
   // In the Android app the system notification (with its own sound) covers the background.
   if (isAndroidApp && document.hidden) return;
   beep();
+  if (!document.hidden) {
+    const c = s.chats[m.chatId];
+    const who = c?.type === 'dm' || c?.type === 'channel' ? c?.title : `${c?.title || ''} — ${m.sender.displayName}`;
+    s.showToast(`💬 ${who}: ${messagePreview(m).slice(0, 80)}`);
+  }
   if (!document.hidden || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
   const chat = s.chats[m.chatId];
   const title = (mentioned && chat?.type !== 'dm' ? '@ ' : '') + (chat?.type === 'dm' ? m.sender.displayName : chat?.type === 'channel' ? chat.title : `${chat?.title || ''} — ${m.sender.displayName}`);

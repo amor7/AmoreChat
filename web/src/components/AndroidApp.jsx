@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, BatteryCharging, Bell, Server, Download, FileText } from 'lucide-react';
+import { Smartphone, BatteryCharging, Bell, Server, Download, FileText, PhoneCall, Wifi, WifiOff } from 'lucide-react';
 import { api } from '../api';
 import { useStore } from '../store';
 import { postBlockReason, formatSize, toFa } from '../util';
-import { isAndroidApp, isAndroidBrowser, appInfo, setBackgroundConnection, openBatterySettings, openNotificationSettings, changeServer } from '../native';
+import { isAndroidApp, isAndroidBrowser, appInfo, setBackgroundConnection, openBatterySettings, openNotificationSettings, openFullScreenSettings, changeServer } from '../native';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
 
@@ -62,7 +62,11 @@ export function AndroidSettings() {
     // Coming back from the system settings screens.
     const onVis = () => !document.hidden && refresh();
     document.addEventListener('visibilitychange', onVis);
-    return () => document.removeEventListener('visibilitychange', onVis);
+    const t = setInterval(refresh, 3000);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      clearInterval(t);
+    };
   }, []);
 
   if (isAndroidBrowser) {
@@ -97,6 +101,16 @@ export function AndroidSettings() {
         />
         اتصال پس‌زمینه برای اعلان پیام و تماس وقتی برنامه بسته است (بدون سرویس گوگل؛ کمی باتری مصرف می‌کند)
       </label>
+      {info.background && (
+        <p className={`app-status ${info.connected ? 'ok' : 'bad'}`}>
+          {info.connected ? <Wifi size={16} /> : <WifiOff size={16} />} اتصال اعلان‌ها: {info.status}
+        </p>
+      )}
+      {info.fullScreen === false && (
+        <button className="btn wide" onClick={openFullScreenSettings}>
+          <PhoneCall size={17} /> اجازه نمایش تماس ورودی روی صفحه را بدهید
+        </button>
+      )}
       {!info.notifications && (
         <button className="btn wide" onClick={openNotificationSettings}>
           <Bell size={17} /> اعلان‌ها خاموش است؛ روشن کنید
@@ -110,6 +124,9 @@ export function AndroidSettings() {
       <button className="btn wide" onClick={() => confirm('از این سرور خارج شوید و آدرس دیگری وارد کنید؟') && changeServer()}>
         <Server size={17} /> تغییر سرور
       </button>
+      <p className="muted tiny">
+        اگر بعد از بستن برنامه اعلان نمی‌آید: در تنظیمات گوشی برای AmoreChat «اجرای خودکار / Autostart» را روشن و محدودیت باتری را «بدون محدودیت» کنید (مخصوصاً شیائومی، سامسونگ و هوآوی). «توقف اجباری» (Force stop) برنامه را تا باز کردن دوباره کاملاً متوقف می‌کند.
+      </p>
       <p className="muted tiny" dir="ltr">
         Android app v{info.version} · {info.server}
       </p>

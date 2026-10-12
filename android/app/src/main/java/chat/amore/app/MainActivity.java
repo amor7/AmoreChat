@@ -402,6 +402,9 @@ public class MainActivity extends Activity {
                         .put("batteryUnrestricted", pm.isIgnoringBatteryOptimizations(getPackageName()))
                         .put("notifications", NotificationManagerCompat.from(MainActivity.this).areNotificationsEnabled())
                         .put("server", Prefs.server(MainActivity.this))
+                        .put("status", NotifyService.lastStatus)
+                        .put("connected", NotifyService.connected)
+                        .put("fullScreen", Build.VERSION.SDK_INT < 34 || ((android.app.NotificationManager) getSystemService(NOTIFICATION_SERVICE)).canUseFullScreenIntent())
                         .toString();
             } catch (Exception e) {
                 return "{}";
@@ -431,6 +434,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void notificationSettings() {
             runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
+        }
+
+        @JavascriptInterface
+        public void fullScreenSettings() {
+            if (Build.VERSION.SDK_INT < 34) return;
+            runOnUiThread(() -> {
+                try {
+                    startActivity(new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:" + getPackageName())));
+                } catch (Exception ignored) {
+                }
+            });
         }
 
         @JavascriptInterface

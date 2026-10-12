@@ -80,7 +80,7 @@ app.addHook('onSend', async (_req, reply) => {
   reply.header('Permissions-Policy', 'microphone=(self), camera=(self), geolocation=()');
   reply.header(
     'Content-Security-Policy',
-    "default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ws: wss:; " +
+    "default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ws: wss: https://amore-share.invalid; " +
       "style-src 'self' 'unsafe-inline'; font-src 'self' data:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'",
   );
 });

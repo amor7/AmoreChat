@@ -181,6 +181,24 @@ try {
   adb(`shell am start -n ${PKG}/chat.amore.app.MainActivity`);
   await waitUntil(() => !notifications().includes('پیام آزمایشی از اپ'), 'notification cleared');
 
+  step('profile shows the notification connection as connected');
+  dt = await devtools();
+  await waitUntil(async () => {
+    const i = JSON.parse(await dt.evaluate('AmoreAndroid.info()'));
+    return i.connected === true && i.status === 'متصل';
+  }, 'status "connected" reported to the page');
+
+  step('share a file from another app into AmoreChat and send it');
+  adb(`shell mkdir -p /sdcard/Android/data/${PKG}/files`);
+  adb(`shell "echo hello-share > /sdcard/Android/data/${PKG}/files/share-test.txt"`);
+  adb(`shell am start -a android.intent.action.SEND -t text/plain --eu android.intent.extra.STREAM content://${PKG}.files/files/share-test.txt -n ${PKG}/chat.amore.app.MainActivity`);
+  await waitUntil(() => dt.evaluate("[...document.querySelectorAll('.share-file')].some((e) => e.textContent.includes('share-test.txt'))"), 'share target picker with the file');
+  screenshot('share-picker');
+  await dt.evaluate("[...document.querySelectorAll('.modal .row-item')].find((b) => b.textContent.includes('Owner')).click(), true");
+  await waitUntil(() => dt.evaluate("[...document.querySelectorAll('.modal .file-name')].some((e) => e.textContent.includes('share-test.txt'))"), 'send dialog with the shared file');
+  await dt.evaluate("[...document.querySelectorAll('.modal .btn.primary')].find((b) => b.textContent.includes('ارسال')).click(), true");
+  await waitUntil(async () => (await owner('GET', `/api/chats/${dm}/messages`)).messages.some((m) => m.file?.name === 'share-test.txt'), 'shared file arrived in the chat');
+
   step('reboot-free restart: service survives the activity being closed');
   adb(`shell am force-stop ${PKG}`);
   adb(`shell am start -n ${PKG}/chat.amore.app.MainActivity`);
