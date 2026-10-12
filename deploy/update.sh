@@ -2,6 +2,8 @@
 # Update AmoreChat from GitHub Releases, or switch to a specific version.
 #   sudo bash deploy/update.sh            # latest release
 #   sudo bash deploy/update.sh v0.1.0     # a specific version
+#   sudo bash deploy/update.sh /root/new  # offline: a folder with amorechat-source.tar.gz
+#                                         # (+ amorechat-offline-amd64.tar.gz) copied from Releases
 # After the first run you can simply use:  sudo amorechat-update [version]
 # Your data (data/), settings (.env), Caddyfile and certs/ are kept.
 # Everything runs inside main(), which bash parses fully before running:
@@ -19,6 +21,13 @@ fi
 command -v curl >/dev/null 2>&1 || apt-get install -y curl
 
 TAG="${1:-}"
+LOCAL=""
+if [ -n "$TAG" ] && [ -d "$TAG" ]; then
+  # Offline update from files copied to the server (no GitHub needed).
+  LOCAL="$(cd "$TAG" && pwd)"
+  [ -f "$LOCAL/amorechat-source.tar.gz" ] || { echo "!! $LOCAL/amorechat-source.tar.gz not found."; exit 1; }
+  TAG="v$(tar xzOf "$LOCAL/amorechat-source.tar.gz" amorechat/package.json | grep -m1 '"version"' | cut -d'"' -f4)"
+fi
 if [ -z "$TAG" ]; then
   TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/' || true)
   [ -n "$TAG" ] || { echo "!! Could not reach GitHub to find the latest version."; exit 1; }
@@ -51,9 +60,14 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 BASE="https://github.com/${REPO}/releases/download/${TAG}"
 
-echo ">> Downloading ${TAG} source..."
-curl -fL --retry 3 -o "$TMP/source.tar.gz" "${BASE}/amorechat-source.tar.gz" || { echo "!! Version ${TAG} not found."; exit 1; }
-if [ -d .git ]; then
+if [ -n "$LOCAL" ]; then
+  cp "$LOCAL/amorechat-source.tar.gz" "$TMP/source.tar.gz"
+  [ -f "$LOCAL/amorechat-offline-amd64.tar.gz" ] && ln -s "$LOCAL/amorechat-offline-amd64.tar.gz" "$TMP/offline.tar.gz"
+else
+  echo ">> Downloading ${TAG} source..."
+  curl -fL --retry 3 -o "$TMP/source.tar.gz" "${BASE}/amorechat-source.tar.gz" || { echo "!! Version ${TAG} not found."; exit 1; }
+fi
+if [ -d .git ] && [ -z "$LOCAL" ]; then
   # Git checkout: move to the release tag so `git status` stays clean.
   git fetch -q --tags --force origin && git checkout -q -f "$TAG"
 else
@@ -63,7 +77,7 @@ fi
 # New versions may need new settings (e.g. the voice server secret); existing values are kept.
 [ -f deploy/ensure-env.sh ] && bash deploy/ensure-env.sh
 
-if [ "$(uname -m)" = "x86_64" ] && curl -fL --retry 3 -o "$TMP/offline.tar.gz" "${BASE}/amorechat-offline-amd64.tar.gz"; then
+if [ -e "$TMP/offline.tar.gz" ] || { [ -z "$LOCAL" ] && [ "$(uname -m)" = "x86_64" ] && curl -fL --retry 3 -o "$TMP/offline.tar.gz" "${BASE}/amorechat-offline-amd64.tar.gz"; }; then
   echo ">> Loading prebuilt images..."
   gunzip -c "$TMP/offline.tar.gz" | docker load
   docker compose up -d --no-build --remove-orphans

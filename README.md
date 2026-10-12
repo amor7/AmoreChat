@@ -80,6 +80,9 @@ curl -fsSL https://raw.githubusercontent.com/amor7/AmoreChat/main/deploy/get.sh 
 ```
 
 ### روش ۲: سرور بدون دسترسی به گیت‌هاب
+
+> 📴 **راهنمای کامل و قدم‌به‌قدم نصب آفلاین** (انتقال فایل‌ها، نصب Docker بدون اینترنت، نصب گواهی روی اندروید/آیفون/ویندوز/مک، آپدیت آفلاین و عیب‌یابی): **[docs/OFFLINE-INSTALL.md](docs/OFFLINE-INSTALL.md)**
+
 از صفحه **Releases** فایل‌های `amorechat-source.tar.gz` و `amorechat-offline-amd64.tar.gz` را دانلود و به سرور منتقل کنید (مثلاً با `scp`)، سپس:
 
 ```bash

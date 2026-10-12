@@ -78,6 +78,8 @@ app.addHook('onSend', async (_req, reply) => {
   reply.header('Referrer-Policy', 'same-origin');
   reply.header('X-Frame-Options', 'DENY');
   reply.header('Permissions-Policy', 'microphone=(self), camera=(self), geolocation=()');
+  // A route may set its own (stricter or page-specific) policy.
+  if (reply.getHeader('Content-Security-Policy')) return;
   reply.header(
     'Content-Security-Policy',
     "default-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self' ws: wss: https://amore-share.invalid; " +

@@ -26,6 +26,12 @@ const PAGE = `<!doctype html>
   <p><a class="btn" href="/ca.crt">⬇ دانلود گواهی</a></p>
   <p class="muted">فقط گواهی را از همین سرور و شبکه‌ای که به آن اعتماد دارید نصب کنید.</p>
 
+  <div class="card"><h3>🤖 اپ اندروید AmoreChat</h3>
+    <p>برای اپ اندروید <b>نصب گواهی لازم نیست</b>: اپ را از <a href="/app">اینجا</a> دانلود کنید؛ موقع وارد کردن آدرس سرور، اپ یک «اثر انگشت» نشان می‌دهد. اگر با اثر انگشت زیر یکی بود، تأیید کنید.</p>
+    <p class="muted">اثر انگشت (SHA-256) گواهی این سرور:</p>
+    <code id="fp" dir="ltr" style="display:block;word-break:break-all;padding:10px;font-size:13px">…</code>
+  </div>
+
   <div class="card"><h3>📱 اندروید</h3><ol>
     <li>فایل را دانلود کنید.</li>
     <li>تنظیمات ← امنیت ← رمزگذاری و اعتبارنامه‌ها ← <b>نصب گواهی</b> ← <b>گواهی CA</b> (در بعضی گوشی‌ها: تنظیمات ← امنیت ← نصب از حافظه).</li>
@@ -52,9 +58,60 @@ const PAGE = `<!doctype html>
 
   <p>بعد از نصب، برنامه را از <b>https</b> باز کنید.</p>
 </main>
+<script>
+// SHA-256 of the certificate, computed here (crypto.subtle isn't available on plain http pages).
+function sha256(bytes) {
+  const K = [], H = [];
+  const frac = (x) => ((x - Math.floor(x)) * 4294967296) >>> 0;
+  for (let n = 2, c = 0; c < 64; n++) {
+    let prime = true;
+    for (let d = 2; d * d <= n; d++) if (n % d === 0) prime = false;
+    if (!prime) continue;
+    if (c < 8) H.push(frac(Math.sqrt(n)));
+    K.push(frac(Math.cbrt(n)));
+    c++;
+  }
+  const len = bytes.length, total = Math.ceil((len + 9) / 64) * 64;
+  const m = new Uint8Array(total);
+  m.set(bytes);
+  m[len] = 0x80;
+  const bits = len * 8;
+  for (let i = 0; i < 8; i++) m[total - 1 - i] = Math.floor(bits / Math.pow(2, 8 * i)) & 255;
+  const w = new Uint32Array(64), r = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let o = 0; o < total; o += 64) {
+    for (let i = 0; i < 16; i++) w[i] = (m[o + 4 * i] << 24) | (m[o + 4 * i + 1] << 16) | (m[o + 4 * i + 2] << 8) | m[o + 4 * i + 3];
+    for (let i = 16; i < 64; i++) {
+      const s0 = r(w[i - 15], 7) ^ r(w[i - 15], 18) ^ (w[i - 15] >>> 3), s1 = r(w[i - 2], 17) ^ r(w[i - 2], 19) ^ (w[i - 2] >>> 10);
+      w[i] = (w[i - 16] + s0 + w[i - 7] + s1) >>> 0;
+    }
+    let [a, b, c, d, e, f, g, h] = H;
+    for (let i = 0; i < 64; i++) {
+      const t1 = (h + (r(e, 6) ^ r(e, 11) ^ r(e, 25)) + ((e & f) ^ (~e & g)) + K[i] + w[i]) >>> 0;
+      const t2 = ((r(a, 2) ^ r(a, 13) ^ r(a, 22)) + ((a & b) ^ (a & c) ^ (b & c))) >>> 0;
+      h = g; g = f; f = e; e = (d + t1) >>> 0; d = c; c = b; b = a; a = (t1 + t2) >>> 0;
+    }
+    [a, b, c, d, e, f, g, h].forEach((v, i) => (H[i] = (H[i] + v) >>> 0));
+  }
+  return H.map((v) => v.toString(16).padStart(8, '0')).join('').toUpperCase().match(/../g).join(':');
+}
+fetch('/ca.crt')
+  .then((r) => r.text())
+  .then((pem) => {
+    const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\\s+/g, '');
+    const bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    document.getElementById('fp').textContent = sha256(bytes);
+  })
+  .catch(() => (document.getElementById('fp').textContent = 'در حالت گواهی داخلی (TLS_MODE=internal) نمایش داده می‌شود'));
+</script>
 </body>
 </html>`;
 
 export default async function caHelpRoutes(app) {
-  app.get('/ca-help', { config: { public: true } }, async (_req, reply) => reply.type('text/html; charset=utf-8').header('Cache-Control', 'no-cache').send(PAGE));
+  app.get('/ca-help', { config: { public: true } }, async (_req, reply) => reply
+      .type('text/html; charset=utf-8')
+      .header('Cache-Control', 'no-cache')
+      // Static page with one inline script (the fingerprint); nothing user-supplied on it.
+      .header('Content-Security-Policy', "default-src 'self'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; frame-ancestors 'none'")
+      .send(PAGE));
 }
