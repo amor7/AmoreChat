@@ -536,6 +536,22 @@ public class MainActivity extends Activity {
     // ---------- JS bridge: window.AmoreAndroid ----------
 
     private class Bridge {
+        /** Debug builds only (tests): can the app itself reach this URL? */
+        @JavascriptInterface
+        public String probe(String url) {
+            if (!BuildConfig.DEBUG) return "disabled";
+            try {
+                HttpURLConnection c = (HttpURLConnection) new java.net.URL(url).openConnection();
+                c.setConnectTimeout(6000);
+                c.setReadTimeout(6000);
+                int code = c.getResponseCode();
+                c.disconnect();
+                return "HTTP " + code;
+            } catch (Exception e) {
+                return "ERR " + e.getClass().getSimpleName() + ": " + e.getMessage();
+            }
+        }
+
         @JavascriptInterface
         public String info() {
             try {

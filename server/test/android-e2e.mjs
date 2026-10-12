@@ -132,45 +132,9 @@ const dm = (await owner('POST', '/api/chats/dm', { userId: bobId })).chat.id;
 
 try {
   if (process.env.ISOLATE) {
-    // A full shutdown on the phone: only the AmoreChat servers (on the host, 10.0.2.2 /
-    // adb reverse on localhost) are reachable; everything else, DNS included, is refused.
-    step('cut the phone off the internet: only the AmoreChat servers stay reachable');
-    adb('root');
+    adb('root'); // to set the phone's firewall below (restarts adbd: do it before anything else)
     await sleep(4000);
     adb('wait-for-device');
-    for (const rule of [
-      'iptables -I OUTPUT 1 -o lo -j ACCEPT',
-      'iptables -I OUTPUT 2 -m state --state ESTABLISHED,RELATED -j ACCEPT',
-      'iptables -I OUTPUT 3 -d 10.0.2.2 -j ACCEPT',
-      'iptables -I OUTPUT 4 -j REJECT',
-      'ip6tables -I OUTPUT 1 -o lo -j ACCEPT',
-      'ip6tables -I OUTPUT 2 -j REJECT',
-    ]) {
-      adb(`shell ${rule}`);
-    }
-    const reaches = (host) => {
-      try {
-        adb(`shell ping -c 1 -W 3 ${host}`);
-        return true;
-      } catch {
-        return false;
-      }
-    };
-    assert.equal(reaches('8.8.8.8'), false, 'internet IP must be unreachable');
-    assert.equal(reaches('www.google.com'), false, 'internet names must not resolve / connect');
-    // Raw HTTP with Android's own nc (there is no wget/curl on the phone).
-    const http = (host, port, path) => {
-      try {
-        return adb(`shell "printf 'GET ${path} HTTP/1.0\\r\\nHost: ${host}\\r\\n\\r\\n' | nc -w 5 ${host} ${port} 2>&1; echo END"`);
-      } catch (e) {
-        return 'FAILED ' + e.message;
-      }
-    };
-    const internet = http('1.1.1.1', 80, '/');
-    assert.ok(!/HTTP\/1\.[01] \d/.test(internet), `no HTTP to the internet: ${internet}`);
-    const server = http('10.0.2.2', 3100, '/healthz');
-    assert.match(server, /"ok":true/, `the AmoreChat server is reachable: ${server}`);
-    console.log('   phone is offline except for the AmoreChat servers');
   }
 
   step('install and open the app pointed at the test server');
@@ -181,6 +145,32 @@ try {
   await waitUntil(() => dt.evaluate("!!document.querySelector('.auth-card')"), 'login screen inside the app');
   assert.equal(await dt.evaluate('typeof window.AmoreAndroid'), 'object', 'native bridge available');
   screenshot('login');
+
+  if (process.env.ISOLATE) {
+    // A full shutdown on the phone: only the AmoreChat servers (on the host: 10.0.2.2, and
+    // localhost via adb reverse) stay reachable; everything else, DNS included, is refused.
+    // Checked from inside the app itself (its own network identity), before and after.
+    step('cut the phone off the internet: only the AmoreChat servers stay reachable');
+    const probe = (url) => dt.evaluate(`AmoreAndroid.probe(${JSON.stringify(url)})`);
+    const before = await probe('https://www.google.com/');
+    console.log('   before, google:', before);
+    for (const rule of [
+      'iptables -I OUTPUT 1 -o lo -j ACCEPT',
+      'iptables -I OUTPUT 2 -d 10.0.2.2 -j ACCEPT',
+      'iptables -I OUTPUT 3 -j REJECT',
+      'ip6tables -I OUTPUT 1 -o lo -j ACCEPT',
+      'ip6tables -I OUTPUT 2 -j REJECT',
+    ]) {
+      adb(`shell ${rule}`);
+    }
+    const google = await probe('https://www.google.com/');
+    const cloudflare = await probe('http://1.1.1.1/');
+    const ours = await probe('http://10.0.2.2:3100/healthz');
+    console.log('   after, google:', google, '| 1.1.1.1:', cloudflare, '| AmoreChat server:', ours);
+    assert.match(google, /^ERR/, 'the internet (by name) is unreachable from the app');
+    assert.match(cloudflare, /^ERR/, 'the internet (by IP) is unreachable from the app');
+    assert.equal(ours, 'HTTP 200', 'the AmoreChat server is still reachable');
+  }
 
   step('sign in (as bob) through the page');
   await dt.evaluate(`fetch('/api/auth/login', { method: 'POST', headers: { 'x-requested-with': 'amorechat', 'content-type': 'application/json' }, body: JSON.stringify({ username: 'bob', password: 'Str0ng-Pass-77' }) }).then((r) => r.status)`);
