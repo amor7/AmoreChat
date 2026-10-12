@@ -73,8 +73,10 @@ app.addHook('onRequest', async (req, reply) => {
   }
 });
 
-app.addHook('onSend', async (_req, reply) => {
+app.addHook('onSend', async (req, reply) => {
   reply.header('X-Content-Type-Options', 'nosniff');
+  // Browsers that saw the site over HTTPS refuse a downgraded plain-HTTP copy later.
+  if (req.protocol === 'https') reply.header('Strict-Transport-Security', 'max-age=15552000');
   reply.header('Referrer-Policy', 'same-origin');
   reply.header('X-Frame-Options', 'DENY');
   reply.header('Permissions-Policy', 'microphone=(self), camera=(self), geolocation=()');

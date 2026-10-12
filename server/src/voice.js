@@ -1,7 +1,7 @@
 import { get, all, parseJSON } from './db.js';
 import { toAll, toChat, toUser, toChatExcept } from './realtime.js';
 import { hasSitePerm, hasChatPerm } from './perms.js';
-import { rtcEnabled, listRooms, listParticipants, userIdOf } from './livekit.js';
+import { rtcEnabled, listRooms, listParticipants, userIdOf, removeParticipant } from './livekit.js';
 
 // Who is in which LiveKit room, kept current from webhooks (and a periodic resync).
 // roomName -> Map(userId -> { userId, name, avatar, joinedAt, camera, screen })
@@ -182,6 +182,16 @@ export function startVoiceSync(log) {
   if (!rtcEnabled) return;
   syncRooms(log);
   setInterval(() => syncRooms(log), 60_000).unref();
+}
+
+// Take someone out of a chat's voice room (removed from the chat, banned…). Tokens can't be
+// revoked, so the media server is told directly.
+export function kickFromVoice(chatId, userId) {
+  const room = chatRoom(chatId);
+  if (rooms.get(room)?.has(userId)) removeParticipant(room, userId).catch(() => {});
+}
+export function kickEverywhere(userId) {
+  for (const [room, m] of rooms) if (m.has(userId)) removeParticipant(room, userId).catch(() => {});
 }
 
 export const activeRooms = () => [...rooms.entries()].map(([room, m]) => ({ room, participants: [...m.values()] }));

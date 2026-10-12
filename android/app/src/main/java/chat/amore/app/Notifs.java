@@ -66,7 +66,7 @@ final class Notifs {
 
     static PendingIntent openApp(Context c, int requestCode, String key, String value) {
         Intent i = new Intent(c, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        if (key != null) i.putExtra(key, value);
+        if (key != null) i.putExtra(key, value).putExtra("k", Prefs.intentKey(c));
         return PendingIntent.getActivity(c, requestCode, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 

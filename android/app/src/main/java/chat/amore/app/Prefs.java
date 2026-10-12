@@ -42,6 +42,16 @@ final class Prefs {
         p(c).edit().putBoolean("background", on).apply();
     }
 
+    /** Random per-install key: only the app's own notifications may open a chat or answer a call. */
+    static String intentKey(Context c) {
+        String k = p(c).getString("ik", null);
+        if (k == null) {
+            k = java.util.UUID.randomUUID().toString();
+            p(c).edit().putString("ik", k).apply();
+        }
+        return k;
+    }
+
     static boolean askedPermissions(Context c) {
         return p(c).getBoolean("asked", false);
     }

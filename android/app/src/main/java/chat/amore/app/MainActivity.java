@@ -165,6 +165,8 @@ public class MainActivity extends Activity {
                 setIntent(new Intent(this, MainActivity.class));
                 return;
             }
+            // Other apps can start this activity too: only trust extras from our own notifications.
+            if (!Prefs.intentKey(this).equals(intent.getStringExtra("k"))) return;
             String chatId = intent.getStringExtra("chatId");
             if (chatId != null) toWeb(new JSONObject().put("type", "open-chat").put("chatId", Long.parseLong(chatId)));
             String answer = intent.getStringExtra("answerCall");

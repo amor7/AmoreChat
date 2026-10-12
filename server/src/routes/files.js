@@ -91,7 +91,7 @@ const CHUNK = 4 * 1024 * 1024;
 const partPath = (id) => path.join(PARTIAL_DIR, id);
 const partSize = (id) => (fs.existsSync(partPath(id)) ? fs.statSync(partPath(id)).size : 0);
 const busy = new Set();
-const STALE = 48 * 3600 * 1000;
+const STALE = 24 * 3600 * 1000;
 
 function dropSession(id) {
   run('DELETE FROM upload_sessions WHERE id = ?', id);
@@ -120,6 +120,9 @@ export default async function fileRoutes(app) {
     const size = Number(b.size);
     if (!Number.isSafeInteger(size) || size < 0) fail(400, 'حجم نامعتبر');
     checkLimits(req.user, size);
+    if (get('SELECT COUNT(*) AS n FROM upload_sessions WHERE owner_id = ?', req.user.id).n >= 10) {
+      fail(429, 'تعداد ارسال‌های نیمه‌کاره زیاد است؛ کمی صبر کنید یا آن‌ها را لغو کنید');
+    }
     const id = crypto.randomBytes(16).toString('hex');
     const meta = Object.fromEntries(Object.entries(b.meta || {}).filter(([k, v]) => /^[a-z]{1,8}$/.test(k) && v != null).map(([k, v]) => [k, String(v).slice(0, 200)]));
     run(

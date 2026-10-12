@@ -258,9 +258,40 @@ export default async function rtcRoutes(app) {
     if (!verifyWebhook(raw, req.headers.authorization)) return reply.code(401).send({ error: 'bad signature' });
     const evt = JSON.parse(raw);
     applyWebhook(evt);
+    enforceAccess(evt).catch((e) => req.log.warn(e.message));
     enforceStreamLimit(evt).catch((e) => req.log.warn(e.message));
     return { ok: true };
   });
+
+  // Access tokens can't be revoked and live for hours, so someone kicked, banned, removed from
+  // the chat or no longer allowed to speak could reuse an old one. LiveKit tells us about every
+  // join and every published track: check again and throw them out (or silence them).
+  async function enforceAccess(evt) {
+    if (evt.event !== 'participant_joined' && evt.event !== 'track_published') return;
+    const room = evt.room?.name;
+    const chatId = chatIdOfRoom(room);
+    const userId = userIdOf(evt.participant?.identity);
+    if (!chatId || !userId) return;
+    const chat = getChat(chatId);
+    const user = get('SELECT * FROM users WHERE id = ?', userId);
+    const member = getMember(chatId, userId);
+    const stage = chat && isStage(chat);
+    const admin = stage && user && isStageAdmin(user, chat, member);
+    const allowed = chat && user && !user.banned && (member || hasSitePerm(user, 'manage_chats')) && !(stage && !admin && stageOf(room).bans.has(userId));
+    if (!allowed) {
+      await removeParticipant(room, userId);
+      toUser(userId, 'rtc:notice', { chatId, action: 'kick', text: 'اجازه حضور در این ویس‌چت را ندارید' });
+      return;
+    }
+    if (evt.event === 'track_published') {
+      const muted = member?.muted_until && member.muted_until > now();
+      const mayPublish = stage ? !muted && stageSpeaker(chat, userId) : canSpeak(user, chat, member);
+      if (!mayPublish) {
+        await muteSources(room, userId, ['MICROPHONE', 'CAMERA', 'SCREEN_SHARE', 'SCREEN_SHARE_AUDIO']);
+        await revokePublish(room, userId).catch(() => {});
+      }
+    }
+  }
 
   async function enforceStreamLimit(evt) {
     if (evt.event !== 'track_published') return;

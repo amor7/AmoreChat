@@ -10,6 +10,7 @@ import { fail, audit, loadMessage } from '../chats.js';
 import { ffmpegAvailable } from '../media.js';
 import { effectiveLimits, cleanLimits } from '../limits.js';
 import { deleteMessage } from '../sweeper.js';
+import { kickEverywhere } from '../voice.js';
 
 const need = (req, perm) => {
   if (!hasSitePerm(req.user, perm)) fail(403, 'دسترسی ندارید');
@@ -75,6 +76,7 @@ export default async function adminRoutes(app) {
     if (banned) {
       run('DELETE FROM sessions WHERE user_id = ?', u.id);
       disconnectUser(u.id);
+      kickEverywhere(u.id);
     }
     audit(req.user.id, banned ? 'user.ban' : 'user.unban', u.id, { username: u.username });
     return { ok: true };

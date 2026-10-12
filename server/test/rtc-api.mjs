@@ -5,6 +5,24 @@
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { io } from 'socket.io-client';
+import http from 'node:http';
+
+// A stand-in for LiveKit's RoomService API (LIVEKIT_URL=http://127.0.0.1:7999): records calls.
+const lkCalls = [];
+let lkParticipants = [];
+const fakeLk = http.createServer((req, res) => {
+  let body = '';
+  req.on('data', (d) => (body += d));
+  req.on('end', () => {
+    const method = req.url.split('/').pop();
+    // ListRooms fails like before, so the periodic resync doesn't wipe the webhook-built state.
+    if (method === 'ListRooms') return res.writeHead(500).end();
+    lkCalls.push({ method, body: JSON.parse(body || '{}') });
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify(method === 'ListParticipants' ? { participants: lkParticipants } : {}));
+  });
+});
+await new Promise((ok) => fakeLk.listen(7999, '127.0.0.1', ok));
 
 const BASE = process.argv[2];
 const SETUP = process.argv[3];
@@ -275,6 +293,25 @@ assert.equal(JSON.parse(msgs.at(-1).text).status, 'cancelled');
 await owner.call('PATCH', `/api/admin/users/${carolId}/limits`, { can_call: false });
 r = await bob.call('POST', '/api/calls', { userId: carolId });
 assert.equal(r.status, 403, 'admin disabled calls for carol');
+
+// ---- Old tokens can't be reused: access is re-checked on every join / publish ----
+const called = (method, who, room) => lkCalls.some((c) => c.method === method && c.body.identity === who && (!room || c.body.room === room));
+lkCalls.length = 0;
+await sendWebhook({ event: 'participant_joined', room: { name: `chat-${group}` }, participant: { identity: `u${carolId}`, name: 'Carol' } });
+await sleep(300);
+assert.ok(called('RemoveParticipant', `u${carolId}`, `chat-${group}`), 'a non-member joining with some token is thrown out');
+lkParticipants = [{ identity: `u${bobId}`, tracks: [{ sid: 'TR_mic', source: 'MICROPHONE' }] }];
+await sendWebhook({ event: 'participant_joined', room: { name: `chat-${group}` }, participant: { identity: `u${bobId}`, name: 'Bob' } });
+await sendWebhook({ event: 'track_published', room: { name: `chat-${group}` }, participant: { identity: `u${bobId}` }, track: { source: 'MICROPHONE', sid: 'TR_mic' } });
+await sleep(300);
+assert.ok(!called('RemoveParticipant', `u${bobId}`, `chat-${group}`), 'members may stay');
+assert.ok(called('MutePublishedTrack', `u${bobId}`), 'listener publishing with an old speaker token is muted');
+assert.ok(called('UpdateParticipant', `u${bobId}`), '...and loses publish rights');
+lkCalls.length = 0;
+await owner.call('DELETE', `/api/chats/${group}/members/${bobId}`);
+await sleep(300);
+assert.ok(called('RemoveParticipant', `u${bobId}`, `chat-${group}`), 'removed from the group = out of its voice chat');
+fakeLk.close();
 
 bob.close();
 carol.close();

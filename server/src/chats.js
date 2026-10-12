@@ -2,6 +2,7 @@ import { get, all, run, now, tx, parseJSON } from './db.js';
 import { toChat, toUser, joinChat, leaveChat, isOnline } from './realtime.js';
 import { hasSitePerm } from './perms.js';
 import { notifyMessage } from './push.js';
+import { kickFromVoice } from './voice.js';
 
 export function fail(statusCode, message) {
   const e = new Error(message);
@@ -287,6 +288,7 @@ export function removeMember(chatId, userId, reason = 'left') {
   const r = run('DELETE FROM chat_members WHERE chat_id = ? AND user_id = ?', chatId, userId);
   if (!r.changes) return false;
   leaveChat(userId, chatId);
+  kickFromVoice(chatId, userId);
   toUser(userId, 'chat:removed', { chatId, reason });
   const chat = getChat(chatId);
   if (chat.type === 'group') {
