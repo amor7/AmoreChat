@@ -11,6 +11,8 @@ import { ffmpegAvailable } from '../media.js';
 import { effectiveLimits, cleanLimits } from '../limits.js';
 import { deleteMessage } from '../sweeper.js';
 import { kickEverywhere } from '../voice.js';
+import { series, recentAlerts, sample, netIsHostWide } from '../health.js';
+import { mirrorStatus } from '../backup.js';
 
 const need = (req, perm) => {
   if (!hasSitePerm(req.user, perm)) fail(403, 'دسترسی ندارید');
@@ -178,6 +180,18 @@ export default async function adminRoutes(app) {
          WHERE a.id < ? ORDER BY a.id DESC LIMIT 100`,
         before,
       ),
+    };
+  });
+
+  // Health dashboard: current values, history for the charts, alerts.
+  app.get('/api/admin/health', async (req) => {
+    need(req, 'view_audit');
+    return {
+      now: await sample(),
+      series: series(String(req.query.range || '24h')),
+      alerts: recentAlerts(),
+      netHostWide: netIsHostWide(),
+      mirror: mirrorStatus(),
     };
   });
 

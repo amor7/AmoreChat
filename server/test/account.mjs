@@ -300,6 +300,14 @@ assert.equal((await bob.call('DELETE', `/api/uploads/${r.id}`)).ok, true, 'cance
 r = await bob.call('POST', '/api/uploads', { name: 'empty.txt', size: 0 });
 assert.equal((await putChunk(bob, r.id, 0, Buffer.alloc(0))).status, 201, 'empty file');
 
+// ---- Health dashboard ----
+r = await owner.call('GET', '/api/admin/health?range=1h');
+assert.equal(r.status, 200, JSON.stringify(r));
+assert.ok(r.now.memTotal > 0 && r.now.diskTotal > 0, 'memory and disk measured');
+assert.ok(Array.isArray(r.series) && Array.isArray(r.alerts));
+assert.equal(r.mirror.enabled, false);
+assert.equal((await alice.call('GET', '/api/admin/health')).status, 403);
+
 // ---- Backups: owner only ----
 r = await alice.call('GET', '/api/admin/backups');
 assert.equal(r.status, 403);

@@ -75,6 +75,8 @@ export function connectSocket() {
     beep();
     st().showToast(`✋ ${name} دست بلند کرد${st().rtc?.chatId === chatId ? '' : ` (${st().chats[chatId]?.title || ''})`}`);
   });
+  // Server health alert (admins): toast now; the details are in Saved Messages and the dashboard.
+  socket.on('server:alert', ({ text }) => st().showToast(text));
   socket.on('emergency', (m) => m.sender?.id !== st().me?.id && useStore.setState({ emergency: m }));
 }
 

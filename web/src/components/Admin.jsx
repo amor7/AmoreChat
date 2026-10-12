@@ -6,9 +6,11 @@ import { Modal } from './Modals';
 import Avatar from './Avatar';
 import { LimitsEditor, Live, RtcSettings } from './AdminRtc';
 import { EmojiImg } from './Emoji';
-import { ChartColumn, Flag, Users as UsersIcon, Ticket, MessagesSquare, Radio, Settings as SettingsIcon, ScrollText, TriangleAlert, Megaphone, Volume2, SlidersHorizontal, DatabaseBackup, Download } from 'lucide-react';
+import Health from './Health';
+import { HeartPulse, ChartColumn, Flag, Users as UsersIcon, Ticket, MessagesSquare, Radio, Settings as SettingsIcon, ScrollText, TriangleAlert, Megaphone, Volume2, SlidersHorizontal, DatabaseBackup, Download } from 'lucide-react';
 
 const TABS = [
+  ['health', 'سلامت سرور', 'view_audit', HeartPulse],
   ['stats', 'آمار', 'view_audit', ChartColumn],
   ['reports', 'گزارش‌ها', 'handle_reports', Flag],
   ['users', 'کاربران', 'manage_users', UsersIcon],
@@ -34,6 +36,7 @@ export default function Admin({ onClose }) {
           </button>
         ))}
       </div>
+      {tab === 'health' && <Health />}
       {tab === 'stats' && <Stats />}
       {tab === 'reports' && <Reports />}
       {tab === 'users' && <Users />}

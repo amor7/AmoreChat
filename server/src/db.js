@@ -233,6 +233,33 @@ const migrations = [
     updated_at INTEGER NOT NULL
   );
   `,
+  // v7: server health (one sample a minute) and alerts; chat folders and pinned chats
+  `
+  CREATE TABLE metrics (
+    ts INTEGER PRIMARY KEY,
+    cpu REAL, load REAL, mem_used INTEGER, mem_total INTEGER, disk_used INTEGER, disk_total INTEGER,
+    net_rx REAL, net_tx REAL, online INTEGER, calls INTEGER, voice INTEGER, media INTEGER, app_mem INTEGER
+  );
+  CREATE TABLE alerts (
+    id INTEGER PRIMARY KEY,
+    key TEXT NOT NULL,
+    text TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    resolved_at INTEGER
+  );
+  CREATE INDEX alerts_open ON alerts(key, resolved_at);
+  ALTER TABLE chat_members ADD COLUMN pinned_at INTEGER;
+  CREATE TABLE chat_folders (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    emoji TEXT NOT NULL DEFAULT '',
+    position INTEGER NOT NULL DEFAULT 0,
+    chat_ids TEXT NOT NULL DEFAULT '[]',
+    filters TEXT NOT NULL DEFAULT '[]'
+  );
+  CREATE INDEX chat_folders_user ON chat_folders(user_id);
+  `,
 ];
 
 const current = db.prepare('PRAGMA user_version').get().user_version;

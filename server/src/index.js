@@ -26,6 +26,7 @@ import accountRoutes from './routes/account.js';
 import backupRoutes from './routes/backup.js';
 import appRoutes from './routes/app.js';
 import { startVoiceSync } from './voice.js';
+import { startHealth } from './health.js';
 import { setupRtcProxy } from './rtc-proxy.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -148,6 +149,7 @@ await app.listen({ port: PORT, host: HOST });
 scheduleBackups(app.log);
 startSweeper(app.log);
 startVoiceSync(app.log);
+startHealth(app.log);
 // When a video finishes processing, refresh every message that shows it.
 onMediaUpdate((fileId) => {
   for (const m of all('SELECT id, chat_id FROM messages WHERE file_id = ? AND deleted = 0', fileId)) {

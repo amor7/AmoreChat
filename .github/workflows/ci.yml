@@ -83,6 +83,9 @@ jobs:
           curl -sN --compressed --cacert /tmp/ca.crt -b /tmp/jar --max-time 5 https://127.0.0.1/api/notify/stream > /tmp/sse.txt || true
           cat /tmp/sse.txt
           grep -q 'connected' /tmp/sse.txt
+          # Health dashboard sees the whole server's traffic (host counters mounted read-only).
+          curl -sf --cacert /tmp/ca.crt -b /tmp/jar https://127.0.0.1/api/admin/health | tee /tmp/health.json | head -c 400; echo
+          grep -q '"netHostWide":true' /tmp/health.json
       - name: Offline update from a folder (no GitHub)
         run: |
           set -x -o pipefail

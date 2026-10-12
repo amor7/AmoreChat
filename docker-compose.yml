@@ -9,8 +9,13 @@ services:
       - LIVEKIT_URL=http://livekit:7880
       - LIVEKIT_API_KEY=amorechat
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-}
+      - BACKUP_MIRROR=${BACKUP_MIRROR_DIR:-}
     volumes:
       - ./data:/data
+      # Second backup copy (another disk / USB / network share): BACKUP_MIRROR_DIR in .env
+      - ${BACKUP_MIRROR_DIR:-./data/no-mirror}:/mirror
+      # Whole-server network traffic for the health dashboard (read-only)
+      - /proc/1/net/dev:/host/proc/1/net/dev:ro
     expose:
       - '3000'
 
