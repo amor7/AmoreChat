@@ -47,7 +47,10 @@ const browser = await puppeteer.launch({
     '--autoplay-policy=no-user-gesture-required',
     // A portrait "phone camera", to check desktop doesn't zoom it into a blur.
     ...(process.env.FAKE_VIDEO ? [`--use-file-for-fake-video-capture=${process.env.FAKE_VIDEO}`] : []),
+    // Isolated-network test: the server's own CA isn't installed in this browser.
+    ...(process.env.INSECURE ? ['--ignore-certificate-errors'] : []),
   ],
+  ...(process.env.INSECURE ? { acceptInsecureCerts: true } : {}),
 });
 
 async function openAs(client, label) {

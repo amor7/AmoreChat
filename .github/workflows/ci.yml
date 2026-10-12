@@ -150,3 +150,49 @@ jobs:
           path: |
             e2e-fail-*.png
             shot-*.png
+
+  # A full international shutdown: the stack and a Chrome client on a Docker network with
+  # NO route to the internet; the complete end-to-end suite runs inside it.
+  isolated:
+    runs-on: ubuntu-latest
+    env:
+      DC: docker compose -p iso -f docker-compose.yml -f docker-compose.isolated.yml
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare like install.sh (offline mode on a domain)
+        run: |
+          printf 'DOMAIN=chat.test\nTLS_MODE=internal\nPUBLIC_IP=172.30.0.10\nBACKUP_KEEP=14\nLOG_LEVEL=info\n' > .env
+          cp deploy/Caddyfile Caddyfile
+          mkdir -p data certs && sudo chown -R 1000:1000 data
+          sudo bash deploy/ensure-env.sh
+      - name: Build and pull everything while the runner still has internet
+        run: |
+          $DC build
+          $DC pull caddy livekit
+          docker build -t amorechat-e2e -f server/test/Dockerfile.e2e .
+      - name: Start the stack with no internet
+        run: |
+          $DC up -d
+          [ "$(docker network inspect iso_default --format '{{.Internal}}')" = "true" ]
+      - name: Prove there is no internet (server and client)
+        run: |
+          set -x
+          ! $DC exec -T app wget -q -T 8 -O /dev/null https://github.com
+          ! $DC exec -T app wget -q -T 8 -O /dev/null http://1.1.1.1
+          ! docker run --rm --network iso_default --entrypoint curl amorechat-e2e -sS -m 8 https://www.google.com
+          ! docker run --rm --network iso_default --entrypoint curl amorechat-e2e -sS -m 8 http://8.8.8.8
+      - name: Complete end-to-end test inside the isolated network
+        run: |
+          for i in $(seq 1 30); do $DC logs app | grep -q 'SETUP CODE' && break; sleep 2; done
+          CODE=$($DC logs app | grep -oP 'SETUP CODE: \K\S+' | tail -1)
+          docker run --name e2e --network iso_default amorechat-e2e https://chat.test "$CODE"
+      - name: Logs
+        if: always()
+        run: |
+          mkdir -p iso-out && docker cp e2e:/e2e/. iso-out/ 2>/dev/null || true
+          $DC logs --tail 80
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-screenshots
+          path: iso-out/*.png
