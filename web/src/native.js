@@ -27,6 +27,22 @@ export function installAppUpdate() {
   useStore.getState().showToast('این نسخه اپ خودش آپدیت نمی‌شود. آدرس ' + link + ' کپی شد؛ آن را یک بار در مرورگر گوشی باز کنید و نصب کنید.');
 }
 export const changeServer = () => bridge?.changeServer();
+
+// ---------- Several servers (Android app 0.8+) ----------
+export const multiServer = !!bridge?.servers;
+export function appServers() {
+  try {
+    return JSON.parse(bridge?.servers?.() || '[]');
+  } catch {
+    return [];
+  }
+}
+export const switchServer = (url) => bridge?.switchServer?.(url);
+export const addServer = () => bridge?.addServer?.();
+export const removeServer = (url) => bridge?.removeServer?.(url);
+export const appLockSupported = !!bridge?.setAppLock;
+export const appLockOn = () => !!bridge?.appLock?.();
+export const setAppLock = (on) => bridge?.setAppLock?.(!!on);
 export const nativeInCall = (on, title = '') => bridge?.inCall(!!on, String(title));
 
 /** Downloads go through the app (saved to the phone's Downloads, with a progress notification). */
@@ -60,6 +76,9 @@ async function handle(e) {
     } else {
       pendingAnswer = e.callId;
     }
+  } else if (e.type === 'servers' || e.type === 'lock') {
+    // Another server got a message (badges), or the app lock changed.
+    useStore.setState((s) => ({ nativeTick: (s.nativeTick || 0) + 1 }));
   } else if (e.type === 'share') {
     // Files come from a private URL the app serves; turn them into File objects.
     const files = [];

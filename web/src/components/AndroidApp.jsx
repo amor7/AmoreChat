@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, BatteryCharging, Bell, Server, Download, FileText, PhoneCall, Wifi, WifiOff } from 'lucide-react';
+import { Smartphone, BatteryCharging, Bell, Server, Download, FileText, PhoneCall, Wifi, WifiOff, Lock, Plus, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import { useStore } from '../store';
 import { postBlockReason, formatSize, toFa } from '../util';
-import { isAndroidApp, isAndroidBrowser, appInfo, setBackgroundConnection, openBatterySettings, openNotificationSettings, openFullScreenSettings, changeServer, installAppUpdate } from '../native';
+import { isAndroidApp, isAndroidBrowser, appInfo, setBackgroundConnection, openBatterySettings, openNotificationSettings, openFullScreenSettings, changeServer, installAppUpdate, multiServer, appServers, addServer, removeServer, appLockSupported, appLockOn, setAppLock } from '../native';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
 
@@ -51,6 +51,7 @@ export function ShareTarget({ files, text, onClose }) {
 
 // ---------- Profile section ----------
 export function AndroidSettings() {
+  useStore((s) => s.nativeTick);
   const [info, setInfo] = useState(() => appInfo());
   const [server, setServer] = useState(null);
   const refresh = () => setInfo(appInfo());
@@ -121,9 +122,39 @@ export function AndroidSettings() {
           <BatteryCharging size={17} /> برای اعلان مطمئن: محدودیت باتری را برای اپ بردارید
         </button>
       )}
-      <button className="btn wide" onClick={() => confirm('از این سرور خارج شوید و آدرس دیگری وارد کنید؟') && changeServer()}>
-        <Server size={17} /> تغییر سرور
-      </button>
+      {appLockSupported && (
+        <label className="check">
+          <input type="checkbox" checked={appLockOn()} onChange={(e) => setAppLock(e.target.checked)} />
+          <Lock size={15} /> قفل برنامه با اثر انگشت / چهره / رمز گوشی (بعد از ۱ دقیقه بیرون بودن؛ محتوا در لیست برنامه‌های اخیر هم پنهان می‌شود)
+        </label>
+      )}
+      {multiServer ? (
+        <>
+          <h5>سرورها</h5>
+          <p className="muted tiny">روی چند سرور AmoreChat هم‌زمان وارد باشید؛ پیام و تماس همه می‌آید. جابه‌جایی از منوی بالای لیست گفتگوها.</p>
+          <ul className="server-list">
+            {appServers().map((s) => (
+              <li key={s.url}>
+                <Server size={16} />
+                <span className="grow" dir="ltr">
+                  {s.name}
+                </span>
+                <small className={s.connected ? 'ok' : 'bad'}>{s.connected ? 'متصل' : s.status || '…'}</small>
+                <button className="icon-btn" aria-label="حذف" onClick={() => confirm(`از «${s.name}» در این گوشی خارج شوید؟`) && removeServer(s.url)}>
+                  <Trash2 size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <button className="btn wide" onClick={addServer}>
+            <Plus size={17} /> افزودن سرور دیگر
+          </button>
+        </>
+      ) : (
+        <button className="btn wide" onClick={() => confirm('از این سرور خارج شوید و آدرس دیگری وارد کنید؟') && changeServer()}>
+          <Server size={17} /> تغییر سرور
+        </button>
+      )}
       <p className="muted tiny">
         اگر بعد از بستن برنامه اعلان نمی‌آید: در تنظیمات گوشی برای AmoreChat «اجرای خودکار / Autostart» را روشن و محدودیت باتری را «بدون محدودیت» کنید (مخصوصاً شیائومی، سامسونگ و هوآوی). «توقف اجباری» (Force stop) برنامه را تا باز کردن دوباره کاملاً متوقف می‌کند.
       </p>

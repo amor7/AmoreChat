@@ -359,3 +359,53 @@
   background: #f59e0b;
   color: #fff;
 }
+
+/* ---------- Android: several servers ---------- */
+.server-switcher {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+}
+.server-switcher button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.server-switcher button.current {
+  color: var(--accent);
+  font-weight: 600;
+}
+.menu-btn {
+  position: relative;
+}
+.menu-dot {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+  box-shadow: 0 0 0 2px var(--panel);
+}
+.server-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+.server-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.server-list small.ok {
+  color: var(--ok);
+}
+.server-list small.bad {
+  color: var(--danger);
+  max-width: 45%;
+}

@@ -76,6 +76,10 @@ jobs:
           DATA_DIR=/tmp/hs-android PORT=3100 nohup node server/src/index.js > server-android.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:3100/healthz && break; sleep 1; done
           echo "SETUP_CODE=$(grep -oP 'SETUP CODE: \K\S+' server-android.log)" >> "$GITHUB_ENV"
+          # A second, separate AmoreChat server (multi-server test)
+          DATA_DIR=/tmp/hs-android2 PORT=3101 nohup node server/src/index.js > server-android2.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3101/healthz && break; sleep 1; done
+          echo "SETUP_CODE2=$(grep -oP 'SETUP CODE: \K\S+' server-android2.log)" >> "$GITHUB_ENV"
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -89,10 +93,10 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: node server/test/android-e2e.mjs "$SETUP_CODE" android-dist/amorechat-debug.apk
+          script: node server/test/android-e2e.mjs "$SETUP_CODE" android-dist/amorechat-debug.apk "$SETUP_CODE2"
       - name: Server log
         if: always()
-        run: cat server-android.log
+        run: cat server-android.log; tail -40 server-android2.log
       - uses: actions/upload-artifact@v4
         if: always()
         with:

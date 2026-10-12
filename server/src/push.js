@@ -53,7 +53,7 @@ function preview(m) {
 // (an @mention or a reply to you still gets through).
 export function notifyMessage(msg, senderId) {
   if (!streams.size || msg.type === 'system') return;
-  const chat = get('SELECT id, type, title FROM chats WHERE id = ?', msg.chatId);
+  const chat = get('SELECT id, type, title, avatar_file_id FROM chats WHERE id = ?', msg.chatId);
   if (!chat) return;
   const members = all('SELECT user_id, notify_muted_until FROM chat_members WHERE chat_id = ?', chat.id);
   for (const m of members) {
@@ -68,6 +68,20 @@ export function notifyMessage(msg, senderId) {
     const name = msg.sender?.displayName || '';
     const title = chat.type === 'dm' ? name : chat.type === 'saved' ? 'پیام‌های ذخیره‌شده' : chat.title;
     const body = chat.type === 'group' && name ? `${name}: ${preview(msg)}` : preview(msg);
-    pushTo([m.user_id], { type: 'message', chatId: chat.id, messageId: msg.id, title, body, mentioned });
+    pushTo([m.user_id], {
+      type: 'message',
+      chatId: chat.id,
+      messageId: msg.id,
+      title,
+      body,
+      mentioned,
+      // For a conversation-style notification with the sender's picture (app 0.8+).
+      text: preview(msg),
+      senderId: msg.sender?.id || 0,
+      senderName: name,
+      senderAvatar: msg.sender?.avatar || null,
+      chatAvatar: chat.type === 'dm' ? msg.sender?.avatar || null : chat.avatar_file_id || null,
+      group: chat.type === 'group' || chat.type === 'channel',
+    });
   }
 }

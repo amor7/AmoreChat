@@ -54,10 +54,18 @@
     <button class="alt" id="back2">بازگشت</button>
   </div>
 
+  <button class="alt hidden" id="cancelAdd">بازگشت</button>
   <div id="status" class="msg"></div>
 </div>
 <script>
   const $ = (id) => document.getElementById(id);
+  // Adding another server: the current one stays signed in.
+  if (location.search.includes('add=1')) {
+    document.querySelector('h1').textContent = 'افزودن سرور';
+    document.querySelector('.card > p').textContent = 'آدرس سرور دیگری را وارد کنید. حساب فعلی هم وارد می‌ماند و اعلان‌های هر دو می‌آید.';
+    $('cancelAdd').classList.remove('hidden');
+    $('cancelAdd').onclick = () => AmoreAndroid.cancelAdd();
+  }
   let found = null;
   function show(part) {
     for (const id of ['form', 'trust', 'insecure']) $(id).classList.toggle('hidden', id !== part);

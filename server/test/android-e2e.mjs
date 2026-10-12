@@ -8,6 +8,8 @@ import { execSync } from 'node:child_process';
 const SETUP = process.argv[2];
 const APK = process.argv[3];
 const HOST = 'http://127.0.0.1:3100';
+const SETUP2 = process.argv[4];
+const HOST2 = 'http://127.0.0.1:3101';
 const PKG = 'chat.amore.app.debug';
 const sleep = (ms) => new Promise((ok) => setTimeout(ok, ms));
 const adb = (cmd) => execSync(`adb ${cmd}`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -36,10 +38,10 @@ async function waitUntil(fn, what, timeout = 30000) {
   }
 }
 
-function client() {
+function client(base = HOST) {
   let cookie = '';
   return async (method, url, body) => {
-    const res = await fetch(HOST + url, {
+    const res = await fetch(base + url, {
       method,
       headers: { 'x-requested-with': 'amorechat', ...(body ? { 'content-type': 'application/json' } : {}), ...(cookie ? { cookie } : {}) },
       body: body && JSON.stringify(body),
@@ -205,6 +207,37 @@ try {
   await waitUntil(() => /packageinstaller/i.test(adb('shell dumpsys activity activities | grep -i -E "topResumedActivity|mResumedActivity"')), 'package installer opened');
   screenshot('installer');
   adb('shell input keyevent KEYCODE_BACK');
+
+  if (SETUP2) {
+    step('second server: add it and sign in; the first one stays signed in');
+    const owner2 = client(HOST2);
+    const bob2 = client(HOST2);
+    r = await owner2('POST', '/api/auth/register', { username: 'zahra', password: 'Str0ng-Pass-77', displayName: 'Zahra', invite: SETUP2 });
+    assert.equal(r.status, 200, JSON.stringify(r));
+    r = await owner2('POST', '/api/admin/invites', { maxUses: 1 });
+    r = await bob2('POST', '/api/auth/register', { username: 'bob', password: 'Str0ng-Pass-77', displayName: 'Bob 2', invite: r.invite.code });
+    const dm2 = (await owner2('POST', '/api/chats/dm', { userId: r.user.id })).chat.id;
+    adb(`shell am force-stop ${PKG}`);
+    // Another host name than the first server (cookies are per host, not per port).
+    adb('reverse tcp:3101 tcp:3101');
+    adb(`shell am start -n ${PKG}/chat.amore.app.MainActivity --es server http://localhost:3101`);
+    dt = await devtools();
+    await waitUntil(() => dt.evaluate("location.host === 'localhost:3101' && !!document.querySelector('.auth-card')"), 'login screen of the second server');
+    await dt.evaluate(`fetch('/api/auth/login', { method: 'POST', headers: { 'x-requested-with': 'amorechat', 'content-type': 'application/json' }, body: JSON.stringify({ username: 'bob', password: 'Str0ng-Pass-77' }) }).then((r) => r.status)`);
+    await dt.evaluate('location.reload(), true');
+    await waitUntil(() => dt.evaluate("location.host === 'localhost:3101' && !!document.querySelector('.sidebar .chat-item')"), 'second server chat list');
+    const servers = JSON.parse(await dt.evaluate('AmoreAndroid.servers()'));
+    assert.equal(servers.length, 2, JSON.stringify(servers));
+    await waitUntil(() => notifications().includes('متصل به 2 سرور'), 'background connection to both servers');
+
+    step('back on the first server: a message on the second one still notifies');
+    await dt.evaluate("AmoreAndroid.switchServer('http://10.0.2.2:3100'), true");
+    await waitUntil(() => dt.evaluate("location.host === '10.0.2.2:3100' && !!document.querySelector('.sidebar .chat-item')"), 'first server shown again, still signed in');
+    await owner2('POST', `/api/chats/${dm2}/messages`, { text: 'پیام از سرور دوم' });
+    await waitUntil(() => notifications().includes('پیام از سرور دوم'), 'notification from the other server');
+    await waitUntil(async () => JSON.parse(await dt.evaluate('AmoreAndroid.servers()')).find((x) => x.url.endsWith(':3101')).unread > 0, 'unread badge for the other server');
+    screenshot('multi-server');
+  }
 
   step('reboot-free restart: service survives the activity being closed');
   adb(`shell am force-stop ${PKG}`);

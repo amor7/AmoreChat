@@ -67,6 +67,17 @@ final class Trust {
         }
     }
 
+    /** CA stored for a given server (by URL or host). */
+    static X509Certificate caFor(Context c, String urlOrHost) {
+        String pem = Prefs.caFor(c, urlOrHost);
+        if (pem == null) return null;
+        try {
+            return parsePem(pem);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     static X509Certificate storedCa(Context c) {
         String pem = Prefs.ca(c);
         if (pem == null) return null;

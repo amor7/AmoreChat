@@ -19,7 +19,11 @@ final class Net {
 
     static HttpURLConnection open(Context c, String url, String method, X509Certificate extraCa) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        if (conn instanceof HttpsURLConnection) ((HttpsURLConnection) conn).setSSLSocketFactory(Trust.socketFactory(c, extraCa));
+        if (conn instanceof HttpsURLConnection) {
+            // Each server may have its own CA (offline installs).
+            X509Certificate ca = extraCa != null ? extraCa : Trust.caFor(c, new URL(url).getHost());
+            ((HttpsURLConnection) conn).setSSLSocketFactory(Trust.socketFactory(c, ca));
+        }
         String cookie = CookieManager.getInstance().getCookie(url);
         if (cookie != null) conn.setRequestProperty("Cookie", cookie);
         conn.setRequestProperty("x-requested-with", "amorechat");
@@ -46,15 +50,19 @@ final class Net {
         return new String(readBytes(in), StandardCharsets.UTF_8);
     }
 
-    /** Fire-and-forget POST with an empty JSON body (e.g. declining a call from the notification). */
+    /** POST with an empty JSON body to the current server (e.g. declining a call). */
     static int post(Context c, String path) {
-        String server = Prefs.server(c);
+        return post(c, Prefs.server(c), path, "{}");
+    }
+
+    /** POST a JSON body to a given server (notification actions: decline, reply, mark read). */
+    static int post(Context c, String server, String path, String json) {
         if (server == null) return 0;
         try {
             HttpURLConnection conn = open(c, server + path, "POST");
             conn.setDoOutput(true);
             conn.setRequestProperty("content-type", "application/json");
-            conn.getOutputStream().write("{}".getBytes(StandardCharsets.UTF_8));
+            conn.getOutputStream().write(json.getBytes(StandardCharsets.UTF_8));
             int code = conn.getResponseCode();
             conn.disconnect();
             return code;

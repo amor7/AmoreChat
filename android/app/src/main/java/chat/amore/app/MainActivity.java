@@ -69,6 +69,12 @@ public class MainActivity extends Activity {
     private final Map<String, Uri> shared = new ConcurrentHashMap<>();
     private volatile X509Certificate setupCa;
     private String[] pendingDownload;
+    private android.widget.FrameLayout root;
+    private android.view.View lockCover;
+    private boolean locked;
+    private long pausedAt;
+    private static java.lang.ref.WeakReference<MainActivity> current = new java.lang.ref.WeakReference<>(null);
+    private static final long LOCK_AFTER_MS = 60_000;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -81,8 +87,22 @@ public class MainActivity extends Activity {
         String testServer = getIntent().getStringExtra("server");
         if (BuildConfig.DEBUG && testServer != null) Prefs.setServer(this, testServer, null);
 
+        current = new java.lang.ref.WeakReference<>(this);
         web = new WebView(this);
-        setContentView(web);
+        root = new android.widget.FrameLayout(this);
+        root.setBackgroundColor(0xFF0B0E1A);
+        root.addView(web);
+        setContentView(root);
+        // Same on every Android version (15+ forces it): draw edge to edge, pad for the bars ourselves.
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        // Keep the page out from under the status / navigation bars and the keyboard.
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
+            androidx.core.graphics.Insets b = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()
+                    | androidx.core.view.WindowInsetsCompat.Type.ime() | androidx.core.view.WindowInsetsCompat.Type.displayCutout());
+            v.setPadding(b.left, b.top, b.right, b.bottom);
+            return androidx.core.view.WindowInsetsCompat.CONSUMED;
+        });
+        if (Prefs.appLock(this)) lock();
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -132,9 +152,96 @@ public class MainActivity extends Activity {
     }
 
     private boolean isServer(Uri u) {
-        String host = Prefs.serverHost(this);
-        return host != null && u != null && host.equalsIgnoreCase(u.getHost());
+        return u != null && Prefs.isKnownHost(this, u.getHost());
     }
+
+    /** Show another added server (its own account and cookies). */
+    private void showServer(String url) {
+        Prefs.switchTo(this, url);
+        Notifs.cancelAllMessages(this, url);
+        Notifs.clearUnread(url);
+        Trust.verifiedLeaves.clear();
+        pageReady = false;
+        web.clearHistory();
+        web.loadUrl(url + "/");
+    }
+
+    /** A notification arrived for some server: let the page refresh the server switcher badges. */
+    static void notifyUnreadChanged() {
+        MainActivity a = current.get();
+        if (a == null) return;
+        try {
+            a.toWeb(new JSONObject().put("type", "servers"));
+        } catch (Exception ignored) {
+        }
+    }
+
+    // ---------- App lock (fingerprint / face / screen lock) ----------
+
+    private void lock() {
+        if (locked) return;
+        locked = true;
+        getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+        if (lockCover == null) {
+            android.widget.LinearLayout cover = new android.widget.LinearLayout(this);
+            cover.setOrientation(android.widget.LinearLayout.VERTICAL);
+            cover.setGravity(android.view.Gravity.CENTER);
+            cover.setBackgroundColor(0xFF0B0E1A);
+            android.widget.TextView icon = new android.widget.TextView(this);
+            icon.setText("🔒");
+            icon.setTextSize(48);
+            icon.setGravity(android.view.Gravity.CENTER);
+            android.widget.Button open = new android.widget.Button(this);
+            open.setText("باز کردن AmoreChat");
+            open.setOnClickListener(v -> authenticate(this::unlock));
+            cover.addView(icon);
+            cover.addView(open);
+            lockCover = cover;
+        }
+        if (lockCover.getParent() == null) root.addView(lockCover, new android.widget.FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void unlock() {
+        locked = false;
+        if (lockCover != null) root.removeView(lockCover);
+        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE);
+    }
+
+    /** Fingerprint / face, or the phone's PIN / pattern; calls ok on success. */
+    private void authenticate(Runnable ok) {
+        android.app.KeyguardManager km = (android.app.KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        if (km == null || !km.isDeviceSecure()) {
+            Toast.makeText(this, "برای قفل برنامه، اول برای گوشی قفل صفحه (رمز، الگو یا اثر انگشت) بگذارید", Toast.LENGTH_LONG).show();
+            ok.run();
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 28) {
+            android.hardware.biometrics.BiometricPrompt.Builder b = new android.hardware.biometrics.BiometricPrompt.Builder(this)
+                    .setTitle("AmoreChat")
+                    .setSubtitle("برای باز کردن برنامه هویت خود را تأیید کنید");
+            if (Build.VERSION.SDK_INT >= 30) {
+                b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
+                        | android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+            } else {
+                b.setDeviceCredentialAllowed(true);
+            }
+            b.build().authenticate(new android.os.CancellationSignal(), getMainExecutor(),
+                    new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                        @Override
+                        public void onAuthenticationSucceeded(android.hardware.biometrics.BiometricPrompt.AuthenticationResult r) {
+                            ok.run();
+                        }
+                    });
+        } else {
+            pendingUnlock = ok;
+            Intent i = km.createConfirmDeviceCredentialIntent("AmoreChat", "برای باز کردن برنامه هویت خود را تأیید کنید");
+            if (i != null) startActivityForResult(i, REQ_UNLOCK);
+            else ok.run();
+        }
+    }
+
+    private Runnable pendingUnlock;
+    private static final int REQ_UNLOCK = 9;
 
     // ---------- Native -> web events ----------
 
@@ -167,6 +274,8 @@ public class MainActivity extends Activity {
             }
             // Other apps can start this activity too: only trust extras from our own notifications.
             if (!Prefs.intentKey(this).equals(intent.getStringExtra("k"))) return;
+            String srv = intent.getStringExtra("srv");
+            if (srv != null && Prefs.find(this, srv) != null && !srv.equals(Prefs.server(this))) showServer(srv);
             String chatId = intent.getStringExtra("chatId");
             if (chatId != null) toWeb(new JSONObject().put("type", "open-chat").put("chatId", Long.parseLong(chatId)));
             String answer = intent.getStringExtra("answerCall");
@@ -224,13 +333,20 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         visible = true;
-        Notifs.cancelAllMessages(this);
+        String srv = Prefs.server(this);
+        if (srv != null) {
+            Notifs.cancelAllMessages(this, srv);
+            Notifs.clearUnread(srv);
+        }
         setHidden(false);
+        if (Prefs.appLock(this) && pausedAt > 0 && System.currentTimeMillis() - pausedAt > LOCK_AFTER_MS) lock();
+        if (locked) authenticate(this::unlock);
     }
 
     @Override
     protected void onPause() {
         visible = false;
+        pausedAt = System.currentTimeMillis();
         setHidden(true);
         CookieManager.getInstance().flush();
         super.onPause();
@@ -254,6 +370,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_UNLOCK && pendingUnlock != null) {
+            Runnable r = pendingUnlock;
+            pendingUnlock = null;
+            if (resultCode == RESULT_OK) r.run();
+        }
         if (requestCode == REQ_FILE && fileCb != null) {
             fileCb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
             fileCb = null;
@@ -317,7 +438,7 @@ public class MainActivity extends Activity {
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
             Uri u = Uri.parse(error.getUrl());
-            X509Certificate ca = Trust.storedCa(MainActivity.this);
+            X509Certificate ca = Trust.caFor(MainActivity.this, u.getHost());
             X509Certificate leaf = Trust.leafOf(error.getCertificate());
             if (!isServer(u) || ca == null || leaf == null) {
                 handler.cancel();
@@ -469,11 +590,101 @@ public class MainActivity extends Activity {
             });
         }
 
+        /** Added servers: [{url, name, current, unread}] */
+        @JavascriptInterface
+        public String servers() {
+            JSONArray a = new JSONArray();
+            String cur = Prefs.server(MainActivity.this);
+            try {
+                for (Prefs.Server s : Prefs.servers(MainActivity.this)) {
+                    a.put(new JSONObject().put("url", s.url).put("name", s.name).put("current", s.url.equals(cur))
+                            .put("unread", Notifs.unreadFor(s.url)).put("status", NotifyService.statuses.get(s.url))
+                            .put("connected", Boolean.TRUE.equals(NotifyService.connections.get(s.url))));
+                }
+            } catch (Exception ignored) {
+            }
+            return a.toString();
+        }
+
+        @JavascriptInterface
+        public void switchServer(String url) {
+            if (Prefs.find(MainActivity.this, url) == null) return;
+            runOnUiThread(() -> showServer(url));
+        }
+
+        /** Add another server (the setup page); the current one stays signed in. */
+        @JavascriptInterface
+        public void addServer() {
+            runOnUiThread(() -> {
+                pageReady = false;
+                web.loadUrl(SETUP_URL + "?add=1");
+            });
+        }
+
+        @JavascriptInterface
+        public void cancelAdd() {
+            String cur = Prefs.server(MainActivity.this);
+            if (cur != null) runOnUiThread(() -> showServer(cur));
+        }
+
+        @JavascriptInterface
+        public void removeServer(String url) {
+            runOnUiThread(() -> {
+                Prefs.removeServer(MainActivity.this, url);
+                Notifs.cancelAllMessages(MainActivity.this, url);
+                NotifyService.kick(MainActivity.this);
+                String next = Prefs.server(MainActivity.this);
+                if (next == null) {
+                    NotifyService.stop(MainActivity.this);
+                    web.clearHistory();
+                    web.loadUrl(SETUP_URL);
+                } else {
+                    showServer(next);
+                }
+            });
+        }
+
+        /** Status / navigation bar color follows the page's theme. */
+        @JavascriptInterface
+        public void setBars(String color, boolean dark) {
+            runOnUiThread(() -> {
+                try {
+                    int c = android.graphics.Color.parseColor(color.trim());
+                    root.setBackgroundColor(c);
+                    getWindow().setStatusBarColor(c);
+                    getWindow().setNavigationBarColor(c);
+                    androidx.core.view.WindowInsetsControllerCompat w = androidx.core.view.WindowCompat.getInsetsController(getWindow(), root);
+                    w.setAppearanceLightStatusBars(!dark);
+                    w.setAppearanceLightNavigationBars(!dark);
+                } catch (Exception ignored) {
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public boolean appLock() {
+            return Prefs.appLock(MainActivity.this);
+        }
+
+        /** Turning the lock on (or off) asks for the fingerprint / screen lock first. */
+        @JavascriptInterface
+        public void setAppLock(boolean on) {
+            runOnUiThread(() -> authenticate(() -> {
+                Prefs.setAppLock(MainActivity.this, on);
+                try {
+                    toWeb(new JSONObject().put("type", "lock").put("on", on));
+                } catch (Exception ignored) {
+                }
+            }));
+        }
+
+        /** Old name: leaves the current server and adds another one. */
         @JavascriptInterface
         public void changeServer() {
             runOnUiThread(() -> {
-                NotifyService.stop(MainActivity.this);
-                Prefs.clearServer(MainActivity.this);
+                String cur = Prefs.server(MainActivity.this);
+                if (cur != null) Prefs.removeServer(MainActivity.this, cur);
+                NotifyService.kick(MainActivity.this);
                 Trust.verifiedLeaves.clear();
                 web.clearHistory();
                 web.loadUrl(SETUP_URL);
@@ -534,6 +745,7 @@ public class MainActivity extends Activity {
                 } catch (Exception ignored) {
                 }
                 Prefs.setServer(MainActivity.this, url, pem);
+                NotifyService.kick(MainActivity.this);
                 Trust.verifiedLeaves.clear();
                 web.clearHistory();
                 web.loadUrl(url + "/");

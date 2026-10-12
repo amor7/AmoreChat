@@ -4,7 +4,7 @@ import { MessageResults, openMessage } from './Modals';
 import { VoiceChannels } from './Voice';
 import { RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
-import { Menu, SquarePen, UserRound, Compass, Shield, LogOut, Users, Megaphone, Volume2, BellOff, Pin, FolderPlus } from 'lucide-react';
+import { Menu, SquarePen, UserRound, Compass, Shield, LogOut, Users, Megaphone, Volume2, BellOff, Pin, FolderPlus, Server, Plus } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api';
 import { disconnectSocket, isChatMuted } from '../socket';
@@ -12,6 +12,7 @@ import { clearOffline } from '../offline';
 import { formatListTime, messagePreview, toFa, hasSitePerm } from '../util';
 import Avatar from './Avatar';
 import Ping from './Ping';
+import { multiServer, appServers, switchServer, addServer } from '../native';
 
 const TYPE_ICON = { group: Users, channel: Megaphone, voice: Volume2 };
 
@@ -47,6 +48,7 @@ export default function Sidebar() {
   };
   const folder = folders.find((f) => f.id === folderId) || null;
   const [chatMenu, setChatMenu] = useState(null);
+  const otherUnread = useOtherServersUnread();
   const press = useRef(null);
   const pressedAt = useRef(0);
 
@@ -117,8 +119,9 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <header className="sidebar-head">
-        <button className="icon-btn" aria-label="منو" onClick={() => setMenu(!menu)}>
+        <button className="icon-btn menu-btn" aria-label="منو" onClick={() => setMenu(!menu)}>
           <Menu size={22} />
+          {otherUnread && <i className="menu-dot" />}
         </button>
         <input className="search" placeholder="جستجو" value={query} onChange={(e) => setQuery(e.target.value)} />
         {menu && (
@@ -132,6 +135,7 @@ export default function Sidebar() {
                   <small dir="ltr">@{me.username}</small>
                 </div>
               </div>
+              {multiServer && <ServerSwitcher onPick={() => setMenu(false)} />}
               {item(<><UserRound size={18} /> پروفایل و تنظیمات</>, () => openModal('profile'))}
               {item(<><SquarePen size={18} /> گفتگوی جدید</>, () => openModal('newChat'))}
               {item(<><Compass size={18} /> کاوش گروه‌ها و کانال‌ها</>, () => openModal('discover'))}
@@ -198,6 +202,47 @@ export default function Sidebar() {
       </button>
     </aside>
   );
+}
+
+// Android app: every added server, with unread counts from the background connection.
+function ServerSwitcher({ onPick }) {
+  useStore((s) => s.nativeTick);
+  const servers = appServers();
+  return (
+    <div className="server-switcher">
+      {servers.map((s) => (
+        <button
+          key={s.url}
+          className={s.current ? 'current' : ''}
+          onClick={() => {
+            onPick();
+            if (!s.current) switchServer(s.url);
+          }}
+        >
+          <Server size={17} />
+          <span className="grow" dir="ltr">
+            {s.name}
+          </span>
+          {!s.current && s.unread > 0 && <span className="badge">{s.unread}</span>}
+          {s.current && <span className="tag">فعلی</span>}
+        </button>
+      ))}
+      <button
+        onClick={() => {
+          onPick();
+          addServer();
+        }}
+      >
+        <Plus size={17} /> افزودن سرور دیگر
+      </button>
+    </div>
+  );
+}
+
+// A dot on the menu button when another server has unread messages.
+export function useOtherServersUnread() {
+  useStore((s) => s.nativeTick);
+  return multiServer ? appServers().some((s) => !s.current && s.unread > 0) : false;
 }
 
 const hasAnyAdminPerm = (me) =>
