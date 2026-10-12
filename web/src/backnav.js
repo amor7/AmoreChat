@@ -3,10 +3,34 @@
 // Each open layer adds one history entry; Back pops the top layer instead of navigating.
 import { useEffect, useRef } from 'react';
 
-const stack = []; // [{ id, close }]
+const stack = []; // [{ id, close, closedByBack }]
 let seq = 0;
+// A layer closed by its own button removes its history entry with history.back(), which
+// finishes later (popstate). A layer opened meanwhile (a menu item opening a dialog) must wait
+// for it, or that late "back" would land on the new layer and close it at once.
+let popping = 0;
+let queued = [];
+let popTimer;
+
+function flush() {
+  popping = 0;
+  clearTimeout(popTimer);
+  const q = queued;
+  queued = [];
+  for (const entry of q) if (stack.includes(entry)) history.pushState({ layer: entry.id }, '');
+}
+
+function push(entry) {
+  if (popping) queued.push(entry);
+  else history.pushState({ layer: entry.id }, '');
+}
 
 window.addEventListener('popstate', (e) => {
+  if (popping) {
+    // Our own history.back() arriving: nothing to close.
+    if (--popping === 0) flush();
+    return;
+  }
   const top = stack.at(-1);
   if (top && e.state?.layer !== top.id) {
     stack.pop();
@@ -43,13 +67,21 @@ export function useBackClose(open, close) {
     if (!open) return;
     const entry = { id: ++seq, close: () => closeRef.current(), closedByBack: false };
     stack.push(entry);
-    history.pushState({ layer: entry.id }, '');
+    push(entry);
     return () => {
-      // Closed by its own button (not by Back): remove our history entry too, but only if it
-      // is still the current one (opening a chat from a dialog already moved forward).
       const i = stack.indexOf(entry);
       if (i >= 0) stack.splice(i, 1);
-      if (!entry.closedByBack && history.state?.layer === entry.id) history.back();
+      if (entry.closedByBack) return;
+      const q = queued.indexOf(entry);
+      if (q >= 0) return void queued.splice(q, 1); // never got its entry
+      // Closed by its own button: remove our history entry too, but only if it is still the
+      // current one (opening a chat from a dialog already moved forward).
+      if (history.state?.layer === entry.id) {
+        popping++;
+        clearTimeout(popTimer);
+        popTimer = setTimeout(flush, 600); // safety: never wait forever
+        history.back();
+      }
     };
   }, [open]);
 }
