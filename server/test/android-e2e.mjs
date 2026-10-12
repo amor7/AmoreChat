@@ -113,6 +113,19 @@ async function devtools() {
   };
 }
 
+// A real tap (adb input) on the element's centre: page px -> screen px, offset by where the WebView sits.
+async function tap(dt, selector) {
+  const xml = adb('exec-out uiautomator dump /dev/tty');
+  const m = xml.match(/class="android\.webkit\.WebView"[^>]*bounds="\[(\d+),(\d+)\]/);
+  const [left, top] = m ? [+m[1], +m[2]] : [0, 0];
+  const p = JSON.parse(
+    await dt.evaluate(
+      `(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2, d: devicePixelRatio }); })()`,
+    ),
+  );
+  adb(`shell input tap ${Math.round(left + p.x * p.d)} ${Math.round(top + p.y * p.d)}`);
+}
+
 // Active notifications only: dumpsys also lists recently removed ones (archive / history).
 const notifications = () => {
   const all = adb('shell dumpsys notification --noredact');
@@ -230,11 +243,11 @@ try {
   step("phone Back goes step by step: profile popup, then chat, then chat list");
   await dt.evaluate("location.hash = '#/', true");
   await waitUntil(() => dt.evaluate("!!document.querySelector('.sidebar .chat-item')"), 'chat list');
-  await dt.evaluate(`document.querySelector('.sidebar a.chat-item[href="#/chat/${dm}"]').click(), true`);
+  await tap(dt, `.sidebar a.chat-item[href="#/chat/${dm}"]`);
   await waitUntil(() => dt.evaluate("!!document.querySelector('.chat-head .chat-head-info')"), 'chat opened');
   // The back arrow sits on the left of the header (RTL) and points left.
   assert.equal(await dt.evaluate("(() => { const b = document.querySelector('.chat-head .back').getBoundingClientRect(); return b.width > 0 && b.right < innerWidth / 2; })()"), true, 'back arrow on the left');
-  await dt.evaluate("document.querySelector('.chat-head .chat-head-info').click(), true");
+  await tap(dt, '.chat-head .chat-head-info');
   await waitUntil(() => dt.evaluate("!!document.querySelector('.modal')"), 'profile popup open');
   screenshot('back-1-popup');
   adb('shell input keyevent KEYCODE_BACK');

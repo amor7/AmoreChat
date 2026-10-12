@@ -372,8 +372,12 @@ public class MainActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        if (web.canGoBack()) web.goBack();
-        else moveTaskToBack(true);
+        // The page closes its open dialog / menu first (step-by-step Back); otherwise history.
+        web.evaluateJavascript("window.__amoreBack ? window.__amoreBack() : false", (handled) -> {
+            if ("true".equals(handled)) return;
+            if (web.canGoBack()) web.goBack();
+            else moveTaskToBack(true);
+        });
     }
 
     @Override

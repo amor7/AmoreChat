@@ -18,6 +18,23 @@ window.addEventListener('popstate', (e) => {
   if (!top && e.state?.layer) history.back();
 });
 
+// Android app's Back button asks here first: close the top layer directly (also works for
+// dialogs opened without a tap, whose history entry the WebView would skip), and from a chat
+// opened directly (a notification, a link) go to the chat list. false = use history.
+window.__amoreBack = () => {
+  const top = stack.at(-1);
+  if (top) {
+    top.close();
+    return true;
+  }
+  if (location.hash.startsWith('#/chat/') && !history.state?.fromList) {
+    history.replaceState(null, '', '#/');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    return true;
+  }
+  return false;
+};
+
 /** Registers a closable layer while `open` is true. */
 export function useBackClose(open, close) {
   const closeRef = useRef(close);
