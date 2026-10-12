@@ -131,6 +131,45 @@ const bobId = r.user.id;
 const dm = (await owner('POST', '/api/chats/dm', { userId: bobId })).chat.id;
 
 try {
+  if (process.env.ISOLATE) {
+    // A full shutdown on the phone: only the AmoreChat servers (on the host, 10.0.2.2 /
+    // adb reverse on localhost) are reachable; everything else, DNS included, is refused.
+    step('cut the phone off the internet: only the AmoreChat servers stay reachable');
+    adb('root');
+    await sleep(4000);
+    adb('wait-for-device');
+    for (const rule of [
+      'iptables -I OUTPUT 1 -o lo -j ACCEPT',
+      'iptables -I OUTPUT 2 -m state --state ESTABLISHED,RELATED -j ACCEPT',
+      'iptables -I OUTPUT 3 -d 10.0.2.2 -j ACCEPT',
+      'iptables -I OUTPUT 4 -j REJECT',
+      'ip6tables -I OUTPUT 1 -o lo -j ACCEPT',
+      'ip6tables -I OUTPUT 2 -j REJECT',
+    ]) {
+      adb(`shell ${rule}`);
+    }
+    const reaches = (host) => {
+      try {
+        adb(`shell ping -c 1 -W 3 ${host}`);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    assert.equal(reaches('8.8.8.8'), false, 'internet IP must be unreachable');
+    assert.equal(reaches('www.google.com'), false, 'internet names must not resolve / connect');
+    const http = (url) => {
+      try {
+        return adb(`shell "toybox wget -q -O - -T 5 ${url} 2>&1 || echo FAILED"`);
+      } catch (e) {
+        return 'FAILED ' + e.message;
+      }
+    };
+    assert.match(http('http://1.1.1.1/'), /FAILED|unreachable|refused|error/i, 'no HTTP to the internet');
+    assert.match(http('http://10.0.2.2:3100/healthz'), /"ok":true/, 'the AmoreChat server is reachable');
+    console.log('   phone is offline except for the AmoreChat servers');
+  }
+
   step('install and open the app pointed at the test server');
   adb(`install -r -g ${APK}`);
   adb(`shell pm grant ${PKG} android.permission.POST_NOTIFICATIONS`);
