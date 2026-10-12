@@ -158,15 +158,18 @@ try {
     };
     assert.equal(reaches('8.8.8.8'), false, 'internet IP must be unreachable');
     assert.equal(reaches('www.google.com'), false, 'internet names must not resolve / connect');
-    const http = (url) => {
+    // Raw HTTP with Android's own nc (there is no wget/curl on the phone).
+    const http = (host, port, path) => {
       try {
-        return adb(`shell "toybox wget -q -O - -T 5 ${url} 2>&1 || echo FAILED"`);
+        return adb(`shell "printf 'GET ${path} HTTP/1.0\\r\\nHost: ${host}\\r\\n\\r\\n' | nc -w 5 ${host} ${port} 2>&1; echo END"`);
       } catch (e) {
         return 'FAILED ' + e.message;
       }
     };
-    assert.match(http('http://1.1.1.1/'), /FAILED|unreachable|refused|error/i, 'no HTTP to the internet');
-    assert.match(http('http://10.0.2.2:3100/healthz'), /"ok":true/, 'the AmoreChat server is reachable');
+    const internet = http('1.1.1.1', 80, '/');
+    assert.ok(!/HTTP\/1\.[01] \d/.test(internet), `no HTTP to the internet: ${internet}`);
+    const server = http('10.0.2.2', 3100, '/healthz');
+    assert.match(server, /"ok":true/, `the AmoreChat server is reachable: ${server}`);
     console.log('   phone is offline except for the AmoreChat servers');
   }
 
