@@ -123,7 +123,7 @@ for (const [label, viewport] of [
       await backCloses('forward dialog');
     } else {
       await waitFor(() => !document.querySelector('.menu.floating'), null, 'menu closed after reply');
-      assert.ok(await page.evaluate(() => document.querySelector('.composer')?.textContent.includes('menu me')), 'replying to the message');
+      assert.ok(await page.evaluate(() => document.querySelector('.composer-wrap')?.textContent.includes('menu me')), 'replying to the message');
     }
   }
 
