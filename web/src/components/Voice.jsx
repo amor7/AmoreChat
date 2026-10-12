@@ -32,6 +32,7 @@ import Avatar from './Avatar';
 import Ping from './Ping';
 import CallView from './CallView';
 import { VolumeSlider, StagePanel, isStageAdmin } from './VoiceTools';
+import { useBackClose } from '../backnav';
 import { useSmartFit } from '../smartFit';
 import {
   joinVoice,
@@ -327,6 +328,7 @@ export function RoomView() {
   // null = automatic, 'grid' = user asked for everyone, otherwise the key of the spotlighted tile.
   const [spot, setSpot] = useState(null);
   const [gridRef, size] = useSize();
+  useBackClose(!!rtc?.expanded, () => useStore.setState((s) => ({ rtc: s.rtc && { ...s.rtc, expanded: false } })));
 
   if (!rtc?.expanded) return null;
   // 1:1 calls get their own WhatsApp-style screen.

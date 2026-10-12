@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useStore } from '../store';
 import { isChatMuted } from '../socket';
 import { Modal } from './Modals';
+import { useBackClose } from '../backnav';
 import Avatar from './Avatar';
 
 export const FOLDER_TYPES = [
@@ -69,6 +70,7 @@ export function ChatMenu({ chat, x, y, onClose }) {
   const openModal = useStore((s) => s.openModal);
   const ref = useRef(null);
   const openedAt = useRef(Date.now());
+  useBackClose(true, onClose);
   const [pos, setPos] = useState({ left: x, top: y });
   useLayoutEffect(() => {
     const r = ref.current.getBoundingClientRect();

@@ -9,10 +9,11 @@ import { VoiceBanner } from './Voice';
 import { isStageAdmin } from './VoiceTools';
 import { EmojiImg, EmojiPicker, RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
-import { ArrowRight, ChevronDown, Timer, Phone, Video, Mic, Search, Pin, PinOff, Reply, Forward, Copy, Pencil, Flag, Trash2, Plus, Eye, BellOff } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Timer, Phone, Video, Mic, Search, Pin, PinOff, Reply, Forward, Copy, Pencil, Flag, Trash2, Plus, Eye, BellOff } from 'lucide-react';
 import { startCall, joinVoice } from '../rtc';
 import { isChatMuted } from '../socket';
 import { outboxMessage, retryOutbox, dropFromOutbox } from '../offline';
+import { useBackClose } from '../backnav';
 
 export default function ChatView({ chatId }) {
   const chat = useStore((s) => s.chats[chatId]);
@@ -305,9 +306,6 @@ function ChatHeader({ chat }) {
 
   return (
     <header className="chat-head">
-      <a className="icon-btn back" href="#/" aria-label="بازگشت">
-        <ArrowRight size={22} />
-      </a>
       <button className="chat-head-info" onClick={() => chat.type !== 'saved' && openModal('chatInfo', { chatId: chat.id })}>
         <Avatar id={chat.id} name={chat.title} file={chat.avatar} saved={chat.type === 'saved'} size={40} />
         <div>
@@ -336,6 +334,19 @@ function ChatHeader({ chat }) {
       <button className="icon-btn" aria-label="جستجو در این گفتگو" onClick={() => openModal('search', { chatId: chat.id })}>
         <Search size={20} />
       </button>
+      <a
+        className="icon-btn back"
+        href="#/"
+        aria-label="بازگشت"
+        onClick={(e) => {
+          if (history.state?.fromList) {
+            e.preventDefault();
+            history.back();
+          }
+        }}
+      >
+        <ArrowLeft size={22} />
+      </a>
     </header>
   );
 }
@@ -377,6 +388,7 @@ function PinnedBar({ chat, messages, onJump }) {
 
 function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, canReaders, onAction, onClose: close }) {
   const ref = useRef(null);
+  useBackClose(true, close);
   // Ignore the touch events that opened the menu (finger lifting, Android's own contextmenu).
   const openedAt = useRef(Date.now());
   const onClose = (e) => {

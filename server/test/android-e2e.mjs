@@ -222,6 +222,25 @@ try {
     return i.connected === true && i.status === 'متصل';
   }, 'status "connected" reported to the page');
 
+  step("phone Back goes step by step: profile popup, then chat, then chat list");
+  await dt.evaluate("location.hash = '#/', true");
+  await waitUntil(() => dt.evaluate("!!document.querySelector('.sidebar .chat-item')"), 'chat list');
+  await dt.evaluate(`document.querySelector('.sidebar a.chat-item[href="#/chat/${dm}"]').click(), true`);
+  await waitUntil(() => dt.evaluate("!!document.querySelector('.chat-head .chat-head-info')"), 'chat opened');
+  // The back arrow sits on the left of the header (RTL) and points left.
+  assert.equal(await dt.evaluate("(() => { const b = document.querySelector('.chat-head .back').getBoundingClientRect(); return b.width > 0 && b.right < innerWidth / 2; })()"), true, 'back arrow on the left');
+  await dt.evaluate("document.querySelector('.chat-head .chat-head-info').click(), true");
+  await waitUntil(() => dt.evaluate("!!document.querySelector('.modal')"), 'profile popup open');
+  screenshot('back-1-popup');
+  adb('shell input keyevent KEYCODE_BACK');
+  await waitUntil(() => dt.evaluate("!document.querySelector('.modal')"), 'Back closed the popup');
+  await sleep(800);
+  assert.equal(await dt.evaluate('location.hash'), `#/chat/${dm}`, 'still in the chat after closing the popup');
+  adb('shell input keyevent KEYCODE_BACK');
+  await waitUntil(async () => !(await dt.evaluate('location.hash')).startsWith('#/chat/'), 'Back returned to the chat list');
+  assert.equal(await dt.evaluate("!!document.querySelector('.sidebar .chat-item')"), true, 'chat list visible');
+  screenshot('back-2-list');
+
   step('share a file from another app into AmoreChat and send it');
   adb(`shell mkdir -p /sdcard/Android/data/${PKG}/files`);
   adb(`shell "echo hello-share > /sdcard/Android/data/${PKG}/files/share-test.txt"`);

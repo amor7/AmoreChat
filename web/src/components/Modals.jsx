@@ -14,6 +14,7 @@ import Admin from './Admin';
 import { Readers } from './ChatExtras';
 import { ShareTarget } from './AndroidApp';
 import { FoldersModal, FolderEditor } from './Folders';
+import { useBackClose } from '../backnav';
 
 export function Modal({ title, onClose, children, size = '' }) {
   useEffect(() => {
@@ -306,6 +307,7 @@ function ImageViewer({ fileId, name, onClose }) {
 export default function Modals() {
   const modal = useStore((s) => s.modal);
   const close = useStore((s) => s.closeModal);
+  useBackClose(!!modal, close);
   if (!modal) return null;
   switch (modal.type) {
     case 'newChat':

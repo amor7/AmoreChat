@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FolderTabs, ChatMenu, inFolder, sortChats } from './Folders';
+import { useBackClose } from '../backnav';
 import { MessageResults, openMessage } from './Modals';
 import { VoiceChannels } from './Voice';
 import { RichText } from './Emoji';
@@ -73,6 +74,16 @@ export default function Sidebar() {
 
   // Long-press (phones) or right-click (desktop) on a chat: pin, mute, read, folders.
   const itemProps = (c) => ({
+    onClick: (e) => {
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.button) return;
+      e.preventDefault();
+      const to = `#/chat/${c.id}`;
+      if (location.hash === to) return;
+      // From the list: Back (arrow or phone button) returns to the list.
+      if (location.hash.startsWith('#/chat/')) history.replaceState({ fromList: true }, '', to);
+      else history.pushState({ fromList: true }, '', to);
+      window.dispatchEvent(new HashChangeEvent('hashchange'));
+    },
     onContextMenu: (e) => {
       e.preventDefault();
       if (Date.now() - pressedAt.current < 1500) return;
@@ -104,6 +115,8 @@ export default function Sidebar() {
     location.hash = '';
     location.reload();
   }
+
+  useBackClose(menu, () => setMenu(false));
 
   const item = (label, action) => (
     <button
