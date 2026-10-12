@@ -244,6 +244,22 @@ try {
   adb(`shell am start -n ${PKG}/chat.amore.app.MainActivity`);
   await waitUntil(() => /NotifyService/.test(adb(`shell dumpsys activity services ${PKG}`)), 'service restarted with the app');
 
+  step('app lock with a real screen lock: no crash, unlocks with the phone PIN');
+  adb('shell locksettings set-pin 1111');
+  dt = await devtools();
+  await waitUntil(() => dt.evaluate("!!document.querySelector('.sidebar')"), 'app ready');
+  adb('logcat -c');
+  await dt.evaluate('AmoreAndroid.setAppLock(true), true');
+  await sleep(3000);
+  screenshot('lock-prompt');
+  const crash = adb('logcat -d -s AndroidRuntime:E');
+  assert.ok(!/FATAL EXCEPTION/.test(crash), `app crashed:\n${crash}`);
+  assert.ok(adb(`shell pidof ${PKG}`).trim(), 'app still running');
+  adb('shell input text 1111');
+  adb('shell input keyevent KEYCODE_ENTER');
+  await waitUntil(async () => (await dt.evaluate('AmoreAndroid.appLock()')) === true, 'lock turned on after confirming the PIN');
+  adb('shell locksettings clear --old 1111');
+
   console.log('\nANDROID E2E TEST PASSED');
 } catch (e) {
   console.error(e);

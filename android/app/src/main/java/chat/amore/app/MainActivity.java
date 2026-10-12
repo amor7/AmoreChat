@@ -216,27 +216,36 @@ public class MainActivity extends Activity {
             return;
         }
         if (Build.VERSION.SDK_INT >= 28) {
-            android.hardware.biometrics.BiometricPrompt.Builder b = new android.hardware.biometrics.BiometricPrompt.Builder(this)
-                    .setTitle("AmoreChat")
-                    .setSubtitle("برای باز کردن برنامه هویت خود را تأیید کنید");
-            if (Build.VERSION.SDK_INT >= 30) {
-                b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
-                        | android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
-            } else {
-                b.setDeviceCredentialAllowed(true);
+            try {
+                android.hardware.biometrics.BiometricPrompt.Builder b = new android.hardware.biometrics.BiometricPrompt.Builder(this)
+                        .setTitle("AmoreChat")
+                        .setSubtitle("برای باز کردن برنامه هویت خود را تأیید کنید");
+                if (Build.VERSION.SDK_INT >= 30) {
+                    b.setAllowedAuthenticators(android.hardware.biometrics.BiometricManager.Authenticators.BIOMETRIC_WEAK
+                            | android.hardware.biometrics.BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+                } else {
+                    b.setDeviceCredentialAllowed(true);
+                }
+                b.build().authenticate(new android.os.CancellationSignal(), getMainExecutor(),
+                        new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
+                            @Override
+                            public void onAuthenticationSucceeded(android.hardware.biometrics.BiometricPrompt.AuthenticationResult r) {
+                                ok.run();
+                            }
+                        });
+                return;
+            } catch (Exception e) {
+                // Some phones refuse the fingerprint prompt: fall back to the phone's PIN / pattern screen.
             }
-            b.build().authenticate(new android.os.CancellationSignal(), getMainExecutor(),
-                    new android.hardware.biometrics.BiometricPrompt.AuthenticationCallback() {
-                        @Override
-                        public void onAuthenticationSucceeded(android.hardware.biometrics.BiometricPrompt.AuthenticationResult r) {
-                            ok.run();
-                        }
-                    });
-        } else {
-            pendingUnlock = ok;
+        }
+        pendingUnlock = ok;
+        try {
             Intent i = km.createConfirmDeviceCredentialIntent("AmoreChat", "برای باز کردن برنامه هویت خود را تأیید کنید");
             if (i != null) startActivityForResult(i, REQ_UNLOCK);
             else ok.run();
+        } catch (Exception e) {
+            pendingUnlock = null;
+            Toast.makeText(this, "تأیید هویت روی این گوشی ممکن نشد", Toast.LENGTH_LONG).show();
         }
     }
 
