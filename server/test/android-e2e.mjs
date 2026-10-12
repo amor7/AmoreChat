@@ -165,7 +165,12 @@ try {
     }
     const google = await probe('https://www.google.com/');
     const cloudflare = await probe('http://1.1.1.1/');
-    const ours = await probe('http://10.0.2.2:3100/healthz');
+    let ours;
+    for (let i = 0; i < 3 && ours !== 'HTTP 200'; i++) {
+      if (i) await sleep(2000);
+      ours = await probe('http://10.0.2.2:3100/healthz');
+    }
+    if (ours !== 'HTTP 200') console.log(adb('shell iptables -S OUTPUT'));
     console.log('   after, google:', google, '| 1.1.1.1:', cloudflare, '| AmoreChat server:', ours);
     assert.match(google, /^ERR/, 'the internet (by name) is unreachable from the app');
     assert.match(cloudflare, /^ERR/, 'the internet (by IP) is unreachable from the app');
