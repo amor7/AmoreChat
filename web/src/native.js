@@ -18,6 +18,14 @@ export const setBackgroundConnection = (on) => bridge?.setBackground(!!on);
 export const openBatterySettings = () => bridge?.batterySettings();
 export const openNotificationSettings = () => bridge?.notificationSettings();
 export const openFullScreenSettings = () => bridge?.fullScreenSettings?.();
+/** Newer apps install the update themselves; older ones get the APK link (their download handler). */
+export function installAppUpdate() {
+  if (bridge?.installUpdate) return bridge.installUpdate();
+  // Apps before 0.7.2 can't download inside the app: install this one update from the browser.
+  const link = location.origin + '/app';
+  navigator.clipboard?.writeText(link).catch(() => {});
+  useStore.getState().showToast('این نسخه اپ خودش آپدیت نمی‌شود. آدرس ' + link + ' کپی شد؛ آن را یک بار در مرورگر گوشی باز کنید و نصب کنید.');
+}
 export const changeServer = () => bridge?.changeServer();
 export const nativeInCall = (on, title = '') => bridge?.inCall(!!on, String(title));
 

@@ -3,7 +3,7 @@ import { Smartphone, BatteryCharging, Bell, Server, Download, FileText, PhoneCal
 import { api } from '../api';
 import { useStore } from '../store';
 import { postBlockReason, formatSize, toFa } from '../util';
-import { isAndroidApp, isAndroidBrowser, appInfo, setBackgroundConnection, openBatterySettings, openNotificationSettings, openFullScreenSettings, changeServer } from '../native';
+import { isAndroidApp, isAndroidBrowser, appInfo, setBackgroundConnection, openBatterySettings, openNotificationSettings, openFullScreenSettings, changeServer, installAppUpdate } from '../native';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
 
@@ -86,9 +86,9 @@ export function AndroidSettings() {
     <>
       <h4>اپ اندروید</h4>
       {outdated && (
-        <a className="btn primary wide" href="/app/amorechat.apk">
+        <button className="btn primary wide" onClick={installAppUpdate}>
           <Download size={17} /> نسخه جدید اپ ({server.version}) — دانلود و نصب
-        </a>
+        </button>
       )}
       <label className="check">
         <input

@@ -199,6 +199,13 @@ try {
   await dt.evaluate("[...document.querySelectorAll('.modal .btn.primary')].find((b) => b.textContent.includes('ارسال')).click(), true");
   await waitUntil(async () => (await owner('GET', `/api/chats/${dm}/messages`)).messages.some((m) => m.file?.name === 'share-test.txt'), 'shared file arrived in the chat');
 
+  step('in-app update: downloads the APK from the server and opens Android installer');
+  adb(`shell appops set ${PKG} REQUEST_INSTALL_PACKAGES allow`);
+  await dt.evaluate('AmoreAndroid.installUpdate(), true');
+  await waitUntil(() => /packageinstaller/i.test(adb('shell dumpsys activity activities | grep -i -E "topResumedActivity|mResumedActivity"')), 'package installer opened');
+  screenshot('installer');
+  adb('shell input keyevent KEYCODE_BACK');
+
   step('reboot-free restart: service survives the activity being closed');
   adb(`shell am force-stop ${PKG}`);
   adb(`shell am start -n ${PKG}/chat.amore.app.MainActivity`);

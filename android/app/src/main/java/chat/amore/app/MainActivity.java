@@ -97,6 +97,19 @@ public class MainActivity extends Activity {
         web.addJavascriptInterface(new Bridge(), "AmoreAndroid");
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
+        // Links that download (backups, files, the app update) go to our downloader:
+        // a WebView ignores them otherwise.
+        web.setDownloadListener((url, userAgent, contentDisposition, mime, length) -> {
+            Uri u = Uri.parse(url);
+            if (!isServer(u)) return;
+            if (url.endsWith(".apk") || "application/vnd.android.package-archive".equals(mime)) {
+                Updater.install(this, url);
+                return;
+            }
+            String name = android.webkit.URLUtil.guessFileName(url, contentDisposition, mime);
+            Downloader.start(this, url, name, mime);
+            Toast.makeText(this, "دانلود شروع شد", Toast.LENGTH_SHORT).show();
+        });
 
         String server = Prefs.server(this);
         if (server == null) {
@@ -434,6 +447,13 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void notificationSettings() {
             runOnUiThread(() -> startActivity(new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, getPackageName())));
+        }
+
+        /** Download the newer APK from the server and open Android's installer. */
+        @JavascriptInterface
+        public void installUpdate() {
+            String server = Prefs.server(MainActivity.this);
+            if (server != null) runOnUiThread(() -> Updater.install(MainActivity.this, server + "/app/amorechat.apk"));
         }
 
         @JavascriptInterface
