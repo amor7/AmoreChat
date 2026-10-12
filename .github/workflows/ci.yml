@@ -85,11 +85,11 @@ jobs:
           grep -q 'connected' /tmp/sse.txt
       - name: Offline update from a folder (no GitHub)
         run: |
-          set -x
+          set -x -o pipefail
           mkdir -p /tmp/rel
           git archive --format=tar.gz --prefix=amorechat/ -o /tmp/rel/amorechat-source.tar.gz HEAD
           sudo FORCE=1 bash deploy/update.sh /tmp/rel 2>&1 | tee /tmp/update.log
-          grep -q 'Installed: ' /tmp/update.log
+          grep -q 'is running' /tmp/update.log
           for i in $(seq 1 60); do curl -sf --cacert /tmp/ca.crt https://127.0.0.1/healthz && break; sleep 2; done
           curl -sf --cacert /tmp/ca.crt https://127.0.0.1/api/config | grep -q '"version"'
       - name: Logs

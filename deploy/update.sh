@@ -41,7 +41,7 @@ if [ "$CURRENT" = "$TAG" ] && [ "${FORCE:-}" != "1" ]; then
   exit 0
 fi
 LOWEST=$(printf '%s\n%s\n' "${CURRENT#v}" "${TAG#v}" | sort -V | head -n1)
-if [ "$LOWEST" = "${TAG#v}" ]; then
+if [ "$CURRENT" != "$TAG" ] && [ "$LOWEST" = "${TAG#v}" ]; then
   echo "!! ${TAG} is OLDER than ${CURRENT}. A newer database may not work with an older version."
   echo "   A backup is taken first; to restore it see README (Backup and restore)."
   read -rp "Continue with the downgrade? [y/N] " ok </dev/tty
