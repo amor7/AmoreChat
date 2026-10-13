@@ -217,7 +217,11 @@ try {
   await waitFor(A, () => document.querySelector('.voice-bar .dot.connected'), null, 'owner connected again');
   await A.click('.vbar-info');
   await A.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
-  await clickText(A, '.modal .btn.primary', 'شروع');
+  // A real mouse click: the dialog must be on top of the full-screen room (it once opened behind it).
+  await waitFor(A, () => !!document.querySelector('.modal .btn.primary'), null, 'stream dialog');
+  const onTop = await A.$eval('.modal .btn.primary', (b) => { const r = b.getBoundingClientRect(); return b.contains(document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)); });
+  assert.ok(onTop, 'the stream dialog is visible above the room');
+  await A.click('.modal .btn.primary');
   await waitFor(A, () => document.querySelector('.room-view .ctl.on[title="اشتراک صفحه (استریم)"]'), null, 'owner is sharing');
   await B.goto(`${BASE}/#/chat/${lobby}`, { waitUntil: 'networkidle0' });
   await waitFor(B, () => document.querySelector('.vc-user .live-badge'), null, 'LIVE badge in sidebar');
