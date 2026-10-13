@@ -169,6 +169,22 @@ export default function Health() {
       <h4>دیسک (٪)</h4>
       <Chart points={pts.map((p) => ({ t: p.t, disk: pct(p.diskUsed, p.diskTotal) }))} lines={[{ key: 'disk', label: 'دیسک', color: '#ef4444' }]} max={100} format={(v) => `${toFa(Math.round(v))}٪`} height={80} />
 
+      {data.cert && (
+        <>
+          <h4>گواهی HTTPS</h4>
+          {data.cert.error ? (
+            <p className="muted">بررسی نشد ({data.cert.error})</p>
+          ) : (
+            <p className={data.cert.mode !== 'internal' && data.cert.daysLeft < 20 ? 'health-alert bad' : 'muted'}>
+              {data.cert.mode === 'internal'
+                ? 'گواهی داخلی سرور (بدون نیاز به اینترنت خارج؛ خودکار تمدید می‌شود)'
+                : `${data.cert.issuer || 'گواهی'} — معتبر تا ${formatDateTime(data.cert.notAfter)} (${toFa(data.cert.daysLeft)} روز مانده)`}
+              {data.cert.mode === 'auto' && ' · تمدید خودکار حدود ۳۰ روز قبل از پایان؛ اگر به ۲۰ روز برسد هشدار می‌گیرید.'}
+            </p>
+          )}
+        </>
+      )}
+
       <h4>بکاپ دوم</h4>
       {data.mirror.enabled ? (
         <p className="muted">

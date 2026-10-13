@@ -12,6 +12,7 @@ import { effectiveLimits, cleanLimits } from '../limits.js';
 import { deleteMessage } from '../sweeper.js';
 import { kickEverywhere } from '../voice.js';
 import { series, recentAlerts, sample, netIsHostWide } from '../health.js';
+import { certInfo, checkCert } from '../certcheck.js';
 import { mirrorStatus } from '../backup.js';
 
 const need = (req, perm) => {
@@ -187,12 +188,16 @@ export default async function adminRoutes(app) {
   // Health dashboard: current values, history for the charts, alerts.
   app.get('/api/admin/health', async (req) => {
     need(req, 'view_audit');
+    // HTTPS certificate (null when not behind the bundled Caddy); ?cert=1 checks again now.
+    // First, so an alert it raises is already in the list below.
+    const cert = req.query.cert || (!certInfo() && process.env.DOMAIN) ? await checkCert() : certInfo();
     return {
       now: await sample(),
       series: series(String(req.query.range || '24h')),
       alerts: recentAlerts(),
       netHostWide: netIsHostWide(),
       mirror: mirrorStatus(),
+      cert,
     };
   });
 

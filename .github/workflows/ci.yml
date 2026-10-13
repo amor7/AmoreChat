@@ -19,6 +19,8 @@ jobs:
       - run: npm run build
       - name: /ca page fingerprint
         run: node server/test/ca-fingerprint.mjs
+      - name: HTTPS certificate expiry warning
+        run: cd server && node test/cert-alert.mjs
       - name: Smoke test
         run: |
           DATA_DIR=/tmp/hs PORT=3100 SWEEP_MS=500 node server/src/index.js > server.log 2>&1 &
@@ -86,6 +88,9 @@ jobs:
           # Health dashboard sees the whole server's traffic (host counters mounted read-only).
           curl -sf --cacert /tmp/ca.crt -b /tmp/jar https://127.0.0.1/api/admin/health | tee /tmp/health.json | head -c 400; echo
           grep -q '"netHostWide":true' /tmp/health.json
+          # HTTPS certificate expiry watch: the app reads the certificate Caddy serves.
+          curl -sf --cacert /tmp/ca.crt -b /tmp/jar 'https://127.0.0.1/api/admin/health?cert=1' | grep -o '"cert":{[^}]*}' | tee /tmp/cert.json
+          grep -q '"daysLeft":' /tmp/cert.json
       - name: Offline update from a folder (no GitHub)
         run: |
           set -x -o pipefail

@@ -10,6 +10,9 @@ services:
       - LIVEKIT_API_KEY=amorechat
       - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-}
       - BACKUP_MIRROR=${BACKUP_MIRROR_DIR:-}
+      # for the HTTPS certificate expiry warning (asks the caddy service)
+      - DOMAIN=${DOMAIN}
+      - TLS_MODE=${TLS_MODE:-auto}
     volumes:
       - ./data:/data
       # Second backup copy (another disk / USB / network share): BACKUP_MIRROR_DIR in .env
