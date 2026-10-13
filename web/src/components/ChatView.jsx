@@ -415,11 +415,19 @@ function MessageMenu({ m, x, y, mine, canPin, canDelete, canReport, canReaders, 
   const [pos, setPos] = useState({ left: x, top: y });
 
   useLayoutEffect(() => {
-    const r = ref.current.getBoundingClientRect();
-    setPos({
-      left: Math.max(8, Math.min(x, window.innerWidth - r.width - 8)),
-      top: Math.max(8, Math.min(y, window.innerHeight - r.height - 8)),
-    });
+    // Keep it on screen, also when it grows after opening (emoji images, the emoji picker).
+    const place = () => {
+      if (!ref.current) return;
+      const r = ref.current.getBoundingClientRect();
+      setPos({
+        left: Math.max(8, Math.min(x, window.innerWidth - r.width - 8)),
+        top: Math.max(8, Math.min(y, window.innerHeight - r.height - 8)),
+      });
+    };
+    place();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(place) : null;
+    ro?.observe(ref.current);
+    return () => ro?.disconnect();
   }, [x, y]);
 
   const [picker, setPicker] = useState(false);

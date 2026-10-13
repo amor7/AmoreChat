@@ -181,7 +181,7 @@ export default function Sidebar() {
                 <div className="chat-item-body">
                   <div className="row">
                     <span className="title">
-                      <TypeIcon type={c.type} />
+                      {!c.isEmergency && <TypeIcon type={c.type} />}
                       {c.title}
                       {isChatMuted(c) && <BellOff size={13} className="muted-icon" aria-label="بی‌صدا" />}
                     </span>

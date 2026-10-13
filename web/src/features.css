@@ -911,3 +911,49 @@
 .channel-mute-bar:disabled {
   opacity: 0.6;
 }
+
+/* ---------- Visual fixes (v0.9.3) ---------- */
+/* Chat list preview: one line ending in "…" (a flex row can't cut text with an ellipsis). */
+.chat-item .preview {
+  display: block;
+}
+.chat-item .preview .preview-icon {
+  display: inline-block;
+  vertical-align: -3px;
+  margin-inline-end: 4px;
+}
+/* Tab rows wrap on phones instead of hiding tabs off-screen. */
+@media (max-width: 700px) {
+  .tabs.scroll {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .tabs.scroll button {
+    flex: 1 1 auto;
+    padding: 8px 10px;
+  }
+}
+/* Segmented choices (stream quality / frame rate) wrap when the labels are long. */
+.segmented {
+  flex-wrap: wrap;
+}
+.segmented button {
+  flex: 1 1 auto;
+}
+/* Right-to-left: "reply" and "forward" arrows point the right way (like Persian Telegram/WhatsApp). */
+svg.lucide-reply,
+svg.lucide-forward {
+  transform: scaleX(-1);
+}
+/* Nothing may push the page sideways on phones (a menu a few pixels too wide panned the whole app). */
+html,
+body {
+  overflow-x: clip;
+}
+.menu.floating {
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+}
+.menu.floating .quick-reactions {
+  flex-wrap: wrap;
+}

@@ -863,7 +863,6 @@ video.media {
   font-size: 18px;
   cursor: pointer;
   flex-shrink: 0;
-  transform: scaleX(-1);
 }
 .send-btn:disabled {
   opacity: 0.4;
@@ -997,11 +996,23 @@ video.media {
   gap: 4px;
   font-size: 14px;
 }
+/* A checkbox with its text: always its own line, the box aligned with the first line of text. */
 label.check {
+  display: flex;
   flex-direction: row;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
+  margin: 6px 0;
+  line-height: 1.6;
   cursor: pointer;
+}
+label.check > input[type='checkbox'],
+label.check > input[type='radio'] {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: calc((1.6em - 18px) / 2) 0 0;
+  accent-color: var(--accent);
 }
 .boxed {
   border: 1px solid var(--border);
@@ -1450,7 +1461,6 @@ details.boxed summary {
   inset-inline-start: -4px;
 }
 .send-btn.mic {
-  transform: none;
   font-size: 18px;
 }
 .recorder {
