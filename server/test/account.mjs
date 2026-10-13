@@ -375,6 +375,18 @@ await chOwner.call('PATCH', `/api/chats/${chan}/members/${ids.editor}`, { role: 
 assert.equal((await post(editor, 'from the editor')).status, 200, 'admin with "post messages" posts');
 r = await reader.call('GET', `/api/chats/${chan}`);
 assert.equal(r.chat?.myRole, 'member');
+// Subscriber list: only the channel's owner and admins see it (a site admin who joined does not).
+const seen = async (c, chatId) => (await c.call('GET', `/api/chats/${chatId}`)).members.map((u) => u.id).sort();
+const everyone = [ids.chowner, ids.sitemod, ids.reader, ids.editor].sort();
+assert.deepEqual(await seen(chOwner, chan), everyone, 'channel owner sees all subscribers');
+assert.deepEqual(await seen(editor, chan), everyone, 'channel admin sees all subscribers');
+assert.deepEqual(await seen(reader, chan), [ids.reader], 'a subscriber sees only themselves');
+assert.deepEqual(await seen(siteMod, chan), [ids.sitemod], 'a site admin who subscribed sees only themselves');
+assert.equal((await reader.call('GET', `/api/chats/${chan}`)).membersHidden, true);
+// Voice channels: everyone sees who is in it.
+const lounge = (await chOwner.call('POST', '/api/chats', { type: 'voice', title: 'Lounge', isPublic: true })).chat.id;
+await reader.call('POST', `/api/chats/${lounge}/join`);
+assert.deepEqual(await seen(reader, lounge), [ids.chowner, ids.reader].sort(), 'voice channel members are visible to all');
 // The site admin can still delete the channel from the panel.
 assert.equal((await siteMod.call('DELETE', `/api/chats/${chan}`)).status, 200, 'site admin deletes the channel');
 

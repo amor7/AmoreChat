@@ -67,7 +67,7 @@ export default function ChatInfo({ chatId, onClose }) {
       <h4>
         {chat.type === 'channel' ? 'مشترکان' : 'اعضا'} ({toFa(chat.memberCount)})
       </h4>
-      {data?.membersHidden && <p className="muted tiny">لیست {chat.type === 'channel' ? 'مشترکان' : 'اعضا'} فقط برای مدیران قابل مشاهده است. اینجا فقط مدیران را می‌بینید.</p>}
+      {data?.membersHidden && <p className="muted tiny">{chat.type === 'channel' ? 'لیست مشترکان کانال فقط برای مدیران کانال قابل مشاهده است.' : 'لیست اعضا فقط برای مدیران قابل مشاهده است. اینجا فقط مدیران را می‌بینید.'}</p>}
       {can('add_members') && !chat.isEmergency && <AddMembers chatId={chat.id} members={data?.members || []} onDone={load} />}
       <ul className="user-list">
         {data?.members.map((m) => (

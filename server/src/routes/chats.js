@@ -132,6 +132,9 @@ export default async function chatRoutes(app) {
   app.get('/api/chats/:id', async (req) => {
     const { chat, member } = requireChat(req, req.params.id, { allowModerator: true });
     const canSeeBans = hasChatPerm(req.user, member, 'ban_members');
+    // A channel's subscriber list is for the channel's own owner/admins only (not site admins
+    // who happen to join it); hidden group lists are also open to site moderators.
+    const seesAll = chat.type === 'channel' ? member?.role === 'owner' || member?.role === 'admin' : isChatStaff(req.user, member);
     return {
       chat: member ? chatSummary(chat.id, req.user.id) : { id: chat.id, type: chat.type, title: chat.title, description: chat.description },
       // Hidden list, like Telegram: channel subscribers only see themselves (not even the admins);
@@ -140,9 +143,9 @@ export default async function chatRoutes(app) {
         chat.type === 'saved'
           ? []
           : membersOf(chat.id).filter(
-              (u) => !membersHidden(chat) || isChatStaff(req.user, member) || u.id === req.user.id || (chat.type === 'group' && u.chatRole !== 'member'),
+              (u) => !membersHidden(chat) || seesAll || u.id === req.user.id || (chat.type === 'group' && u.chatRole !== 'member'),
             ),
-      membersHidden: membersHidden(chat) && !isChatStaff(req.user, member),
+      membersHidden: membersHidden(chat) && !seesAll,
       bans: canSeeBans
         ? all(
             `SELECT u.id, u.username, u.display_name AS displayName FROM chat_bans b JOIN users u ON u.id = b.user_id WHERE b.chat_id = ?`,
