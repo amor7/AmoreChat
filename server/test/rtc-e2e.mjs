@@ -205,6 +205,14 @@ try {
   await B.screenshot({ path: 'shot-call-swapped.png' });
   await B.click('.call-pip');
   await waitFor(B, () => !document.querySelector('.call-view.swapped'), null, 'tap again swaps back');
+  // Screen sharing in a call: the same quality dialog; the owner may pick up to 1080p.
+  await A.$eval('.call-view .ctl[aria-label="اشتراک صفحه"]', (b) => b.click());
+  await waitFor(A, () => !!document.querySelector('.modal .segmented'), null, 'stream dialog in the call');
+  assert.deepEqual(await A.$eval('.modal .segmented', (el) => [...el.children].map((x) => x.textContent.trim())), ['480p', '720p', '1080p'], 'owner: every quality');
+  await clickText(A, '.modal .segmented button', '1080p');
+  await A.click('.modal .btn.primary');
+  await waitFor(B, () => document.querySelector('.call-main.contain')?.videoWidth > 0, null, 'bob sees the shared screen');
+  await A.$eval('.call-view .ctl[aria-label="اشتراک صفحه"]', (b) => b.click());
   await A.$eval('.call-view .ctl.hangup', (b) => b.click());
   await waitFor(B, () => !document.querySelector('.call-view'), null, 'call closed for bob');
   await waitFor(B, () => document.querySelector('.call-log'), null, 'call log message');

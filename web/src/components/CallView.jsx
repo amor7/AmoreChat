@@ -5,6 +5,7 @@ import { useSmartFit } from '../smartFit';
 import Avatar from './Avatar';
 import Ping from './Ping';
 import { VolumeButton } from './VoiceTools';
+import { ShareDialog } from './Voice';
 import { ChevronDown, Mic, MicOff, Video as VideoIcon, VideoOff, PhoneOff, SwitchCamera, ScreenShare, ScreenShareOff, Volume2 } from 'lucide-react';
 import { setMic, setCamera, flipCamera, hangUp, canShareScreen, startScreenShare, stopScreenShare, enableAudioPlayback } from '../rtc';
 
@@ -92,6 +93,7 @@ export default function CallView() {
   const call = useStore((s) => s.call);
   const [swapped, setSwapped] = useState(false);
   const [controls, setControls] = useState(true);
+  const [share, setShare] = useState(false);
   const hideTimer = useRef(null);
   const pip = usePip();
 
@@ -208,12 +210,13 @@ export default function CallView() {
         {rtc.canStream && canShareScreen() && (
           <button
             className={`ctl ${rtc.screenOn ? 'on' : ''}`}
-            onClick={() => run(() => (rtc.screenOn ? stopScreenShare() : startScreenShare({ quality: Math.min(rtc.streamQuality || 720, 720), fps: 15, audio: false })))}
+            onClick={() => (rtc.screenOn ? run(stopScreenShare) : setShare(true))}
             aria-label="اشتراک صفحه"
           >
             {rtc.screenOn ? <ScreenShareOff size={24} /> : <ScreenShare size={24} />}
           </button>
         )}
+        {share && <ShareDialog onClose={() => setShare(false)} />}
       </div>
     </div>
   );

@@ -242,12 +242,22 @@ function Controls({ compact }) {
   );
 }
 
-function ShareDialog({ onClose }) {
+const SHARE_KEY = 'amorechat:share';
+function lastShare() {
+  try {
+    return JSON.parse(localStorage.getItem(SHARE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+export function ShareDialog({ onClose }) {
   const max = useStore((s) => s.rtc?.streamQuality) || 720;
-  const [quality, setQuality] = useState(Math.min(max, 720));
-  const [fps, setFps] = useState(30);
-  const [audio, setAudio] = useState(true);
   const options = [480, 720, 1080].filter((q) => q <= max);
+  const last = lastShare();
+  const [quality, setQuality] = useState(options.includes(last.quality) ? last.quality : Math.min(max, 720));
+  const [fps, setFps] = useState(last.fps === 15 ? 15 : 30);
+  const [audio, setAudio] = useState(last.audio !== false);
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal small" onClick={(e) => e.stopPropagation()}>
@@ -255,7 +265,7 @@ function ShareDialog({ onClose }) {
           <MonitorPlay size={22} /> شروع استریم
         </h3>
         <p className="hint">بعد از «شروع»، مرورگر می‌پرسد چه چیزی نمایش داده شود: کل صفحه، یک پنجره یا یک تب.</p>
-        <label className="form-label">کیفیت</label>
+        <label className="form-label">کیفیت {max < 1080 && <small className="muted">(حداکثر مجاز شما {max}p)</small>}</label>
         <div className="segmented">
           {options.map((q) => (
             <button key={q} className={quality === q ? 'active' : ''} onClick={() => setQuality(q)}>
@@ -282,6 +292,11 @@ function ShareDialog({ onClose }) {
           <button
             className="btn primary"
             onClick={() => {
+              try {
+                localStorage.setItem(SHARE_KEY, JSON.stringify({ quality, fps, audio }));
+              } catch {
+                /* not remembered */
+              }
               onClose();
               run(() => startScreenShare({ quality, fps, audio }));
             }}
