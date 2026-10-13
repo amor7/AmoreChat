@@ -109,7 +109,7 @@ function Discover({ onClose }) {
                 {c.title}
               </b>
               <small>
-                {toFa(c.memberCount)} عضو {c.description && `— ${c.description}`}
+                {toFa(c.memberCount)} {c.type === 'channel' ? 'مشترک' : 'عضو'} {c.description && `— ${c.description}`}
               </small>
             </span>
             <button className="btn primary sm" onClick={() => join(c.id)}>
@@ -157,7 +157,7 @@ function JoinInvite({ code, onClose }) {
           <Avatar id={info.id} name={info.title} file={info.avatar} size={72} />
           <h3>{info.title}</h3>
           <p className="muted">
-            {info.type === 'channel' ? 'کانال' : 'گروه'} · {toFa(info.memberCount)} عضو
+            {info.type === 'channel' ? 'کانال' : 'گروه'} · {toFa(info.memberCount)} {info.type === 'channel' ? 'مشترک' : 'عضو'}
           </p>
           {info.description && <p>{info.description}</p>}
           {info.isMember ? (

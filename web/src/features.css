@@ -888,3 +888,26 @@
   padding-inline-start: 20px;
   line-height: 1.8;
 }
+
+/* Channel subscribers: one Mute / Unmute button where the message box would be (like Telegram) */
+.channel-mute-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.channel-mute-bar:hover {
+  background: var(--hover, rgb(127 127 127 / 0.08));
+}
+.channel-mute-bar:disabled {
+  opacity: 0.6;
+}

@@ -162,7 +162,7 @@ function InfoHeader({ chat, canEdit }) {
       <div>
         <b>{chat.title}</b>
         <div className="muted">
-          {chat.type === 'channel' ? 'کانال' : 'گروه'} {chat.isPublic ? 'عمومی' : 'خصوصی'} · {toFa(chat.memberCount)} عضو
+          {chat.type === 'channel' ? 'کانال' : 'گروه'} {chat.isPublic ? 'عمومی' : 'خصوصی'} · {toFa(chat.memberCount)} {chat.type === 'channel' ? 'مشترک' : 'عضو'}
         </div>
         {chat.myRole !== 'member' && <span className="role-badge">{ROLE_LABELS[chat.myRole]}</span>}
       </div>

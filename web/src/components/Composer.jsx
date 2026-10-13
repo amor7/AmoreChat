@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, upload, CANCELLED } from '../api';
 import { useStore, dataSaverNow } from '../store';
-import { emitTyping } from '../socket';
+import { emitTyping, isChatMuted } from '../socket';
 import { enqueue, flushOutbox } from '../offline';
 import { EmojiPicker, RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
 import Avatar from './Avatar';
-import { Pencil, Reply, X, Paperclip, SendHorizontal, Mic, FileText, Smile } from 'lucide-react';
+import { Pencil, Reply, X, Paperclip, SendHorizontal, Mic, FileText, Smile, Bell, BellOff } from 'lucide-react';
 import { postBlockReason, messagePreview, compressImage, imageSize, formatSize, formatClock, toFa, computeWaveform } from '../util';
 
 const isTouch = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
@@ -74,6 +74,8 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
   }, [text]);
 
   const blocked = postBlockReason(me, chat);
+  // Channel subscribers: like Telegram, the bottom bar is one Mute / Unmute button.
+  if (blocked && chat.type === 'channel') return <ChannelMuteBar chat={chat} />;
   if (blocked) return <div className="composer blocked">{blocked}</div>;
 
   // Like Telegram: the box empties at once (the keyboard stays open) and the chat jumps to the
@@ -563,5 +565,28 @@ function SendFileDialog({ file, chat, onClose }) {
       </div>
     </div>,
     document.body,
+  );
+}
+
+function ChannelMuteBar({ chat }) {
+  const [busy, setBusy] = useState(false);
+  const muted = isChatMuted(chat);
+  async function toggle() {
+    setBusy(true);
+    try {
+      const r = await api('PATCH', `/chats/${chat.id}/notify`, { mutedUntil: muted ? null : -1 });
+      useStore.getState().upsertChat({ ...chat, notifyMutedUntil: r.notifyMutedUntil });
+    } catch (e) {
+      useStore.getState().showToast(e.message);
+    }
+    setBusy(false);
+  }
+  return (
+    <div className="composer-wrap">
+      <button className="channel-mute-bar" onClick={toggle} disabled={busy}>
+        {muted ? <Bell size={19} /> : <BellOff size={19} />}
+        {muted ? 'صدادار کردن' : 'بی‌صدا کردن'}
+      </button>
+    </div>
   );
 }

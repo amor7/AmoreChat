@@ -177,6 +177,20 @@ assert.equal(after.box, '', 'box emptied');
 assert.ok(after.fromBottom < 5, 'scrolled to the latest message');
 assert.deepEqual(after.last3, ['first', 'second', 'third'], 'sent in order');
 
+step('channel subscriber: Mute / Unmute button where the message box would be (like Telegram)');
+const news = (await bob.call('POST', '/api/chats', { type: 'channel', title: 'News', isPublic: true })).chat.id;
+await bob.call('POST', `/api/chats/${news}/messages`, { text: 'first post' });
+await owner.call('POST', `/api/chats/${news}/join`);
+await page.goto(`${BASE}/#/chat/${news}`, { waitUntil: 'networkidle2' });
+await waitFor(() => document.querySelector('.channel-mute-bar')?.textContent.includes('بی‌صدا کردن'), null, 'mute button');
+assert.equal(await page.evaluate(() => !!document.querySelector('.composer textarea')), false, 'no message box for subscribers');
+await page.click('.channel-mute-bar');
+await waitFor(() => document.querySelector('.channel-mute-bar')?.textContent.includes('صدادار کردن'), null, 'muted');
+const mutedOnServer = Object.values((await owner.call('GET', '/api/chats')).chats).find((c) => c.id === news)?.notifyMutedUntil;
+assert.ok(mutedOnServer > Date.now(), 'saved on the server');
+await page.click('.channel-mute-bar');
+await waitFor(() => document.querySelector('.channel-mute-bar')?.textContent.includes('بی‌صدا کردن'), null, 'unmuted');
+
 if (process.env.APK_DIR) {
   step('Android app: update bar with the exact version, progress, what\'s new, and a close button');
   const app = await browser.newPage();
