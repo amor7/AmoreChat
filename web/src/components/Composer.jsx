@@ -36,6 +36,7 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
     });
   }
   const inputRef = useRef(null);
+  const sendChain = useRef(Promise.resolve());
   const fileRef = useRef(null);
   const mention = useMentions(chat, text, inputRef);
 
@@ -75,35 +76,44 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
   const blocked = postBlockReason(me, chat);
   if (blocked) return <div className="composer blocked">{blocked}</div>;
 
-  async function send() {
+  // Like Telegram: the box empties at once (the keyboard stays open) and the chat jumps to the
+  // end; sends go out one after another so quick messages keep their order.
+  function send() {
     const t = text.trim();
-    if (!t || busy) return;
-    setBusy(true);
-    try {
-      if (editing) {
-        const { message } = await api('PATCH', `/messages/${editing.id}`, { text: t });
-        useStore.getState().updateMessage(message);
-      } else if (!useStore.getState().connected) {
-        // Offline: it goes into the outbox and is sent when the connection is back.
-        await enqueue(chat.id, t, replyTo?.id);
-        flushOutbox();
-      } else {
-        const { message } = await api('POST', `/chats/${chat.id}/messages`, { text: t, replyTo: replyTo?.id });
-        useStore.getState().addMessage(message);
-      }
-      setText('');
-      useStore.setState({ replyTo: null, editing: null });
-    } catch (e) {
-      if (!e.status && !editing) {
-        await enqueue(chat.id, t, replyTo?.id);
-        setText('');
-        useStore.setState({ replyTo: null });
-      } else {
-        showToast(e.message);
-      }
-    }
-    setBusy(false);
+    if (!t) return;
+    const edit = editing;
+    const reply = replyTo;
+    if (edit && busy) return;
+    setText('');
+    useStore.setState({ replyTo: null, editing: null, ...(edit ? {} : { sentAt: Date.now() }) });
     inputRef.current?.focus();
+    setBusy(true);
+    sendChain.current = sendChain.current.then(async () => {
+      try {
+        if (edit) {
+          const { message } = await api('PATCH', `/messages/${edit.id}`, { text: t });
+          useStore.getState().updateMessage(message);
+        } else if (!useStore.getState().connected) {
+          // Offline: it goes into the outbox and is sent when the connection is back.
+          await enqueue(chat.id, t, reply?.id);
+          flushOutbox();
+        } else {
+          const { message } = await api('POST', `/chats/${chat.id}/messages`, { text: t, replyTo: reply?.id });
+          useStore.getState().addMessage(message);
+        }
+      } catch (e) {
+        if (!e.status && !edit) {
+          await enqueue(chat.id, t, reply?.id).catch(() => {});
+        } else {
+          showToast(e.message);
+          // Not sent: give the text back (unless something new was typed meanwhile).
+          setText((cur) => cur || t);
+          if (edit || reply) useStore.setState({ editing: edit, replyTo: reply });
+        }
+      }
+      useStore.setState({ sentAt: edit ? useStore.getState().sentAt : Date.now() });
+    });
+    sendChain.current.finally(() => setBusy(false));
   }
 
   function onKeyDown(e) {
@@ -172,7 +182,14 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
       )}
       <div className="composer">
         {text.trim() || editing ? (
-          <button className="send-btn" aria-label="ارسال" disabled={!text.trim() || busy} onClick={send}>
+          <button
+            className="send-btn"
+            aria-label="ارسال"
+            disabled={!text.trim()}
+            // Keep the focus (and the phone keyboard) in the text box.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={send}
+          >
             <SendHorizontal size={20} />
           </button>
         ) : (
@@ -373,7 +390,7 @@ function VoiceRecorder({ chat, onDone }) {
       const file = await upload(blob, { name: `voice.${ext}`, meta: { voice: 1, wave: waveform, dur: duration?.toFixed(2) } });
       const { message } = await api('POST', `/chats/${chat.id}/messages`, { fileId: file.id, type: 'voice', replyTo: replyTo?.id });
       useStore.getState().addMessage(message);
-      useStore.setState({ replyTo: null });
+      useStore.setState({ replyTo: null, sentAt: Date.now() });
     } catch (e) {
       showToast(e.message);
     }
@@ -454,7 +471,7 @@ function SendFileDialog({ file, chat, onClose }) {
         replyTo: replyTo?.id,
       });
       useStore.getState().addMessage(message);
-      useStore.setState({ replyTo: null });
+      useStore.setState({ replyTo: null, sentAt: Date.now() });
       onClose();
     } catch (e) {
       setProgress(null);

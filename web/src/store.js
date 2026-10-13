@@ -154,6 +154,7 @@ export const useStore = create((set, get) => ({
   },
   hasNewer: {}, // chatId -> true when the loaded window doesn't reach the latest message
   jumpTo: null, // { chatId, messageId } requested by search / forward links
+  sentAt: 0, // bumped when I send something: the open chat jumps to its latest message
 
   addMessage(m) {
     setTimeout(() => {

@@ -87,8 +87,25 @@ export default function ChatView({ chatId }) {
     }
   }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // I sent something: go to the latest message, wherever I was reading (like Telegram).
+  const sentAt = useStore((s) => s.sentAt);
   useEffect(() => {
-    const mark = () => !document.hidden && !st().hasNewer[chatId] && st().markRead(chatId);
+    if (sentAt && listRef.current) toBottom();
+  }, [sentAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // The list got shorter (phone keyboard opened, reply bar shown): stay at the bottom if I was there.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      if (atBottom.current && !st().hasNewer[chatId]) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [chatId, !!messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const mark =() => !document.hidden && !st().hasNewer[chatId] && st().markRead(chatId);
     mark();
     document.addEventListener('visibilitychange', mark);
     return () => document.removeEventListener('visibilitychange', mark);

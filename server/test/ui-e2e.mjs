@@ -143,6 +143,40 @@ for (const [label, viewport] of [
   await waitFor(() => !location.hash.startsWith('#/chat/'), null, 'Back from the chat returns to the list');
 }
 
+step('phone: sending keeps the keyboard (focus) and jumps to the latest message, in order');
+for (let i = 1; i <= 40; i++) await owner.call('POST', `/api/chats/${group}/messages`, { text: `old ${i}` });
+await page.goto(`${BASE}/#/chat/${group}`, { waitUntil: 'networkidle2' });
+await waitFor(() => document.querySelectorAll('.msg-row').length > 30, null, 'long chat');
+await page.evaluate(() => {
+  document.querySelector('.messages').scrollTop = 0;
+  window.__blurs = 0;
+  document.querySelector('.composer textarea').addEventListener('blur', () => window.__blurs++);
+});
+await sleep(800); // older pages may load; still far from the end
+await page.click('.composer textarea');
+for (const t of ['first', 'second', 'third']) {
+  await page.keyboard.type(t);
+  await page.click('.composer .send-btn[aria-label="ارسال"]');
+}
+await waitFor(() => [...document.querySelectorAll('.msg-row')].at(-1)?.innerText.includes('third'), null, 'last message shown');
+await sleep(500);
+const after = await page.evaluate(() => {
+  const l = document.querySelector('.messages');
+  return {
+    blurs: window.__blurs,
+    focused: document.activeElement?.tagName,
+    box: document.querySelector('.composer textarea').value,
+    fromBottom: l.scrollHeight - l.scrollTop - l.clientHeight,
+    last3: [...document.querySelectorAll('.msg-row')].slice(-3).map((r) => r.innerText.split('\n')[0]),
+  };
+});
+console.log('  ', JSON.stringify(after));
+assert.equal(after.blurs, 0, 'the text box never lost focus (keyboard stays open)');
+assert.equal(after.focused, 'TEXTAREA');
+assert.equal(after.box, '', 'box emptied');
+assert.ok(after.fromBottom < 5, 'scrolled to the latest message');
+assert.deepEqual(after.last3, ['first', 'second', 'third'], 'sent in order');
+
 if (process.env.APK_DIR) {
   step('Android app: update bar with the exact version, progress, what\'s new, and a close button');
   const app = await browser.newPage();
