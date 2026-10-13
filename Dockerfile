@@ -12,7 +12,7 @@ FROM node:24-alpine
 # ffmpeg is used for voice/video processing (bundled now so offline installs already have it).
 RUN apk add --no-cache ffmpeg tini && mkdir /data && chown node:node /data
 WORKDIR /app
-COPY --from=build /app/package.json ./
+COPY --from=build /app/package.json /app/CHANGELOG.md ./
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/server ./server
 COPY --from=build /app/web/dist ./web/dist

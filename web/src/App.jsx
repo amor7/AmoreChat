@@ -12,7 +12,7 @@ import Modals from './components/Modals';
 import { VoiceBar, RoomView, IncomingCall, useAutoExpandCalls } from './components/Voice';
 import { initNative } from './native';
 import { saveBoot, loadBoot, startOutbox } from './offline';
-import { useAndroidVersionToast } from './components/AndroidApp';
+import { useAppUpdateCheck } from './components/AndroidApp';
 
 function parseHash() {
   const [, kind, value] = location.hash.match(/^#\/(\w+)\/(.+)$/) || [];
@@ -78,7 +78,7 @@ function Main() {
   const connected = useStore((s) => s.connected);
   const [ready, setReady] = useState(false);
   useAutoExpandCalls();
-  useAndroidVersionToast();
+  useAppUpdateCheck();
 
   useEffect(() => {
     useStore

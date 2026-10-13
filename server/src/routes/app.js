@@ -12,7 +12,31 @@ const APK = path.join(process.env.APK_DIR || path.join(ROOT, 'android-dist'), 'a
 const VERSION = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
 const versionCode = (v) => v.split('.').map(Number).reduce((n, p, i) => n + (p || 0) * [10000, 100, 1][i], 0);
 
-const apkInfo = () => (fs.existsSync(APK) ? { version: VERSION, versionCode: versionCode(VERSION), size: fs.statSync(APK).size } : null);
+// "What's new" for the in-app update bar: the recent versions' bullet points from CHANGELOG.md.
+function releaseNotes() {
+  let text;
+  try {
+    text = readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8');
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const part of text.split(/^## v/m).slice(1, 13)) {
+    const [head, ...lines] = part.split(/\r?\n/);
+    const version = head.trim();
+    if (!/^\d+\.\d+\.\d+$/.test(version)) continue;
+    const items = lines
+      .filter((l) => l.startsWith('- '))
+      .map((l) => l.slice(2).replace(/\*\*/g, '').trim())
+      .slice(0, 25);
+    out.push({ version, versionCode: versionCode(version), items });
+  }
+  return out;
+}
+const NOTES = releaseNotes();
+
+const apkInfo = () =>
+  fs.existsSync(APK) ? { version: VERSION, versionCode: versionCode(VERSION), size: fs.statSync(APK).size, notes: NOTES } : null;
 
 function page(siteName, apk) {
   const mb = apk ? (apk.size / 1048576).toFixed(1) : 0;

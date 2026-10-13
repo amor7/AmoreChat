@@ -140,10 +140,11 @@ jobs:
           FAKE_VIDEO=/tmp/portrait.y4m node server/test/rtc-e2e.mjs http://localhost:3101 "$CODE"
       - name: UI test (menus, dialogs, step-by-step Back; desktop and phone size)
         run: |
-          DATA_DIR=/tmp/ui PORT=3102 node server/src/index.js > ui-server.log 2>&1 &
+          mkdir -p /tmp/apk && head -c 300000 /dev/urandom > /tmp/apk/amorechat.apk
+          APK_DIR=/tmp/apk DATA_DIR=/tmp/ui PORT=3102 node server/src/index.js > ui-server.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:3102/healthz && break; sleep 1; done
           CODE=$(grep -oP 'SETUP CODE: \K\S+' ui-server.log)
-          node server/test/ui-e2e.mjs http://localhost:3102 "$CODE"
+          APK_DIR=/tmp/apk node server/test/ui-e2e.mjs http://localhost:3102 "$CODE"
       - name: Logs
         if: always()
         run: |

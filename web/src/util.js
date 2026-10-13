@@ -39,6 +39,8 @@ export function formatLastSeen(t) {
 }
 
 export const toFa = (n) => Number(n).toLocaleString('fa-IR');
+// Persian digits in any text, e.g. a version "0.8.6" (toFa would turn it into "ناعدد").
+export const faDigits = (s) => String(s).replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
 
 export function formatSize(bytes) {
   if (bytes == null) return '';

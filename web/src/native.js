@@ -79,6 +79,9 @@ async function handle(e) {
   } else if (e.type === 'servers' || e.type === 'lock') {
     // Another server got a message (badges), or the app lock changed.
     useStore.setState((s) => ({ nativeTick: (s.nativeTick || 0) + 1 }));
+  } else if (e.type === 'update') {
+    // Download progress of the in-app update (the update bar shows it).
+    useStore.setState({ appUpdateState: { state: e.state, percent: e.percent } });
   } else if (e.type === 'share') {
     // Files come from a private URL the app serves; turn them into File objects.
     const files = [];

@@ -811,3 +811,80 @@
 .alert-list small {
   color: var(--muted);
 }
+
+/* ---------- In-app update bar (Android app), under the chat list like Telegram ---------- */
+.update-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  overflow: hidden;
+}
+.update-bar .update-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.update-bar .update-main > svg {
+  color: var(--accent);
+  flex: none;
+}
+.update-bar .update-main .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.update-bar small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.update-bar .update-go {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.update-bar .update-progress {
+  position: absolute;
+  inset-inline-start: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--accent);
+  transition: width 0.4s;
+}
+.update-bar .update-progress[data-indeterminate] {
+  animation: update-pulse 1.2s ease-in-out infinite;
+}
+@keyframes update-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+/* the "new chat" button sits above the bar */
+.update-bar ~ .fab {
+  bottom: 84px;
+}
+.release-notes h5 {
+  margin: 12px 0 4px;
+}
+.release-notes ul {
+  margin: 0;
+  padding-inline-start: 20px;
+  line-height: 1.8;
+}

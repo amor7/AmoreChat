@@ -13,6 +13,7 @@ import { clearOffline } from '../offline';
 import { formatListTime, messagePreview, toFa, hasSitePerm } from '../util';
 import Avatar from './Avatar';
 import Ping from './Ping';
+import { UpdateBar } from './AndroidApp';
 import { multiServer, appServers, switchServer, addServer } from '../native';
 
 const TYPE_ICON = { group: Users, channel: Megaphone, voice: Volume2 };
@@ -209,6 +210,7 @@ export default function Sidebar() {
           </li>
         )}
       </ul>
+      <UpdateBar />
       {chatMenu && <ChatMenu {...chatMenu} onClose={() => setChatMenu(null)} />}
       <button className="fab" aria-label="گفتگوی جدید" onClick={() => openModal('newChat')}>
         <SquarePen size={24} />

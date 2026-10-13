@@ -254,7 +254,7 @@ public class MainActivity extends Activity {
 
     // ---------- Native -> web events ----------
 
-    private void toWeb(JSONObject event) {
+    void toWeb(JSONObject event) {
         String js = "(window.__amoreQ=window.__amoreQ||[]).push(" + event + ");window.dispatchEvent(new Event('amore-native'));";
         runOnUiThread(() -> {
             if (pageReady) web.evaluateJavascript(js, null);

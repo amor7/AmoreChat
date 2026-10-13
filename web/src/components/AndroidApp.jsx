@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Smartphone, BatteryCharging, Bell, Server, Download, FileText, PhoneCall, Wifi, WifiOff, Lock, Plus, Trash2 } from 'lucide-react';
+import { Smartphone, X, Sparkles, BatteryCharging, Bell, Server, Download, FileText, PhoneCall, Wifi, WifiOff, Lock, Plus, Trash2 } from 'lucide-react';
 import { api } from '../api';
 import { useStore } from '../store';
-import { postBlockReason, formatSize, toFa } from '../util';
+import { postBlockReason, formatSize, faDigits } from '../util';
 import { isAndroidApp, isAndroidBrowser, appInfo, setBackgroundConnection, openBatterySettings, openNotificationSettings, openFullScreenSettings, changeServer, installAppUpdate, multiServer, appServers, addServer, removeServer, appLockSupported, appLockOn, setAppLock } from '../native';
 import { Modal } from './Modals';
 import Avatar from './Avatar';
@@ -87,8 +87,13 @@ export function AndroidSettings() {
     <>
       <h4>اپ اندروید</h4>
       {outdated && (
-        <button className="btn primary wide" onClick={installAppUpdate}>
-          <Download size={17} /> نسخه جدید اپ ({server.version}) — دانلود و نصب
+        <button className="btn primary wide" onClick={startAppUpdate}>
+          <Download size={17} /> نسخه جدید اپ ({faDigits(server.version)}، {formatSize(server.size)}) — دانلود و نصب
+        </button>
+      )}
+      {outdated && server.notes?.length > 0 && (
+        <button className="btn wide" onClick={() => useStore.getState().openModal('appUpdate')}>
+          <Sparkles size={17} /> چه چیزهایی تازه است؟
         </button>
       )}
       <label className="check">
@@ -165,17 +170,124 @@ export function AndroidSettings() {
   );
 }
 
-// Small hint on the sidebar of phones using the browser.
-export function useAndroidVersionToast() {
+// ---------- In-app update (like Telegram): a bar under the chat list ----------
+// Checks the server for a newer APK at start and when the app comes back (at most hourly).
+export function useAppUpdateCheck() {
   useEffect(() => {
     if (!isAndroidApp) return;
-    const info = appInfo();
-    api('GET', '/app/android')
-      .then((r) => {
-        if (r.apk && info && r.apk.versionCode > info.versionCode) {
-          useStore.getState().showToast(`نسخه جدید اپ اندروید (${toFa(r.apk.version)}) آماده است؛ از پروفایل نصب کنید`);
-        }
-      })
-      .catch(() => {});
+    let last = 0;
+    const check = () => {
+      if (document.hidden || Date.now() - last < 3600_000) return;
+      last = Date.now();
+      const info = appInfo();
+      api('GET', '/app/android')
+        .then((r) => useStore.setState({ appUpdate: r.apk && info && r.apk.versionCode > info.versionCode ? { ...r.apk, installed: info.versionCode } : null }))
+        .catch(() => {});
+    };
+    check();
+    document.addEventListener('visibilitychange', check);
+    return () => document.removeEventListener('visibilitychange', check);
   }, []);
+}
+
+// Apps before v0.8.6 don't report progress: after a while the bar points to the phone's
+// notification instead of spinning forever.
+function startAppUpdate() {
+  useStore.setState({ appUpdateState: { state: 'progress', percent: -1, local: true } });
+  installAppUpdate();
+  setTimeout(() => useStore.getState().appUpdateState?.local && useStore.setState({ appUpdateState: { state: 'started' } }), 8000);
+}
+
+const DISMISS_KEY = 'amore-update-dismissed';
+const DISMISS_FOR = 3 * 24 * 3600_000; // closed: comes back after 3 days, or right away for a newer version
+function dismissedFor(version) {
+  try {
+    const d = JSON.parse(localStorage.getItem(DISMISS_KEY) || 'null');
+    return d?.version === version && d.until > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+export function UpdateBar() {
+  const upd = useStore((s) => s.appUpdate);
+  const st = useStore((s) => s.appUpdateState);
+  const [hidden, setHidden] = useState(false);
+  if (!upd || hidden || (dismissedFor(upd.version) && !st)) return null;
+  const dismiss = () => {
+    try {
+      localStorage.setItem(DISMISS_KEY, JSON.stringify({ version: upd.version, until: Date.now() + DISMISS_FOR }));
+    } catch {
+      /* closes for now only */
+    }
+    setHidden(true);
+  };
+  const start = () => {
+    startAppUpdate();
+  };
+  const busy = st?.state === 'progress';
+  const pct = st?.percent >= 0 ? st.percent : null;
+  let line;
+  if (st?.state === 'progress') line = pct != null ? `در حال دانلود… ${faDigits(pct)}٪` : 'در حال دانلود…';
+  else if (st?.state === 'install') line = 'دانلود شد؛ در پنجره نصب «نصب» را بزنید';
+  else if (st?.state === 'started') line = 'دانلود در نوار اعلان گوشی ادامه دارد';
+  else if (st?.state === 'failed') line = 'دانلود ناموفق بود';
+  else if (st?.state === 'permission') line = 'اجازه «نصب برنامه‌ها» را بدهید و دوباره بزنید';
+  else line = formatSize(upd.size);
+
+  return (
+    <div className="update-bar" role="status">
+      <button className="update-main" onClick={() => !busy && start()} disabled={busy}>
+        <Download size={20} />
+        <span className="grow">
+          <b>نسخه جدید {faDigits(upd.version)}</b>
+          <small>{line}</small>
+        </span>
+        {!busy && <span className="update-go">{st?.state === 'failed' || st?.state === 'permission' ? 'تلاش دوباره' : 'بروزرسانی'}</span>}
+      </button>
+      {upd.notes?.length > 0 && !busy && (
+        <button className="icon-btn" aria-label="تغییرات" title="چه چیزهایی تازه است؟" onClick={() => useStore.getState().openModal('appUpdate')}>
+          <Sparkles size={18} />
+        </button>
+      )}
+      {!busy && (
+        <button className="icon-btn" aria-label="بستن" onClick={dismiss}>
+          <X size={18} />
+        </button>
+      )}
+      {busy && <i className="update-progress" style={{ width: `${pct ?? 100}%` }} data-indeterminate={pct == null || undefined} />}
+    </div>
+  );
+}
+
+// "What's new" since the installed version.
+export function AppUpdateNotes({ onClose }) {
+  const upd = useStore((s) => s.appUpdate);
+  const notes = (upd?.notes || []).filter((n) => !upd.installed || n.versionCode > upd.installed);
+  return (
+    <Modal title={`تازه‌های نسخه ${faDigits(upd?.version || '')}`} onClose={onClose} size="small">
+      {notes.map((n) => (
+        <section key={n.version} className="release-notes">
+          <h5>نسخه {faDigits(n.version)}</h5>
+          <ul>
+            {n.items.map((t, i) => (
+              <li key={i}>{t}</li>
+            ))}
+          </ul>
+        </section>
+      ))}
+      {!notes.length && <p className="muted">بهبودها و رفع اشکال‌ها.</p>}
+      <div className="actions">
+        <button
+          className="btn primary"
+          onClick={() => {
+            onClose();
+            startAppUpdate();
+          }}
+        >
+          <Download size={17} /> دانلود و نصب
+        </button>
+      </div>
+    </Modal>
+  );
 }

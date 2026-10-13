@@ -2,6 +2,7 @@
 // and Back closes things step by step. Run against a server on an EMPTY data dir.
 // Usage: node test/ui-e2e.mjs <baseUrl> <setupCode>   (needs `puppeteer` installed)
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import puppeteer from 'puppeteer';
 
 const BASE = process.argv[2];
@@ -140,6 +141,56 @@ for (const [label, viewport] of [
   await backCloses('chat profile');
   await page.goBack().catch(() => {});
   await waitFor(() => !location.hash.startsWith('#/chat/'), null, 'Back from the chat returns to the list');
+}
+
+if (process.env.APK_DIR) {
+  step('Android app: update bar with the exact version, progress, what\'s new, and a close button');
+  const app = await browser.newPage();
+  app.on('pageerror', (e) => errors.push(e.message));
+  await app.setViewport({ width: 390, height: 844, isMobile: true });
+  // A stand-in for the app's native bridge: an old installed version, and an update that
+  // reports progress the way Updater.java does.
+  await app.evaluateOnNewDocument(() => {
+    const emit = (e) => {
+      (window.__amoreQ = window.__amoreQ || []).push(e);
+      window.dispatchEvent(new Event('amore-native'));
+    };
+    window.AmoreAndroid = {
+      info: () => JSON.stringify({ version: '0.8.0', versionCode: 800, background: false, server: location.origin }),
+      installUpdate: () => {
+        window.__installs = (window.__installs || 0) + 1;
+        setTimeout(() => emit({ type: 'update', state: 'progress', percent: 42 }), 200);
+      },
+    };
+  });
+  await app.setCookie({ name: 'ac_session', value: owner.cookie(), url: BASE });
+  await app.goto(BASE + '/#/', { waitUntil: 'networkidle2' });
+  const bar = () => app.evaluate(() => document.querySelector('.update-bar')?.innerText.replace(/\s+/g, ' ') || null);
+  await app.waitForFunction(() => !!document.querySelector('.update-bar'), { timeout: 10000 });
+  const text = await bar();
+  console.log('   bar:', text);
+  assert.ok(!/ناعدد|NaN/.test(text), 'no "NaN" in the version');
+  const ver = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url))).version.replace(/\d/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[d]);
+  assert.ok(text.includes(ver), `bar shows the exact version ${ver}`);
+  // What's new
+  await app.click('.update-bar [aria-label="تغییرات"]');
+  await app.waitForFunction(() => document.querySelectorAll('.modal .release-notes li').length > 0, { timeout: 5000 });
+  await app.goBack().catch(() => {});
+  await app.waitForFunction(() => !document.querySelector('.modal'), { timeout: 5000 });
+  // Update: progress shows in the bar
+  await app.click('.update-bar .update-main');
+  await app.waitForFunction(() => document.querySelector('.update-bar')?.innerText.includes('۴۲'), { timeout: 5000 });
+  assert.equal(await app.evaluate(() => window.__installs), 1);
+  console.log('   while downloading:', await bar());
+  // Close: hidden, and stays hidden after a reload (until a newer version or 3 days)
+  await app.reload({ waitUntil: 'networkidle2' });
+  await app.waitForFunction(() => !!document.querySelector('.update-bar [aria-label="بستن"]'), { timeout: 10000 });
+  await app.click('.update-bar [aria-label="بستن"]');
+  await app.waitForFunction(() => !document.querySelector('.update-bar'), { timeout: 5000 });
+  await app.reload({ waitUntil: 'networkidle2' });
+  await sleep(1500);
+  assert.equal(await bar(), null, 'closed bar stays closed');
+  await app.close();
 }
 
 step('no JavaScript errors on the page');
