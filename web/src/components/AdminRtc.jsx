@@ -65,7 +65,7 @@ export function LimitsEditor({ u, run }) {
         <span>الان:</span>
         <span className="pill">فایل تا {formatMb(L.uploadMb)}</span>
         <span className={`pill ${L.canCall ? 'ok' : 'no'}`}>تماس {L.canCall ? 'مجاز' : 'ممنوع'}</span>
-        <span className={`pill ${L.canStream ? 'ok' : 'no'}`}>استریم {L.canStream ? `تا ${L.streamQuality}p` : 'ممنوع'}</span>
+        <span className={`pill ${L.canStream ? 'ok' : 'no'}`}>استریم {L.canStream ? `تا ${L.streamQuality}p، ${L.streamFps || 30} فریم` : 'ممنوع'}</span>
       </div>
       <SizeField
         label="حداکثر حجم هر فایل"
@@ -112,6 +112,14 @@ export function LimitsEditor({ u, run }) {
           <option value="480">480p</option>
           <option value="720">720p</option>
           <option value="1080">1080p</option>
+        </select>
+      </label>
+      <label>
+        حداکثر نرخ فریم استریم
+        <select value={o.stream_fps ?? ''} onChange={num('stream_fps')}>
+          <option value="">پیش‌فرض</option>
+          <option value="30">۳۰ فریم</option>
+          <option value="60">۶۰ فریم</option>
         </select>
       </label>
       <div className="actions">
@@ -229,6 +237,13 @@ export function RtcSettings({ f, setF }) {
           <option value="480">480p (کم‌مصرف)</option>
           <option value="720">720p</option>
           <option value="1080">1080p (پهنای باند زیاد)</option>
+        </select>
+      </label>
+      <label>
+        حداکثر نرخ فریم استریم
+        <select value={f.max_stream_fps || '30'} onChange={(e) => setF({ ...f, max_stream_fps: e.target.value })}>
+          <option value="30">۳۰ فریم</option>
+          <option value="60">۶۰ فریم (روان‌تر، حدود دو برابر پهنای باند)</option>
         </select>
       </label>
       <label>

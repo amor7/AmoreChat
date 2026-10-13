@@ -2,6 +2,7 @@ import { parseJSON } from './db.js';
 import { getSetting, settingNumber } from './settings.js';
 
 export const STREAM_QUALITIES = [480, 720, 1080];
+export const STREAM_FPS = [30, 60];
 
 // Keys an admin can override per user. null/undefined = use the site default.
 export const LIMIT_KEYS = {
@@ -10,6 +11,7 @@ export const LIMIT_KEYS = {
   can_call: (v) => !!v,
   can_stream: (v) => !!v,
   stream_quality: (v) => (STREAM_QUALITIES.includes(Number(v)) ? Number(v) : 720),
+  stream_fps: (v) => (STREAM_FPS.includes(Number(v)) ? Number(v) : 30),
 };
 
 export function cleanLimits(input) {
@@ -24,7 +26,7 @@ export function cleanLimits(input) {
 // their overrides on top of the site defaults.
 export function effectiveLimits(user) {
   if (user.role === 'owner') {
-    return { uploadMb: 100000, quotaMb: 0, canCall: true, canStream: true, streamQuality: 1080 };
+    return { uploadMb: 100000, quotaMb: 0, canCall: true, canStream: true, streamQuality: 1080, streamFps: 60 };
   }
   const o = parseJSON(user.limits, {});
   return {
@@ -33,5 +35,6 @@ export function effectiveLimits(user) {
     canCall: o.can_call ?? getSetting('default_can_call') === '1',
     canStream: o.can_stream ?? getSetting('default_can_stream') === '1',
     streamQuality: o.stream_quality ?? settingNumber('max_stream_quality'),
+    streamFps: o.stream_fps ?? (settingNumber('max_stream_fps') || 30),
   };
 }

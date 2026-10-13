@@ -198,14 +198,14 @@ function UserActions({ u, me, run }) {
       {u.role === 'owner' && (
         <div className="perm-box">
           <b>مالک سرور: بدون هیچ محدودیتی</b>
-          <small className="muted">حجم فایل و فضای نامحدود، تماس مجاز، استریم تا 1080p (کیفیت را موقع شروع استریم انتخاب می‌کنید).</small>
+          <small className="muted">حجم فایل و فضای نامحدود، تماس مجاز، استریم تا 1080p و ۶۰ فریم (کیفیت را موقع شروع استریم انتخاب می‌کنید).</small>
         </div>
       )}
       {self && u.role === 'admin' && (
         <div className="perm-box">
           <b>محدودیت‌های شما</b>
           <small className="muted">
-            فایل تا {u.limits?.uploadMb} مگابایت · تماس {u.limits?.canCall ? 'مجاز' : 'ممنوع'} · استریم {u.limits?.canStream ? `تا ${u.limits.streamQuality}p` : 'ممنوع'} — فقط مالک سرور می‌تواند آن‌ها را تغییر دهد.
+            فایل تا {u.limits?.uploadMb} مگابایت · تماس {u.limits?.canCall ? 'مجاز' : 'ممنوع'} · استریم {u.limits?.canStream ? `تا ${u.limits.streamQuality}p، ${u.limits.streamFps || 30} فریم` : 'ممنوع'} — فقط مالک سرور می‌تواند آن‌ها را تغییر دهد.
           </small>
         </div>
       )}

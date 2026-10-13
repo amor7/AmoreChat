@@ -209,7 +209,11 @@ try {
   await A.$eval('.call-view .ctl[aria-label="اشتراک صفحه"]', (b) => b.click());
   await waitFor(A, () => !!document.querySelector('.modal .segmented'), null, 'stream dialog in the call');
   assert.deepEqual(await A.$eval('.modal .segmented', (el) => [...el.children].map((x) => x.textContent.trim())), ['480p', '720p', '1080p'], 'owner: every quality');
+  const fpsOpts = await A.$$eval('.modal .segmented', (els) => [...els[1].children].map((x) => x.textContent));
+  assert.equal(fpsOpts.length, 3, 'owner: 15, 30 and 60 fps');
+  assert.ok(fpsOpts[2].includes('۶۰'));
   await clickText(A, '.modal .segmented button', '1080p');
+  await clickText(A, '.modal .segmented button', '۶۰');
   await A.click('.modal .btn.primary');
   await waitFor(B, () => document.querySelector('.call-main.contain')?.videoWidth > 0, null, 'bob sees the shared screen');
   await A.$eval('.call-view .ctl[aria-label="اشتراک صفحه"]', (b) => b.click());

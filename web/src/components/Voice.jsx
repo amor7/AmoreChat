@@ -256,7 +256,9 @@ export function ShareDialog({ onClose }) {
   const options = [480, 720, 1080].filter((q) => q <= max);
   const last = lastShare();
   const [quality, setQuality] = useState(options.includes(last.quality) ? last.quality : Math.min(max, 720));
-  const [fps, setFps] = useState(last.fps === 15 ? 15 : 30);
+  const maxFps = useStore((s) => s.rtc?.streamFps) || 30;
+  const fpsOptions = [15, 30, 60].filter((f) => f <= maxFps);
+  const [fps, setFps] = useState(fpsOptions.includes(last.fps) ? last.fps : 30);
   const [audio, setAudio] = useState(last.audio !== false);
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
@@ -275,9 +277,9 @@ export function ShareDialog({ onClose }) {
         </div>
         <label className="form-label">نرخ فریم</label>
         <div className="segmented">
-          {[15, 30].map((f) => (
+          {fpsOptions.map((f) => (
             <button key={f} className={fps === f ? 'active' : ''} onClick={() => setFps(f)}>
-              {toFa(f)} فریم {f === 15 ? '(متن و اسلاید)' : '(بازی و ویدیو)'}
+              {toFa(f)} فریم {f === 15 ? '(متن و اسلاید)' : f === 30 ? '(ویدیو)' : '(بازی، روان‌ترین)'}
             </button>
           ))}
         </div>

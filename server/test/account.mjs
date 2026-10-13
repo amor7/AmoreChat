@@ -390,5 +390,16 @@ assert.deepEqual(await seen(reader, lounge), [ids.chowner, ids.reader].sort(), '
 // The site admin can still delete the channel from the panel.
 assert.equal((await siteMod.call('DELETE', `/api/chats/${chan}`)).status, 200, 'site admin deletes the channel');
 
+// ---- Stream frame rate: owner 60, others the site default (30) unless raised ----
+const fpsOf = async (c) => (await c.call('GET', '/api/auth/me')).user?.limits?.streamFps;
+assert.equal(await fpsOf(owner), 60, 'owner: 60 fps');
+assert.equal(await fpsOf(reader), 30, 'default: 30 fps');
+await owner.call('PATCH', `/api/admin/users/${ids.reader}/limits`, { stream_fps: 60 });
+assert.equal(await fpsOf(reader), 60, 'per-user override to 60');
+await owner.call('PATCH', `/api/admin/users/${ids.reader}/limits`, {});
+assert.equal((await owner.call('PATCH', '/api/admin/settings', { max_stream_fps: '60' })).status, 200);
+assert.equal(await fpsOf(reader), 60, 'site default raised to 60');
+assert.equal((await owner.call('PATCH', '/api/admin/settings', { max_stream_fps: '45' })).status, 400);
+
 console.log('ACCOUNT TEST PASSED');
 process.exit(0);

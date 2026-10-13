@@ -21,9 +21,9 @@ async function loadLk() {
 
 // Short side -> capture/encode settings for screen shares and cameras.
 export const QUALITY = {
-  480: { width: 854, height: 480, bitrate: { 15: 600_000, 30: 900_000 } },
-  720: { width: 1280, height: 720, bitrate: { 15: 1_200_000, 30: 2_000_000 } },
-  1080: { width: 1920, height: 1080, bitrate: { 15: 2_500_000, 30: 4_000_000 } },
+  480: { width: 854, height: 480, bitrate: { 15: 600_000, 30: 900_000, 60: 1_500_000 } },
+  720: { width: 1280, height: 720, bitrate: { 15: 1_200_000, 30: 2_000_000, 60: 3_500_000 } },
+  1080: { width: 1920, height: 1080, bitrate: { 15: 2_500_000, 30: 4_000_000, 60: 6_500_000 } },
 };
 
 export const canShareScreen = () => typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
@@ -243,7 +243,7 @@ export async function joinVoice(chatId, { expanded = false } = {}) {
   const chat = st().chats[chatId];
   const info = await api('POST', '/rtc/join', { chatId });
   await connect(
-    { kind: 'room', chatId, title: chat?.title || '', canSpeak: info.canSpeak, canStream: info.canStream, streamQuality: info.streamQuality, stage: info.stage, hand: !!info.stage?.hand, expanded },
+    { kind: 'room', chatId, title: chat?.title || '', canSpeak: info.canSpeak, canStream: info.canStream, streamQuality: info.streamQuality, streamFps: info.streamFps, stage: info.stage, hand: !!info.stage?.hand, expanded },
     info.token,
     { speak: info.canSpeak },
   );
@@ -348,7 +348,7 @@ export async function startCall(peer, video) {
   useStore.setState({ call: { ...call, role: 'caller', peer, state: 'ringing' } });
   startRing('outgoing');
   try {
-    await connect({ kind: 'call', callId: call.id, title: peer.displayName, canSpeak: true, canStream: st().me.limits?.canStream, streamQuality: st().me.limits?.streamQuality }, call.token, { video });
+    await connect({ kind: 'call', callId: call.id, title: peer.displayName, canSpeak: true, canStream: st().me.limits?.canStream, streamQuality: st().me.limits?.streamQuality, streamFps: st().me.limits?.streamFps }, call.token, { video });
   } catch (e) {
     stopRing();
     api('POST', `/calls/${call.id}/end`).catch(() => {});
@@ -363,7 +363,7 @@ export async function acceptCall() {
   stopRing();
   const { call: info } = await api('POST', `/calls/${call.id}/accept`);
   useStore.setState({ call: { ...call, state: 'active' } });
-  await connect({ kind: 'call', callId: call.id, title: call.peer.displayName, canSpeak: true, canStream: st().me.limits?.canStream, streamQuality: st().me.limits?.streamQuality }, info.token, { video: call.video });
+  await connect({ kind: 'call', callId: call.id, title: call.peer.displayName, canSpeak: true, canStream: st().me.limits?.canStream, streamQuality: st().me.limits?.streamQuality, streamFps: st().me.limits?.streamFps }, info.token, { video: call.video });
 }
 
 export async function declineCall() {

@@ -16,6 +16,8 @@ export const DEFAULTS = {
   default_can_stream: '1',
   // Highest stream/camera resolution (short side): 480 | 720 | 1080
   max_stream_quality: '720',
+  // Highest stream frame rate: 30 | 60 (60 needs about twice the bandwidth)
+  max_stream_fps: '30',
   // Max simultaneous screen/camera streams in one voice room; 0 = unlimited.
   max_streams_per_room: '3',
 };

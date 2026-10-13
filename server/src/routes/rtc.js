@@ -111,6 +111,7 @@ export default async function rtcRoutes(app) {
       canSpeak: speak,
       canStream: speak && limits.canStream,
       streamQuality: limits.streamQuality,
+      streamFps: limits.streamFps,
       maxStreams: settingNumber('max_streams_per_room'),
     };
   });

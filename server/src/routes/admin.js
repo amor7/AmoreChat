@@ -159,6 +159,7 @@ export default async function adminRoutes(app) {
       if (key === 'allow_user_groups') v = v === '1' || v === 'true' ? '1' : '0';
       if (['default_can_call', 'default_can_stream'].includes(key)) v = v === '1' || v === 'true' ? '1' : '0';
       if (key === 'max_stream_quality' && !['480', '720', '1080'].includes(v)) fail(400, 'کیفیت نامعتبر');
+      if (key === 'max_stream_fps' && !['30', '60'].includes(v)) fail(400, 'نرخ فریم نامعتبر');
       if (['max_upload_mb', 'user_quota_mb', 'media_retention_days', 'max_streams_per_room'].includes(key)) {
         v = String(Math.max(0, Math.min(100000, Math.floor(Number(v)) || 0)));
       }
