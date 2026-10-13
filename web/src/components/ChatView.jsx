@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore, isUserOnline } from '../store';
 import { api } from '../api';
-import { formatDay, formatLastSeen, sameDay, toFa, hasChatPerm, messagePreview, copyText, QUICK_REACTIONS } from '../util';
+import { formatDay, formatLastSeen, sameDay, toFa, hasChatPerm, canPostInChannel, messagePreview, copyText, QUICK_REACTIONS } from '../util';
 import Avatar from './Avatar';
 import Message from './Message';
 import Composer from './Composer';
@@ -238,7 +238,7 @@ export default function ChatView({ chatId }) {
       {menu && (
         <MessageMenu
           {...menu}
-          mine={menu.m.sender?.id === me.id || (chat.type === 'channel' && hasChatPerm(me, chat, 'post_messages') && menu.m.type !== 'call')}
+          mine={menu.m.sender?.id === me.id || (chat.type === 'channel' && canPostInChannel(chat) && menu.m.type !== 'call')}
           canPin={canPin}
           canDelete={menu.m.sender?.id === me.id || canDeleteOthers}
           canReport={menu.m.sender?.id !== me.id && chat.type !== 'saved' && !(chat.type === 'channel' && (chat.myRole === 'owner' || chat.myRole === 'admin'))}

@@ -1,5 +1,5 @@
 import { get, all, run, now } from '../db.js';
-import { hasSitePerm, hasChatPerm } from '../perms.js';
+import { hasSitePerm, hasChatPerm, canPostInChannel } from '../perms.js';
 import { toChat, toAll, toChatExcept } from '../realtime.js';
 import { fail, getMember, loadMessage, loadMessages, loadMessagesByIds, postMessage, systemMessage, audit, findMentions, withMine, membersHidden } from '../chats.js';
 import { requireChat } from './chats.js';
@@ -17,7 +17,7 @@ export function assertCanPost(user, chat, member) {
     return;
   }
   if (chat.type === 'channel') {
-    if (!hasChatPerm(user, member, 'post_messages')) fail(403, 'فقط مدیران کانال می‌توانند پیام بگذارند');
+    if (!canPostInChannel(member)) fail(403, 'فقط مدیران کانال می‌توانند پیام بگذارند');
     return;
   }
   if (chat.type !== 'group' && chat.type !== 'voice') return;
@@ -171,7 +171,7 @@ export default async function messageRoutes(app) {
   app.patch('/api/messages/:id', async (req) => {
     const { m, chat, member } = requireMessage(req, req.params.id);
     // Channel posts are anonymous: any admin who may post can edit them.
-    const channelEditor = chat.type === 'channel' && member && hasChatPerm(req.user, member, 'post_messages');
+    const channelEditor = chat.type === 'channel' && canPostInChannel(member);
     if (m.sender_id !== req.user.id && !channelEditor) fail(403, 'فقط پیام‌های خودتان را می‌توانید ویرایش کنید');
     if (m.type === 'system') fail(400, 'نامعتبر');
     const text = String(req.body?.text || '').trim();

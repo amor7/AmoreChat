@@ -38,5 +38,13 @@ export function hasChatPerm(user, member, perm) {
   return parseJSON(member.perms, []).includes(perm);
 }
 
+// Posting in a channel is for the channel itself (owner, or admins given the right), like
+// Telegram: site admins can moderate and delete a channel, but not post in it as a member.
+export function canPostInChannel(member) {
+  if (!member) return false;
+  if (member.role === 'owner') return true;
+  return member.role === 'admin' && parseJSON(member.perms, []).includes('post_messages');
+}
+
 export const cleanPerms = (list, allowed) =>
   Array.isArray(list) ? [...new Set(list.filter((p) => allowed.includes(p)))] : [];

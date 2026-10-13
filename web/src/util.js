@@ -182,11 +182,14 @@ export function hasChatPerm(me, chat, perm) {
   return chat.myRole === 'admin' && chat.myPerms?.includes(perm);
 }
 
+// Posting in a channel: its owner, or admins given the right (not site admins; like Telegram).
+export const canPostInChannel = (chat) => chat?.myRole === 'owner' || (chat?.myRole === 'admin' && !!chat.myPerms?.includes('post_messages'));
+
 // Mirrors the server's posting rules so the composer can explain why it is disabled.
 export function postBlockReason(me, chat) {
   if (!chat) return null;
   if (chat.isEmergency) return chat.myRole === 'owner' || hasSitePerm(me, 'broadcast') ? null : 'فقط مدیران در این کانال پیام می‌گذارند';
-  if (chat.type === 'channel') return hasChatPerm(me, chat, 'post_messages') ? null : 'فقط مدیران کانال پیام می‌گذارند';
+  if (chat.type === 'channel') return canPostInChannel(chat) ? null : 'فقط مدیران کانال پیام می‌گذارند';
   if (chat.type !== 'group' && chat.type !== 'voice') return null;
   if (chat.myRole === 'owner' || chat.myRole === 'admin' || hasSitePerm(me, 'manage_chats')) return null;
   if (chat.mutedUntil && chat.mutedUntil > Date.now()) return 'شما در این گروه بی‌صدا هستید';

@@ -12,7 +12,7 @@ const run = (fn) =>
     .catch((e) => useStore.getState().showToast(e.message));
 
 // Who may start / run a voice chat in a stage chat (the server checks the exact permissions).
-export const isStageAdmin = (me, chat) => !!chat && (hasSitePerm(me, 'manage_chats') || chat.myRole === 'owner' || chat.myRole === 'admin');
+export const isStageAdmin = (me, chat) => !!chat && ((chat.type !== 'channel' && hasSitePerm(me, 'manage_chats')) || chat.myRole === 'owner' || chat.myRole === 'admin');
 
 // ---------- Per-person volume, 0–200% (remembered on this device) ----------
 export function VolumeSlider({ userId, kind = 'voice', label }) {

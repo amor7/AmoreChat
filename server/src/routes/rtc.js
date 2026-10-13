@@ -1,6 +1,6 @@
 import { get, all, now } from '../db.js';
 import { settingNumber } from '../settings.js';
-import { hasSitePerm, hasChatPerm } from '../perms.js';
+import { hasSitePerm, hasChatPerm, canPostInChannel } from '../perms.js';
 import { effectiveLimits } from '../limits.js';
 import { toUser, toChat } from '../realtime.js';
 import { fail, getChat, getMember, addMember, audit, membersHidden } from '../chats.js';
@@ -21,10 +21,11 @@ function sourcesFor(user) {
 
 // Who may speak in a chat's voice room (listeners can always join).
 function canSpeak(user, chat, member) {
+  if (chat.type === 'channel' && !chat.is_emergency && !canPostInChannel(member)) return false;
   if (!member) return hasSitePerm(user, 'manage_chats');
   if (member.muted_until && member.muted_until > now()) return false;
   if (chat.is_emergency) return member.role === 'owner' || hasSitePerm(user, 'broadcast');
-  if (chat.type === 'channel') return hasChatPerm(user, member, 'post_messages');
+  if (chat.type === 'channel') return canPostInChannel(member);
   const staff = member.role === 'owner' || member.role === 'admin' || hasSitePerm(user, 'manage_chats');
   return staff || !chat.locked;
 }

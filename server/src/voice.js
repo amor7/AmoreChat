@@ -23,7 +23,8 @@ export const isStage = (chat) => !!chat && (chat.type === 'channel' || (chat.typ
 const listenersHidden = (chat) => chat.type === 'channel' || !!chat.hide_members;
 
 export function isStageAdmin(user, chat, member) {
-  if (hasSitePerm(user, 'manage_chats')) return true;
+  // A channel's voice chat is run by the channel's own admins (site admins are not members).
+  if (chat.type !== 'channel' && hasSitePerm(user, 'manage_chats')) return true;
   if (!member) return false;
   if (chat.is_emergency) return member.role === 'owner' || hasSitePerm(user, 'broadcast');
   if (member.role === 'owner') return true;

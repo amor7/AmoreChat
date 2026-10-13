@@ -349,5 +349,34 @@ assert.equal(buf.length % 512, 0);
 res = await alice.call('GET', '/api/admin/backup/full', null, { raw: true });
 assert.equal(res.status, 403);
 
+// ---- Channels like Telegram: only the channel's owner / admins (with the right) post ----
+const chOwner = client();
+const siteMod = client();
+const reader = client();
+const editor = client();
+const ids = {};
+for (const [c, n] of [[chOwner, 'chowner'], [siteMod, 'sitemod'], [reader, 'reader'], [editor, 'editor']]) {
+  r = await c.call('POST', '/api/auth/register', { username: n, password: PASS, displayName: n });
+  assert.equal(r.status, 200, JSON.stringify(r));
+  ids[n] = r.user.id;
+}
+r = await owner.call('PATCH', `/api/admin/users/${ids.sitemod}`, { role: 'admin', adminPerms: ['manage_chats'] });
+assert.equal(r.status, 200);
+const chan = (await chOwner.call('POST', '/api/chats', { type: 'channel', title: 'News', isPublic: true })).chat.id;
+for (const c of [siteMod, reader, editor]) assert.equal((await c.call('POST', `/api/chats/${chan}/join`)).status, 200);
+const post = (c, text) => c.call('POST', `/api/chats/${chan}/messages`, { text });
+assert.equal((await post(chOwner, 'from the owner')).status, 200, 'channel owner posts');
+assert.equal((await post(reader, 'from a member')).status, 403, 'a member who joined cannot post');
+assert.equal((await post(siteMod, 'from a site admin')).status, 403, 'a site admin who joined cannot post either');
+assert.equal((await post(owner, 'from the site owner')).status, 403, 'nor the site owner (not a member)');
+await chOwner.call('PATCH', `/api/chats/${chan}/members/${ids.editor}`, { role: 'admin', perms: [] });
+assert.equal((await post(editor, 'admin without the right')).status, 403, 'admin without "post messages"');
+await chOwner.call('PATCH', `/api/chats/${chan}/members/${ids.editor}`, { role: 'admin', perms: ['post_messages'] });
+assert.equal((await post(editor, 'from the editor')).status, 200, 'admin with "post messages" posts');
+r = await reader.call('GET', `/api/chats/${chan}`);
+assert.equal(r.chat?.myRole, 'member');
+// The site admin can still delete the channel from the panel.
+assert.equal((await siteMod.call('DELETE', `/api/chats/${chan}`)).status, 200, 'site admin deletes the channel');
+
 console.log('ACCOUNT TEST PASSED');
 process.exit(0);
