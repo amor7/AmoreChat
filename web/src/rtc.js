@@ -239,7 +239,14 @@ export async function leave() {
   await r.disconnect().catch(() => {});
 }
 
+// Browsers (and the Android WebView) only allow the microphone and camera on a secure connection.
+const NEED_HTTPS = 'تماس و ویس‌چت فقط با اتصال امن (https) کار می‌کند؛ پیام‌ها بدون آن هم کار می‌کنند. آدرس https همین سرور را باز کنید.';
+function needSecure() {
+  if (typeof window !== 'undefined' && !window.isSecureContext) throw new Error(NEED_HTTPS);
+}
+
 export async function joinVoice(chatId, { expanded = false } = {}) {
+  needSecure();
   const chat = st().chats[chatId];
   const info = await api('POST', '/rtc/join', { chatId });
   await connect(
@@ -344,6 +351,7 @@ export function setPtt(on) {
 // ---------- 1:1 calls ----------
 export async function startCall(peer, video) {
   if (st().call) return st().showToast('یک تماس در جریان است');
+  needSecure();
   const { call } = await api('POST', '/calls', { userId: peer.id, video });
   useStore.setState({ call: { ...call, role: 'caller', peer, state: 'ringing' } });
   startRing('outgoing');
@@ -360,6 +368,7 @@ export async function startCall(peer, video) {
 export async function acceptCall() {
   const call = st().call;
   if (!call) return;
+  needSecure();
   stopRing();
   const { call: info } = await api('POST', `/calls/${call.id}/accept`);
   useStore.setState({ call: { ...call, state: 'active' } });

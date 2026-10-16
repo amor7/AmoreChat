@@ -48,9 +48,6 @@ if [ "$CURRENT" != "$TAG" ] && [ "$LOWEST" = "${TAG#v}" ]; then
   [ "$ok" = "y" ] || [ "$ok" = "Y" ] || exit 1
 fi
 
-# Older installs mounted deploy/Caddyfile directly; keep any edits by moving them to ./Caddyfile.
-[ -f Caddyfile ] || cp deploy/Caddyfile Caddyfile
-
 if docker compose ps --status running --services 2>/dev/null | grep -qx app; then
   echo ">> Backing up the database..."
   docker compose exec -T app node server/src/backup-cli.js </dev/null || echo "!! Backup failed, continuing"
@@ -86,6 +83,8 @@ else
   docker compose up -d --build --remove-orphans
 fi
 
+# Caddy reads its config only at start: pick up address changes from .env.
+docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 || docker compose restart caddy >/dev/null 2>&1 || true
 [ -f deploy/install-command.sh ] && bash deploy/install-command.sh . || true
 echo ">> AmoreChat ${TAG} is running. Next time just run: sudo amorechat-update"
 }

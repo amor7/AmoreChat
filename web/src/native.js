@@ -1,6 +1,7 @@
 // Glue to the Android app (window.AmoreAndroid, see android/.../MainActivity.java).
 // In a normal browser every function here is a no-op.
 import { useStore } from './store';
+import { leavingPage } from './backnav';
 
 const bridge = typeof window !== 'undefined' ? window.AmoreAndroid : undefined;
 export const isAndroidApp = !!bridge;
@@ -26,7 +27,10 @@ export function installAppUpdate() {
   navigator.clipboard?.writeText(link).catch(() => {});
   useStore.getState().showToast('این نسخه اپ خودش آپدیت نمی‌شود. آدرس ' + link + ' کپی شد؛ آن را یک بار در مرورگر گوشی باز کنید و نصب کنید.');
 }
-export const changeServer = () => bridge?.changeServer();
+export const changeServer = () => {
+  leavingPage();
+  bridge?.changeServer();
+};
 
 // ---------- Several servers (Android app 0.8+) ----------
 export const multiServer = !!bridge?.servers;
@@ -37,9 +41,23 @@ export function appServers() {
     return [];
   }
 }
-export const switchServer = (url) => bridge?.switchServer?.(url);
-export const addServer = () => bridge?.addServer?.();
-export const removeServer = (url) => bridge?.removeServer?.(url);
+export const switchServer = (url) => {
+  leavingPage();
+  bridge?.switchServer?.(url);
+};
+export const addServer = () => {
+  leavingPage();
+  bridge?.addServer?.();
+};
+/** Leave a server completely: signed out there (when reachable) and everything about it removed from this phone. */
+export async function removeServer(url) {
+  leavingPage();
+  if (appServers().find((s) => s.current)?.url === url) {
+    const { api } = await import('./api');
+    await api('POST', '/auth/logout', null, { timeout: 4000 }).catch(() => {});
+  }
+  bridge?.removeServer?.(url);
+}
 export const appLockSupported = !!bridge?.setAppLock;
 export const appLockOn = () => !!bridge?.appLock?.();
 export const setAppLock = (on) => bridge?.setAppLock?.(!!on);

@@ -27,29 +27,8 @@ if ! grep -q '^TLS_MODE=' .env; then
   echo "TLS_MODE=auto" >> .env
 fi
 
-# Caddyfile: older installs have a copy without the TLS_MODE switch. Replace it if it is
-# an unmodified stock copy (only comments differ); keep it if the owner edited it.
-if [ -f Caddyfile ] && ! grep -q 'tls-{\$TLS_MODE' Caddyfile; then
-  stock=$(grep -v '^\s*#' Caddyfile | tr -d ' \t\n')
-  old1=$(printf '{$DOMAIN}{encodezstdgzipreverse_proxyapp:3000}')
-  if [ "$stock" = "$old1" ]; then
-    cp Caddyfile Caddyfile.bak
-    cp deploy/Caddyfile Caddyfile
-    echo ">> Updated Caddyfile (TLS_MODE support). Old one saved as Caddyfile.bak"
-  else
-    echo "!! Your Caddyfile was customised, so it was kept. Compare with deploy/Caddyfile to get TLS_MODE support."
-  fi
-fi
-
-# v0.7: the stock Caddyfile gained /app over plain HTTP (Android app download on offline servers).
-if [ -f Caddyfile ] && ! grep -q "handle /app" Caddyfile; then
-  cur=$(grep -v '^\s*#' Caddyfile | tr -d ' \t\n' | sha256sum | cut -c1-64)
-  if [ "$cur" = "521a0302684650842e80790d6924693146a659dd3f8471a3517a44498423de50" ]; then
-    cp Caddyfile Caddyfile.bak
-    cp deploy/Caddyfile Caddyfile
-    echo ">> Updated Caddyfile (Android app download). Old one saved as Caddyfile.bak"
-  fi
-fi
+# The Caddy config follows the address settings in .env (DOMAIN, TLS_MODE, ALSO_IP, ALLOW_HTTP).
+bash deploy/caddy-config.sh
 
 # Open the media ports on ufw if it is active (the provider's cloud firewall must be opened by hand).
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then

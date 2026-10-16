@@ -53,7 +53,6 @@ jobs:
         run: |
           # Offline mode on a bare IP: the server's own CA, no Let's Encrypt.
           printf 'DOMAIN=127.0.0.1\nTLS_MODE=internal\nBACKUP_KEEP=14\nLOG_LEVEL=info\n' > .env
-          cp deploy/Caddyfile Caddyfile
           mkdir -p data certs && sudo chown -R 1000:1000 data
           sudo bash deploy/ensure-env.sh
           grep -E '^(PUBLIC_IP|LIVEKIT_API_SECRET)=.' .env | sed 's/=.*/=<set>/'
@@ -100,6 +99,30 @@ jobs:
           grep -q 'is running' /tmp/update.log
           for i in $(seq 1 60); do curl -sf --cacert /tmp/ca.crt https://127.0.0.1/healthz && break; sleep 2; done
           curl -sf --cacert /tmp/ca.crt https://127.0.0.1/api/config | grep -q '"version"'
+      - name: Every address setting gives a valid Caddy config
+        run: |
+          set -e
+          for combo in "chat.example.ir auto 1 0" "chat.example.ir internal 0 1" "chat.example.ir off 1 0" "185.10.20.30 auto 0 0" "185.10.20.30 off 0 0" "chat.example.ir custom 1 1"; do
+            set -- $combo
+            d=$(mktemp -d); mkdir -p $d/deploy $d/certs; cp deploy/caddy-config.sh $d/deploy/
+            printf 'DOMAIN=%s\nTLS_MODE=%s\nALSO_IP=%s\nALLOW_HTTP=%s\nPUBLIC_IP=185.10.20.30\n' "$1" "$2" "$3" "$4" > $d/.env
+            (cd $d && bash deploy/caddy-config.sh)
+            [ "$2" = custom ] && openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=x -keyout $d/certs/key.pem -out $d/certs/cert.pem 2>/dev/null
+            docker run --rm -v $d/Caddyfile:/etc/caddy/Caddyfile:ro -v $d/certs:/certs:ro caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -1
+          done
+      - name: No SSL (plain http) - sign in and chat over http://
+        run: |
+          set -x
+          sed -i 's/^TLS_MODE=.*/TLS_MODE=off/' .env
+          sudo bash deploy/caddy-config.sh
+          docker compose restart caddy
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1/healthz && break; sleep 1; done
+          # Logged in over http: the session cookie must not be "Secure" (or the browser drops it).
+          curl -s -c /tmp/hjar -D /tmp/hdr -H 'x-requested-with: amorechat' -H 'content-type: application/json' \
+            -d '{"username":"owner","password":"Str0ng-Pass-77"}' http://127.0.0.1/api/auth/login | head -c 200; echo
+          ! grep -i '^set-cookie' /tmp/hdr | grep -qi 'secure'
+          curl -sf -b /tmp/hjar -H 'x-requested-with: amorechat' http://127.0.0.1/api/auth/me | grep -q '"username":"owner"'
+          curl -sf -b /tmp/hjar -H 'x-requested-with: amorechat' http://127.0.0.1/api/chats | grep -q '"chats"'
       - name: Logs
         if: always()
         run: |
@@ -175,7 +198,6 @@ jobs:
       - name: Prepare like install.sh (offline mode on a domain)
         run: |
           printf 'DOMAIN=chat.test\nTLS_MODE=internal\nPUBLIC_IP=172.30.0.10\nBACKUP_KEEP=14\nLOG_LEVEL=info\n' > .env
-          cp deploy/Caddyfile Caddyfile
           mkdir -p data certs && sudo chown -R 1000:1000 data
           sudo bash deploy/ensure-env.sh
       - name: Build and pull everything while the runner still has internet

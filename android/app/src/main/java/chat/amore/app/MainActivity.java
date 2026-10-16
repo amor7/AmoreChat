@@ -27,6 +27,7 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebStorage;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationManagerCompat;
@@ -375,7 +376,10 @@ public class MainActivity extends Activity {
         // The page closes its open dialog / menu first (step-by-step Back); otherwise history.
         web.evaluateJavascript("window.__amoreBack ? window.__amoreBack() : false", (handled) -> {
             if ("true".equals(handled)) return;
-            if (web.canGoBack()) web.goBack();
+            String at = web.getUrl();
+            String cur = Prefs.server(MainActivity.this);
+            if (at != null && at.startsWith(SETUP_URL + "?add") && cur != null) showServer(cur);
+            else if (web.canGoBack()) web.goBack();
             else moveTaskToBack(true);
         });
     }
@@ -437,6 +441,7 @@ public class MainActivity extends Activity {
         @Override
         public void onPageFinished(WebView view, String url) {
             pageReady = true;
+            if (url != null && (url.startsWith(SETUP_URL) || url.startsWith(OFFLINE_URL))) view.clearHistory();
             for (String js : pendingJs) view.evaluateJavascript(js, null);
             pendingJs.clear();
             if (!visible) setHidden(true);
@@ -647,16 +652,18 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void switchServer(String url) {
             if (Prefs.find(MainActivity.this, url) == null) return;
-            runOnUiThread(() -> showServer(url));
+            // A moment later: a menu closing on the page may still step back in its history, which
+            // would otherwise undo this navigation (older pages, served from cache, do that).
+            runOnUiThread(() -> web.postDelayed(() -> showServer(url), 350));
         }
 
         /** Add another server (the setup page); the current one stays signed in. */
         @JavascriptInterface
         public void addServer() {
-            runOnUiThread(() -> {
+            runOnUiThread(() -> web.postDelayed(() -> {
                 pageReady = false;
                 web.loadUrl(SETUP_URL + "?add=1");
-            });
+            }, 350));
         }
 
         @JavascriptInterface
@@ -668,6 +675,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void removeServer(String url) {
             runOnUiThread(() -> {
+                forgetServer(url);
                 Prefs.removeServer(MainActivity.this, url);
                 Notifs.cancelAllMessages(MainActivity.this, url);
                 NotifyService.kick(MainActivity.this);
@@ -790,6 +798,43 @@ public class MainActivity extends Activity {
                 startup();
             });
         }
+    }
+
+    /** Everything this phone keeps for a server: sign out there (best effort), cookies, stored data. */
+    private void forgetServer(String url) {
+        CookieManager cm = CookieManager.getInstance();
+        String cookies = cm.getCookie(url);
+        X509Certificate ca = null;
+        try {
+            ca = Trust.caFor(this, Uri.parse(url).getHost());
+        } catch (Exception ignored) {
+        }
+        final X509Certificate serverCa = ca;
+        if (cookies != null) {
+            new Thread(() -> {
+                try {
+                    HttpURLConnection c = Net.open(this, url + "/api/auth/logout", "POST", serverCa);
+                    c.setRequestProperty("Cookie", cookies);
+                    c.setConnectTimeout(5000);
+                    c.setReadTimeout(5000);
+                    c.getResponseCode();
+                    c.disconnect();
+                } catch (Exception ignored) {
+                    // unreachable (e.g. the server is gone): the local data goes anyway
+                }
+            }, "amore-logout").start();
+            for (String part : cookies.split(";")) {
+                String name = part.split("=", 2)[0].trim();
+                if (!name.isEmpty()) cm.setCookie(url, name + "=; Max-Age=0; Path=/");
+            }
+            cm.flush();
+        }
+        try {
+            WebStorage.getInstance().deleteOrigin(url);
+        } catch (Exception ignored) {
+        }
+        Notifs.clearUnread(url);
+        Trust.verifiedLeaves.clear();
     }
 
     private void setupReply(JSONObject r) {

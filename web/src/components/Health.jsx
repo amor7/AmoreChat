@@ -172,7 +172,9 @@ export default function Health() {
       {data.cert && (
         <>
           <h4>گواهی HTTPS</h4>
-          {data.cert.error ? (
+          {data.cert.mode === 'off' ? (
+            <p className="muted">بدون SSL (http): پیام‌ها کار می‌کنند؛ تماس و ویس‌چت به SSL نیاز دارند (TLS_MODE در فایل .env).</p>
+          ) : data.cert.error ? (
             <p className="muted">بررسی نشد ({data.cert.error})</p>
           ) : (
             <p className={data.cert.mode !== 'internal' && data.cert.daysLeft < 20 ? 'health-alert bad' : 'muted'}>

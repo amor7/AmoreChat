@@ -306,6 +306,23 @@ try {
     await waitUntil(() => notifications().includes('پیام از سرور دوم'), 'notification from the other server');
     await waitUntil(async () => JSON.parse(await dt.evaluate('AmoreAndroid.servers()')).find((x) => x.url.endsWith(':3101')).unread > 0, 'unread badge for the other server');
     screenshot('multi-server');
+
+    step('menu → "add another server": the add page stays open (it used to bounce back)');
+    await dt.evaluate("document.querySelector('.menu-btn').click(), true");
+    await waitUntil(() => dt.evaluate("!!document.querySelector('.server-switcher')"), 'server switcher in the menu');
+    await dt.evaluate("[...document.querySelectorAll('.server-switcher button')].find((b) => b.textContent.includes('افزودن')).click(), true");
+    await waitUntil(() => dt.evaluate("location.href.startsWith('file:') && !!document.getElementById('addr')"), 'add-server page');
+    await sleep(3000);
+    assert.equal(await dt.evaluate("location.href.startsWith('file:') && !!document.getElementById('addr')"), true, 'still on the add-server page');
+    await dt.evaluate("document.getElementById('cancelAdd').click(), true");
+    await waitUntil(() => dt.evaluate("location.host === '10.0.2.2:3100' && !!document.querySelector('.sidebar .chat-item')"), 'back on the first server');
+
+    step('leave the second server completely: removed, signed out there, notifications stop');
+    const sessionsBefore = (await bob2('GET', '/api/me/sessions')).sessions.length;
+    await dt.evaluate("AmoreAndroid.removeServer('http://localhost:3101'), true");
+    await waitUntil(async () => JSON.parse(await dt.evaluate('AmoreAndroid.servers()')).length === 1, 'only the first server left');
+    await waitUntil(async () => (await bob2('GET', '/api/me/sessions')).sessions.length === sessionsBefore - 1, 'the phone signed out on the second server');
+    await waitUntil(() => !notifications().includes('متصل به 2 سرور'), 'background connection to one server only');
   }
 
   step('reboot-free restart: service survives the activity being closed');

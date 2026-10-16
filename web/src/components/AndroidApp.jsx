@@ -145,7 +145,8 @@ export function AndroidSettings() {
                   {s.name}
                 </span>
                 <small className={s.connected ? 'ok' : 'bad'}>{s.connected ? 'متصل' : s.status || '…'}</small>
-                <button className="icon-btn" aria-label="حذف" onClick={() => confirm(`از «${s.name}» در این گوشی خارج شوید؟`) && removeServer(s.url)}>
+                <button className="icon-btn" aria-label="خروج کامل از این سرور" title="خروج کامل از این سرور" onClick={() => confirm(`از «${s.name}» کامل خارج شوید؟
+ورود شما، پیام‌های ذخیره‌شده روی این گوشی و اعلان‌های این سرور پاک می‌شود.`) && removeServer(s.url)}>
                   <Trash2 size={16} />
                 </button>
               </li>

@@ -30,6 +30,12 @@ function peerCert() {
 }
 
 export async function checkCert() {
+  if (MODE === 'off') {
+    // Plain HTTP on purpose: no certificate to watch.
+    info = { mode: MODE, domain: DOMAIN, checkedAt: Date.now() };
+    await resolveAlert('cert-expiry');
+    return info;
+  }
   let c;
   try {
     c = await peerCert();

@@ -11,6 +11,17 @@ let seq = 0;
 let popping = 0;
 let queued = [];
 let popTimer;
+// The app is about to load another page (another server, the add-server page): a late
+// history.back() from a menu closing would undo that navigation, so history is left alone.
+let leaving = false;
+export function leavingPage() {
+  leaving = true;
+  popping = 0;
+  queued = [];
+  clearTimeout(popTimer);
+  // Still here a while later (the other page never loaded): back to normal.
+  setTimeout(() => (leaving = false), 4000);
+}
 
 function flush() {
   popping = 0;
@@ -21,6 +32,7 @@ function flush() {
 }
 
 function push(entry) {
+  if (leaving) return;
   if (popping) queued.push(entry);
   else history.pushState({ layer: entry.id }, '');
 }
@@ -71,7 +83,7 @@ export function useBackClose(open, close) {
     return () => {
       const i = stack.indexOf(entry);
       if (i >= 0) stack.splice(i, 1);
-      if (entry.closedByBack) return;
+      if (entry.closedByBack || leaving) return;
       const q = queued.indexOf(entry);
       if (q >= 0) return void queued.splice(q, 1); // never got its entry
       // Closed by its own button: remove our history entry too, but only if it is still the

@@ -1,3 +1,4 @@
+# Example only: the real ./Caddyfile is generated from .env by deploy/caddy-config.sh.
 # AmoreChat reverse proxy. HTTPS mode comes from TLS_MODE in .env:
 #   auto     - Let's Encrypt (needs international internet to issue and renew)
 #   internal - this server's own certificate authority: works fully offline and

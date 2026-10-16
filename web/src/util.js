@@ -204,7 +204,20 @@ export async function copyText(text) {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    return false;
+    // No clipboard API on plain http: the old way still works there.
+    try {
+      const t = document.createElement('textarea');
+      t.value = text;
+      t.setAttribute('readonly', '');
+      t.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+      document.body.appendChild(t);
+      t.select();
+      const ok = document.execCommand('copy');
+      t.remove();
+      return ok;
+    } catch {
+      return false;
+    }
   }
 }
 
