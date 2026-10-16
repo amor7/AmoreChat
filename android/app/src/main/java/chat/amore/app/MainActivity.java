@@ -818,6 +818,12 @@ public class MainActivity extends Activity {
                     c.setRequestProperty("Cookie", cookies);
                     c.setConnectTimeout(5000);
                     c.setReadTimeout(5000);
+                    // A JSON body: a bare POST gets Android's default form content type, which the server refuses.
+                    c.setDoOutput(true);
+                    c.setRequestProperty("Content-Type", "application/json");
+                    try (java.io.OutputStream o = c.getOutputStream()) {
+                        o.write("{}".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
                     android.util.Log.i("AmoreChat", "logout " + url + " -> " + c.getResponseCode());
                     c.disconnect();
                 } catch (Exception e) {
