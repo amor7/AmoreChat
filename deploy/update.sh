@@ -2,8 +2,10 @@
 # Update AmoreChat from GitHub Releases, or switch to a specific version.
 #   sudo bash deploy/update.sh            # latest release
 #   sudo bash deploy/update.sh v0.1.0     # a specific version
-#   sudo bash deploy/update.sh /root/new  # offline: a folder with amorechat-source.tar.gz
-#                                         # (+ amorechat-offline-amd64.tar.gz) copied from Releases
+#   sudo bash deploy/update.sh /root/new  # offline: a folder with files copied from Releases:
+#                                         # amorechat-source.tar.gz + manifest.json + amorechat-app.tar.gz
+#                                         # (+ the runtime/deps parts if they changed), or the full
+#                                         # amorechat-offline-amd64.tar.gz
 # After the first run you can simply use:  sudo amorechat-update [version]
 # Your data (data/), settings (.env), Caddyfile and certs/ are kept.
 # Everything runs inside main(), which bash parses fully before running:
@@ -59,7 +61,6 @@ BASE="https://github.com/${REPO}/releases/download/${TAG}"
 
 if [ -n "$LOCAL" ]; then
   cp "$LOCAL/amorechat-source.tar.gz" "$TMP/source.tar.gz"
-  [ -f "$LOCAL/amorechat-offline-amd64.tar.gz" ] && ln -s "$LOCAL/amorechat-offline-amd64.tar.gz" "$TMP/offline.tar.gz"
 else
   echo ">> Downloading ${TAG} source..."
   curl -fL --retry 3 -o "$TMP/source.tar.gz" "${BASE}/amorechat-source.tar.gz" || { echo "!! Version ${TAG} not found."; exit 1; }
@@ -74,10 +75,79 @@ fi
 # New versions may need new settings (e.g. the voice server secret); existing values are kept.
 [ -f deploy/ensure-env.sh ] && bash deploy/ensure-env.sh
 
-if [ -e "$TMP/offline.tar.gz" ] || { [ -z "$LOCAL" ] && [ "$(uname -m)" = "x86_64" ] && curl -fL --retry 3 -o "$TMP/offline.tar.gz" "${BASE}/amorechat-offline-amd64.tar.gz"; }; then
-  echo ">> Loading prebuilt images..."
-  gunzip -c "$TMP/offline.tar.gz" | docker load
+# Images. A release comes in parts (see deploy/make-release.sh): only what this server doesn't
+# have yet is downloaded - usually just the app code (a few MB) instead of the whole ~185 MB.
+# Downloads are kept in a cache and resume where they stopped if the connection drops.
+CACHE=/var/cache/amorechat
+mkdir -p "$CACHE"
+# get <file>: from the local folder, or downloaded (resumable) from the release.
+get() {
+  if [ -n "$LOCAL" ]; then
+    [ -f "$LOCAL/$1" ] && echo "$LOCAL/$1"
+    return
+  fi
+  local out="$CACHE/$1"
+  if [ -f "$out" ] && gzip -t "$out" 2>/dev/null; then echo "$out"; return; fi
+  echo ">> Downloading $1..." >&2
+  local i
+  for i in 1 2 3 4 5; do
+    curl -fL --retry 3 -C - -o "$out" "${BASE}/$1" >&2 && gzip -t "$out" 2>/dev/null && { echo "$out"; return; }
+    echo "   (connection dropped; resuming...)" >&2
+    sleep 3
+  done
+  rm -f "$out" # broken beyond resuming: start over next time
+  return 1
+}
+jval() { grep -m1 "\"$1\"" "$2" | sed -E 's/.*: *"([^"]*)".*/\1/'; }
+
+MANIFEST=""
+if [ -n "$LOCAL" ]; then
+  [ -f "$LOCAL/manifest.json" ] && MANIFEST="$LOCAL/manifest.json"
+elif [ "$(uname -m)" = "x86_64" ] && curl -fsSL --retry 3 -o "$TMP/manifest.json" "${BASE}/manifest.json"; then
+  MANIFEST="$TMP/manifest.json"
+fi
+
+LOADED=""
+if [ -n "$MANIFEST" ]; then
+  RUNTIME=$(jval runtime "$MANIFEST")
+  DEPS=$(jval deps "$MANIFEST")
+  NEED_DEPS=""
+  for img in caddy livekit; do
+    ref=$(jval "$img" "$MANIFEST")
+    want=$(jval "${img}Id" "$MANIFEST")
+    have=$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null || true)
+    [ "$have" = "$want" ] || NEED_DEPS=1
+  done
+  if docker image inspect "amorechat-runtime:$RUNTIME" >/dev/null 2>&1; then
+    echo ">> Runtime $RUNTIME already here (no download)"
+  elif f=$(get "amorechat-runtime-$RUNTIME-amd64.tar.gz"); then
+    gunzip -c "$f" | docker load
+  fi
+  if [ -z "$NEED_DEPS" ]; then
+    echo ">> Caddy and LiveKit already up to date (no download)"
+  elif f=$(get "amorechat-deps-$DEPS-amd64.tar.gz"); then
+    gunzip -c "$f" | docker load
+  fi
+  if docker image inspect "amorechat-runtime:$RUNTIME" >/dev/null 2>&1 && f=$(get amorechat-app.tar.gz); then
+    echo ">> Building the new version on this server (no internet needed)..."
+    mkdir -p "$TMP/app"
+    tar xzf "$f" -C "$TMP/app"
+    docker build -q --build-arg "RUNTIME=$RUNTIME" -t amorechat:latest "$TMP/app" >/dev/null && LOADED=1
+  fi
+fi
+if [ -z "$LOADED" ]; then
+  # Older releases (one big file) or a folder holding only the full bundle.
+  if [ -n "$LOCAL" ] && [ -f "$LOCAL/amorechat-offline-amd64.tar.gz" ]; then
+    gunzip -c "$LOCAL/amorechat-offline-amd64.tar.gz" | docker load && LOADED=1
+  elif [ -z "$LOCAL" ] && [ "$(uname -m)" = "x86_64" ] && f=$(get amorechat-offline-amd64.tar.gz); then
+    gunzip -c "$f" | docker load && LOADED=1
+  fi
+fi
+if [ -n "$LOADED" ]; then
   docker compose up -d --no-build --remove-orphans
+  # Downloads are done with: free the cache; old images that nothing uses any more go too.
+  rm -f "$CACHE"/*.tar.gz
+  docker image prune -f >/dev/null 2>&1 || true
 else
   echo ">> No prebuilt image for this server; building from source (needs Docker Hub + npm access)..."
   docker compose up -d --build --remove-orphans

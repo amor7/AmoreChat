@@ -30,19 +30,22 @@ jobs:
           rm -f android-dist/amorechat-debug.apk
           cp android-dist/amorechat.apk "amorechat-android-${GITHUB_REF_NAME}.apk"
           ls -lh android-dist
-      - name: Build image
-        run: docker build -t amorechat:latest .
-      - name: Create offline bundle
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run build
+      - name: Release files (small update parts + the full offline bundle)
         run: |
-          docker pull caddy:2-alpine
-          docker pull livekit/livekit-server:v1.13.7
-          docker save amorechat:latest caddy:2-alpine livekit/livekit-server:v1.13.7 | gzip > amorechat-offline-amd64.tar.gz
+          bash deploy/make-release.sh .
           git archive --format=tar.gz --prefix=amorechat/ -o amorechat-source.tar.gz HEAD
-          ls -lh *.tar.gz
+          ls -lh *.tar.gz manifest.json
       - uses: actions/upload-artifact@v4
         with:
           name: amorechat-offline
-          path: '*.tar.gz'
+          path: |
+            *.tar.gz
+            manifest.json
       - name: Release notes from CHANGELOG.md
         run: |
           awk -v tag="## ${GITHUB_REF_NAME}" '$0==tag{f=1;next} /^## /{f=0} f' CHANGELOG.md > notes.md
@@ -55,4 +58,5 @@ jobs:
           files: |
             *.tar.gz
             *.apk
+            manifest.json
           body_path: notes.md

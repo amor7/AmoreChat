@@ -189,6 +189,59 @@ jobs:
 
   # Six people at once in real Chromes against a real LiveKit: sign-up, group/DM/channel chat,
   # reactions, edits, pictures, offline queue, a voice channel with several screen streams.
+  # Updates download only what changed: release A installed from its parts, then release B
+  # (code change only) must not download the runtime or Caddy/LiveKit again.
+  small-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run build
+      - name: Release A (as GitHub would publish it)
+        run: |
+          bash deploy/make-release.sh /tmp/relA
+          git archive --format=tar.gz --prefix=amorechat/ -o /tmp/relA/amorechat-source.tar.gz HEAD
+          cat /tmp/relA/manifest.json
+      - name: Fresh server installs release A from its parts (nothing preloaded)
+        run: |
+          set -x -o pipefail
+          docker image rm -f amorechat:latest $(docker images --format '{{.Repository}}:{{.Tag}}' | grep -E '^(amorechat-runtime|caddy|livekit)') || true
+          printf 'DOMAIN=127.0.0.1\nTLS_MODE=internal\nBACKUP_KEEP=14\nLOG_LEVEL=info\n' > .env
+          mkdir -p data certs && sudo chown -R 1000:1000 data
+          sudo bash deploy/ensure-env.sh
+          sudo FORCE=1 bash deploy/update.sh /tmp/relA 2>&1 | tee /tmp/updA.log
+          grep -q 'is running' /tmp/updA.log
+          for i in $(seq 1 60); do curl -skf https://127.0.0.1/healthz && break; sleep 2; done
+          curl -skf https://127.0.0.1/api/config | grep -q '"version"'
+      - name: Release B changes only code; the update builds it locally from the small part
+        run: |
+          set -x -o pipefail
+          node -e "const f='package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version=p.version.replace(/\d+$/,(n)=>+n+1);require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
+          echo '// release B' >> server/src/index.js
+          npm run build
+          bash deploy/make-release.sh /tmp/relB
+          git -c user.email=ci@x -c user.name=ci commit -qam 'release B'
+          git archive --format=tar.gz --prefix=amorechat/ -o /tmp/relB/amorechat-source.tar.gz HEAD
+          ls -lh /tmp/relB
+          [ "$(grep -o '"runtime": "[^"]*"' /tmp/relA/manifest.json)" = "$(grep -o '"runtime": "[^"]*"' /tmp/relB/manifest.json)" ]
+          # The server only gets the small parts (as if downloaded): no runtime, deps or full bundle.
+          mkdir /tmp/relB-small
+          cp /tmp/relB/manifest.json /tmp/relB/amorechat-app.tar.gz /tmp/relB/amorechat-source.tar.gz /tmp/relB-small/
+          du -sh /tmp/relB-small
+          sudo FORCE=1 bash deploy/update.sh /tmp/relB-small 2>&1 | tee /tmp/updB.log
+          grep -q 'Runtime .* already here' /tmp/updB.log
+          grep -q 'Caddy and LiveKit already up to date' /tmp/updB.log
+          grep -q 'is running' /tmp/updB.log
+          NEW=$(grep -o '"version": "[^"]*"' /tmp/relB/manifest.json | cut -d'"' -f4)
+          for i in $(seq 1 60); do curl -skf https://127.0.0.1/api/config | grep -q "\"version\":\"$NEW\"" && break; sleep 2; done
+          curl -skf https://127.0.0.1/api/config | grep "\"version\":\"$NEW\""
+      - name: Logs
+        if: failure()
+        run: docker compose logs --tail 60
+
   crowd:
     runs-on: ubuntu-latest
     env:
