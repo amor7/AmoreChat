@@ -66,7 +66,13 @@ fi
 
 bash deploy/install-command.sh .
 
-sleep 5
+# Wait for the app to be up (a fresh install prints the owner's setup code once it starts).
+echo ">> Waiting for AmoreChat to start..."
+for _ in $(seq 1 60); do
+  if docker compose logs app 2>/dev/null | grep -qE "SETUP CODE|Server listening"; then break; fi
+  sleep 1
+done
+sleep 1
 docker compose ps
 echo
 if docker compose logs app 2>/dev/null | grep -q "SETUP CODE"; then
@@ -74,11 +80,12 @@ if docker compose logs app 2>/dev/null | grep -q "SETUP CODE"; then
   echo "Open https://$(grep ^DOMAIN= .env | cut -d= -f2) and register the owner account with the code above."
 else
   echo "Done. Open https://$(grep ^DOMAIN= .env | cut -d= -f2)"
+  echo "(New server? The owner setup code: sudo docker compose logs app | grep 'SETUP CODE')"
 fi
 if grep -q '^TLS_MODE=internal' .env; then
   echo
   echo ">> Offline SSL: on every phone/computer first open  http://$(grep ^DOMAIN= .env | cut -d= -f2)/ca"
   echo "   and install the certificate (the Android app does not need it: http://$(grep ^DOMAIN= .env | cut -d= -f2)/app)"
 fi
-echo "To update later run: sudo amorechat-update   (or a version: sudo amorechat-update v0.2.0)"
+echo "To update later run: sudo amorechat-update   (or a version: sudo amorechat-update v1.2.3)"
 echo "Without GitHub access: copy the release files to a folder and run: sudo amorechat-update /path/to/folder"
