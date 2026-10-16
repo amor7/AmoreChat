@@ -122,11 +122,15 @@ if [ -n "$MANIFEST" ]; then
     echo ">> Runtime $RUNTIME already here (no download)"
   elif f=$(get "amorechat-runtime-$RUNTIME-amd64.tar.gz"); then
     gunzip -c "$f" | docker load
+  else
+    echo "!! This version needs amorechat-runtime-$RUNTIME-amd64.tar.gz (or the full amorechat-offline-amd64.tar.gz) from the release"
   fi
   if [ -z "$NEED_DEPS" ]; then
     echo ">> Caddy and LiveKit already up to date (no download)"
   elif f=$(get "amorechat-deps-$DEPS-amd64.tar.gz"); then
     gunzip -c "$f" | docker load
+  else
+    echo "!! New Caddy/LiveKit: also copy amorechat-deps-$DEPS-amd64.tar.gz from the release (the old ones keep working meanwhile)"
   fi
   if docker image inspect "amorechat-runtime:$RUNTIME" >/dev/null 2>&1 && f=$(get amorechat-app.tar.gz); then
     echo ">> Building the new version on this server (no internet needed)..."

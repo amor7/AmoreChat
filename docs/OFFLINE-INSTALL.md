@@ -281,10 +281,13 @@ sudo update-ca-certificates
 
 ## ۱۰. به‌روزرسانی آفلاین
 
-1. روی کامپیوتر با اینترنت، فایل‌های **نسخه جدید** (`amorechat-source.tar.gz` و `amorechat-offline-amd64.tar.gz`) را دانلود کنید.
+1. روی کامپیوتر با اینترنت، فایل‌های **نسخه جدید** را از صفحه Releases دانلود کنید. دو راه دارید:
+   - **کم‌حجم (معمولاً حدود ۲ مگابایت):** `amorechat-source.tar.gz`، `manifest.json` و `amorechat-app.tar.gz`.
+     اگر در توضیحات نسخه آمده که «runtime» یا «Caddy/LiveKit» عوض شده، فایل `amorechat-runtime-…` یا `amorechat-deps-…` همان نسخه را هم بردارید (اگر برنداشتید و لازم بود، اسکریپت می‌گوید کدام فایل کم است).
+   - **کامل (حدود ۱۸۵ مگابایت):** `amorechat-source.tar.gz` و `amorechat-offline-amd64.tar.gz`.
 2. آن‌ها را در یک **پوشه جدا** روی سرور بگذارید:
    ```
-   scp amorechat-source.tar.gz amorechat-offline-amd64.tar.gz root@185.1.2.3:/root/new/
+   scp amorechat-source.tar.gz manifest.json amorechat-app.tar.gz root@185.1.2.3:/root/new/
    ```
    (اگر پوشه `/root/new` نیست، اول روی سرور `mkdir -p /root/new` بزنید.)
 3. روی سرور:
