@@ -219,6 +219,8 @@ jobs:
       - name: Release B changes only code; the update builds it locally from the small part
         run: |
           set -x -o pipefail
+          # The update ran as root: give the checkout back (not data/, which belongs to the app).
+          sudo find . -path ./data -prune -o -exec chown "$(id -u):$(id -g)" {} +
           node -e "const f='package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version=p.version.replace(/\d+$/,(n)=>+n+1);require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
           echo '// release B' >> server/src/index.js
           npm run build
