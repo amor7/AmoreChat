@@ -187,6 +187,44 @@ jobs:
             shot-*.png
             ui-fail-*.png
 
+  # Six people at once in real Chromes against a real LiveKit: sign-up, group/DM/channel chat,
+  # reactions, edits, pictures, offline queue, a voice channel with several screen streams.
+  crowd:
+    runs-on: ubuntu-latest
+    env:
+      LIVEKIT_API_KEY: amorechat
+      LIVEKIT_API_SECRET: ci-secret-0123456789abcdefghijklmnopqrstuv
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Start LiveKit
+        run: |
+          sed 's#http://app:3000#http://127.0.0.1:3103#' deploy/livekit.yaml > /tmp/livekit.yaml
+          docker run -d --name livekit --network host -v /tmp/livekit.yaml:/etc/livekit.yaml:ro \
+            -e "LIVEKIT_KEYS=amorechat: $LIVEKIT_API_SECRET" livekit/livekit-server:v1.13.7 --config /etc/livekit.yaml --node-ip 127.0.0.1
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:7880 && break; sleep 1; done
+      - name: Start app
+        run: |
+          LIVEKIT_URL=http://127.0.0.1:7880 DATA_DIR=/tmp/crowd PORT=3103 node server/src/index.js > crowd-server.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:3103/healthz && break; sleep 1; done
+      - run: npm install --no-save puppeteer@25.11.0
+      - name: Crowd test (6 people at once)
+        run: |
+          CODE=$(grep -oP 'SETUP CODE: \K\S+' crowd-server.log)
+          node server/test/crowd-e2e.mjs http://localhost:3103 "$CODE" crowd-server.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: crowd
+          path: |
+            crowd-*.png
+            crowd-server.log
+
   # A full international shutdown: the stack and a Chrome client on a Docker network with
   # NO route to the internet; the complete end-to-end suite runs inside it.
   isolated:
