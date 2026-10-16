@@ -206,6 +206,8 @@ export const useStore = create((set, get) => ({
   },
   updateMessage(m) {
     const old = get().messages[m.chatId]?.find((x) => x.id === m.id);
+    // An older copy arriving late (e.g. the reply to my reaction after the broadcast of a later one).
+    if (old?.v && m.v && m.v < old.v) return;
     if (old && m.reactions?.some((r) => r.count != null && r.mine == null)) {
       m = { ...m, reactions: m.reactions.map((r) => (r.mine == null ? { ...r, mine: !!old.reactions?.find((o) => o.emoji === r.emoji)?.mine } : r)) };
     }

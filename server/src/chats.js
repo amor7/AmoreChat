@@ -50,11 +50,17 @@ function withReactions(rows) {
   return rows.map((m) => serializeMessage(m, reactions.get(m.id)));
 }
 
+// Every serialized copy of a message gets a strictly increasing version: when updates of one
+// message cross (an HTTP reply and the live broadcast of a later change), clients keep the newest.
+let lastVersion = 0;
+const nextVersion = () => (lastVersion = Math.max(lastVersion + 1, Date.now() * 1000));
+
 export function serializeMessage(m, reactions = []) {
   if (!m) return null;
   const deleted = !!m.deleted;
   return {
     id: m.id,
+    v: nextVersion(),
     chatId: m.chat_id,
     type: deleted ? 'deleted' : m.type,
     text: deleted ? '' : m.text,
