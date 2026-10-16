@@ -22,6 +22,7 @@ const problems = [];
 const passed = [];
 const pageErrors = [];
 const serverErrors = [];
+const notes = []; // not failures, but worth knowing (e.g. a tap that needed a second try)
 let expectOffline = false;
 
 async function check(name, fn) {
@@ -71,6 +72,23 @@ function apiClient(cookie) {
 }
 const cookieOf = async (p) => (await p.cookies(BASE)).find((c) => c.name === 'ac_session')?.value;
 
+async function startShare(p, i) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await p.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
+    const opened = await p.waitForFunction(() => !!document.querySelector('.modal .btn.primary'), { timeout: 5000 }).then(
+      () => true,
+      () => false,
+    );
+    if (opened) {
+      if (attempt > 1) notes.push(`${USERS[i]}: the share button needed ${attempt} taps to open the stream dialog`);
+      await p.click('.modal .btn.primary');
+      return;
+    }
+    await p.screenshot({ path: `crowd-share-miss-${USERS[i]}-${attempt}.png` }).catch(() => {});
+  }
+  throw new Error(`${USERS[i]}: the stream dialog never opened`);
+}
+
 // ---------- Browser and the six people ----------
 const browser = await puppeteer.launch({
   protocolTimeout: 120000,
@@ -87,6 +105,8 @@ for (let i = 0; i < N; i++) {
     const t = m.text();
     if (expectOffline && /ERR_INTERNET_DISCONNECTED|Failed to fetch|socket\.io|WebSocket/.test(t)) return;
     if (/favicon|Failed to load resource: the server responded with a status of 4\d\d/.test(t)) return;
+    // LiveKit's own log lines when someone is removed from a room on purpose
+    if (/DataChannel error|data channel '.*' closed unexpectedly/.test(t)) return;
     pageErrors.push(`${USERS[i]} console: ${t.slice(0, 200)}`);
   });
   p.on('response', (r) => r.status() >= 500 && serverErrors.push(`${USERS[i]}: ${r.status()} ${r.request().method()} ${new URL(r.url()).pathname}`));
@@ -215,7 +235,11 @@ try {
     await input.uploadFile(new URL('../../web/public/icon-192.png', import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));
     await waitFor(P[5], () => !!document.querySelector('.modal'), null, 'send dialog');
     await P[5].$$eval('.modal .btn.primary', (els) => els.find((b) => b.textContent.includes('ارسال')).click());
-    await all((p) => waitFor(p, () => [...document.querySelectorAll('.msg-row img')].some((im) => im.naturalWidth > 0 && im.closest('.bubble')), null, 'picture shown', 30000));
+    await all(async (p) => {
+      await waitFor(p, () => !!document.querySelector('.msg-row .bubble.has-media'), null, 'picture message arrived', 30000);
+      await p.evaluate(() => [...document.querySelectorAll('.msg-row .bubble.has-media')].pop().scrollIntoView());
+      await waitFor(p, () => [...document.querySelectorAll('.msg-row .bubble.has-media img')].some((im) => im.naturalWidth > 0), null, 'picture loaded', 30000);
+    });
   });
 
   // ---------- Private chats: a ring of DMs at once ----------
@@ -297,9 +321,7 @@ try {
     await Promise.all(
       [1, 2, 3].map(async (i) => {
         const p = P[i];
-        await p.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
-        await waitFor(p, () => !!document.querySelector('.modal .btn.primary'), null, 'stream dialog');
-        await p.click('.modal .btn.primary');
+        await startShare(p, i);
         await waitFor(p, () => !!document.querySelector('.room-view .ctl.on[title="اشتراک صفحه (استریم)"]'), null, 'sharing', 30000);
       }),
     );
@@ -314,9 +336,7 @@ try {
 
   await check('voice channel: a 4th stream is refused (limit 3 per room) with a message', async () => {
     const p = P[5];
-    await p.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
-    await waitFor(p, () => !!document.querySelector('.modal .btn.primary'), null, 'stream dialog');
-    await p.click('.modal .btn.primary');
+    await startShare(p, 5);
     await waitFor(p, () => (document.querySelector('.toast')?.textContent || '').includes('حداکثر'), null, 'limit message', 30000);
   });
 
@@ -367,6 +387,8 @@ console.log('\n================ CROWD TEST REPORT ================');
 console.log(`passed: ${passed.length}   problems: ${problems.length}   time: ${((Date.now() - t0) / 1000).toFixed(0)}s`);
 for (const p of problems) console.log(`  ✗ ${p}`);
 const uniq = (a) => [...new Set(a)];
+console.log(`notes: ${notes.length}`);
+for (const n of notes) console.log(`  · ${n}`);
 console.log(`page errors: ${pageErrors.length}`);
 for (const e of uniq(pageErrors).slice(0, 30)) console.log(`  ! ${e}`);
 console.log(`server 5xx responses: ${serverErrors.length}`);

@@ -139,12 +139,15 @@ function startPing() {
   pingTimer = setInterval(measurePing, 1000);
 }
 
-let lastTyping = 0;
+// "typing…" at most every 2.5 s per chat; sending a message starts over, so typing the next
+// message right after shows at once again (it used to stay silent for a quick follow-up).
+const lastTyping = new Map();
 export function emitTyping(chatId) {
-  if (Date.now() - lastTyping < 2500) return;
-  lastTyping = Date.now();
+  if (Date.now() - (lastTyping.get(chatId) || 0) < 2500) return;
+  lastTyping.set(chatId, Date.now());
   socket?.emit('typing', { chatId });
 }
+export const resetTyping = (chatId) => lastTyping.delete(chatId);
 
 async function checkSession() {
   try {

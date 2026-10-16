@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api, upload, CANCELLED } from '../api';
 import { useStore, dataSaverNow } from '../store';
-import { emitTyping, isChatMuted } from '../socket';
+import { emitTyping, resetTyping, isChatMuted } from '../socket';
 import { enqueue, flushOutbox } from '../offline';
 import { EmojiPicker, RichText } from './Emoji';
 import PreviewIcon from './PreviewIcon';
@@ -87,6 +87,7 @@ export default function Composer({ chat, droppedFile, onDroppedHandled }) {
     const reply = replyTo;
     if (edit && busy) return;
     setText('');
+    resetTyping(chat.id);
     useStore.setState({ replyTo: null, editing: null, ...(edit ? {} : { sentAt: Date.now() }) });
     inputRef.current?.focus();
     setBusy(true);
