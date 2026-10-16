@@ -957,3 +957,17 @@ body {
 .menu.floating .quick-reactions {
   flex-wrap: wrap;
 }
+/* Notification banners are text only: taps go through to the buttons under them (in a voice
+   room on a phone a banner sat right on the control bar and swallowed the first tap). */
+.toast {
+  pointer-events: none;
+}
+/* ...and they sit above the control bar / message box instead of on top of it. */
+body:has(.room-view, .call-view) .toast {
+  bottom: calc(110px + env(safe-area-inset-bottom));
+}
+@media (max-width: 760px) {
+  body:has(.composer) .toast {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}

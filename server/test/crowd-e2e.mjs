@@ -92,7 +92,8 @@ async function startShare(p, i) {
       () => false,
     );
     if (opened) {
-      if (attempt > 1) notes.push(`${USERS[i]}: the share button needed ${attempt} taps to open the stream dialog`);
+      // A tap that does nothing is a bug (it was a notification banner covering the button).
+      if (attempt > 1) problems.push(`${USERS[i]}: the share button needed ${attempt} taps to open the stream dialog`);
       await p.click('.modal .btn.primary');
       return;
     }
