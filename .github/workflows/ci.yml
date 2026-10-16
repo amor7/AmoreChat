@@ -108,7 +108,7 @@ jobs:
             printf 'DOMAIN=%s\nTLS_MODE=%s\nALSO_IP=%s\nALLOW_HTTP=%s\nPUBLIC_IP=185.10.20.30\n' "$1" "$2" "$3" "$4" > $d/.env
             (cd $d && bash deploy/caddy-config.sh)
             [ "$2" = custom ] && openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj /CN=x -keyout $d/certs/key.pem -out $d/certs/cert.pem 2>/dev/null
-            docker run --rm -v $d/Caddyfile:/etc/caddy/Caddyfile:ro -v $d/certs:/certs:ro caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -1
+            docker run --rm -v $d/Caddyfile:/etc/caddy/Caddyfile:ro -v $d/certs:/certs:ro caddy:2.11.7-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>&1 | tail -1
           done
       - name: No SSL (plain http) - sign in and chat over http://
         run: |
@@ -233,7 +233,10 @@ jobs:
           mkdir /tmp/relB-small
           cp /tmp/relB/manifest.json /tmp/relB/amorechat-app.tar.gz /tmp/relB/amorechat-source.tar.gz /tmp/relB-small/
           du -sh /tmp/relB-small
+          # Servers from before Caddy was pinned have the same image as caddy:2-alpine only.
+          docker tag caddy:2.11.7-alpine caddy:2-alpine && docker rmi caddy:2.11.7-alpine
           sudo FORCE=1 bash deploy/update.sh /tmp/relB-small 2>&1 | tee /tmp/updB.log
+          docker image inspect caddy:2.11.7-alpine >/dev/null
           grep -q 'Runtime .* already here' /tmp/updB.log
           grep -q 'Caddy and LiveKit already up to date' /tmp/updB.log
           grep -q 'is running' /tmp/updB.log

@@ -10,7 +10,7 @@ set -euo pipefail
 OUT=${1:-release-out}
 mkdir -p "$OUT"
 VERSION=$(node -p "require('./package.json').version")
-CADDY=caddy:2-alpine
+CADDY=caddy:2.11.7-alpine
 LIVEKIT=livekit/livekit-server:v1.13.7
 
 # The runtime's id depends on the libraries only, not on our own version number (which every

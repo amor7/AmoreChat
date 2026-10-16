@@ -116,6 +116,11 @@ if [ -n "$MANIFEST" ]; then
     ref=$(jval "$img" "$MANIFEST")
     want=$(jval "${img}Id" "$MANIFEST")
     have=$(docker image inspect -f '{{.Id}}' "$ref" 2>/dev/null || true)
+    # The very same image may already be here under another name (e.g. caddy:2-alpine before
+    # it was pinned): just give it the new name instead of downloading it again.
+    if [ "$have" != "$want" ] && [ -n "$want" ] && docker image inspect "$want" >/dev/null 2>&1; then
+      docker tag "$want" "$ref" && have=$want
+    fi
     [ "$have" = "$want" ] || NEED_DEPS=1
   done
   if docker image inspect "amorechat-runtime:$RUNTIME" >/dev/null 2>&1; then

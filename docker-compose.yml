@@ -37,7 +37,8 @@ services:
       - '3478:3478/udp'
 
   caddy:
-    image: caddy:2-alpine
+    # Pinned (like LiveKit): updates only download it again when a release moves to a newer one.
+    image: caddy:2.11.7-alpine
     restart: unless-stopped
     depends_on:
       - app
