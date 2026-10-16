@@ -321,7 +321,10 @@ try {
     const sessionsBefore = (await bob2('GET', '/api/me/sessions')).sessions.length;
     await dt.evaluate("AmoreAndroid.removeServer('http://localhost:3101'), true");
     await waitUntil(async () => JSON.parse(await dt.evaluate('AmoreAndroid.servers()')).length === 1, 'only the first server left');
-    await waitUntil(async () => (await bob2('GET', '/api/me/sessions')).sessions.length === sessionsBefore - 1, 'the phone signed out on the second server');
+    await waitUntil(async () => (await bob2('GET', '/api/me/sessions')).sessions.length === sessionsBefore - 1, 'the phone signed out on the second server').catch((e) => {
+      console.log(adb('logcat -d -s AmoreChat:I'));
+      throw e;
+    });
     await waitUntil(() => !notifications().includes('متصل به 2 سرور'), 'background connection to one server only');
   }
 

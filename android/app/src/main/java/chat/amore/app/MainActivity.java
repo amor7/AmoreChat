@@ -810,6 +810,7 @@ public class MainActivity extends Activity {
         } catch (Exception ignored) {
         }
         final X509Certificate serverCa = ca;
+        android.util.Log.i("AmoreChat", "forget " + url + " cookies=" + (cookies == null ? "none" : cookies.length()));
         if (cookies != null) {
             new Thread(() -> {
                 try {
@@ -817,10 +818,11 @@ public class MainActivity extends Activity {
                     c.setRequestProperty("Cookie", cookies);
                     c.setConnectTimeout(5000);
                     c.setReadTimeout(5000);
-                    c.getResponseCode();
+                    android.util.Log.i("AmoreChat", "logout " + url + " -> " + c.getResponseCode());
                     c.disconnect();
-                } catch (Exception ignored) {
+                } catch (Exception e) {
                     // unreachable (e.g. the server is gone): the local data goes anyway
+                    android.util.Log.i("AmoreChat", "logout " + url + " failed: " + e);
                 }
             }, "amore-logout").start();
             for (String part : cookies.split(";")) {
