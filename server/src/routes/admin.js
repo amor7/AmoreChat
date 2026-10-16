@@ -12,7 +12,7 @@ import { effectiveLimits, cleanLimits } from '../limits.js';
 import { deleteMessage } from '../sweeper.js';
 import { kickEverywhere } from '../voice.js';
 import { series, recentAlerts, sample, netIsHostWide } from '../health.js';
-import { certInfo, checkCert } from '../certcheck.js';
+import { certInfo, checkCert, domainDnsInfo, checkDomainDns } from '../certcheck.js';
 import { mirrorStatus } from '../backup.js';
 
 const need = (req, perm) => {
@@ -191,6 +191,7 @@ export default async function adminRoutes(app) {
     // HTTPS certificate (null when not behind the bundled Caddy); ?cert=1 checks again now.
     // First, so an alert it raises is already in the list below.
     const cert = req.query.cert || (!certInfo() && process.env.DOMAIN) ? await checkCert() : certInfo();
+    const dns = req.query.cert || (!domainDnsInfo() && process.env.DOMAIN) ? await checkDomainDns().catch(() => null) : domainDnsInfo();
     return {
       now: await sample(),
       series: series(String(req.query.range || '24h')),
@@ -198,6 +199,7 @@ export default async function adminRoutes(app) {
       netHostWide: netIsHostWide(),
       mirror: mirrorStatus(),
       cert,
+      dns,
     };
   });
 

@@ -6,11 +6,14 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(method, url, body) {
+// Every request gives up after a while: with the server unreachable (e.g. its domain can't be
+// resolved during an internet shutdown) the app must fall back to offline mode, not wait forever.
+export async function api(method, url, body, { timeout = 20000 } = {}) {
   let res;
   try {
     res = await fetch('/api' + url, {
       method,
+      signal: AbortSignal.timeout(timeout),
       credentials: 'same-origin',
       headers: { 'x-requested-with': 'amorechat', ...(body ? { 'content-type': 'application/json' } : {}) },
       body: body ? JSON.stringify(body) : undefined,

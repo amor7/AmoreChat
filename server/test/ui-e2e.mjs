@@ -241,6 +241,27 @@ if (process.env.APK_DIR) {
   await app.close();
 }
 
+step('server unreachable (requests hang, like a domain that no longer resolves): opens offline, no endless "loading"');
+await page.goto(`${BASE}/#/`, { waitUntil: 'networkidle2' });
+await waitFor(() => document.querySelectorAll('.sidebar .chat-item').length >= 2, null, 'chats saved on the device');
+await sleep(1500);
+// Without the service worker in between, so every request really goes through the interception.
+await page.setBypassServiceWorker(true);
+await page.setRequestInterception(true);
+const stalled = [];
+page.on('request', (req) => {
+  if (req.isInterceptResolutionHandled()) return;
+  if (new URL(req.url()).pathname.startsWith('/api/') || req.url().includes('/socket.io/')) stalled.push(req); // never answered
+  else req.continue();
+});
+const t0 = Date.now();
+await page.reload({ waitUntil: 'domcontentloaded' });
+await waitFor(() => document.querySelectorAll('.sidebar .chat-item').length >= 2, null, 'offline mode with the saved chats', 20000);
+console.log(`   opened offline after ${Math.round((Date.now() - t0) / 1000)}s`);
+for (const r of stalled) r.abort().catch(() => {});
+await page.setRequestInterception(false);
+await page.setBypassServiceWorker(false);
+
 step('no JavaScript errors on the page');
 assert.deepEqual(errors, [], 'page errors');
 await browser.close();

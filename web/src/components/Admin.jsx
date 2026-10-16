@@ -287,7 +287,7 @@ function Backups() {
         onClick={async () => {
           setBusy(true);
           try {
-            await api('POST', '/admin/backups');
+            await api('POST', '/admin/backups', null, { timeout: 15 * 60000 });
             load();
           } catch (e) {
             showToast(e.message);

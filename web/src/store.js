@@ -73,6 +73,20 @@ export const useStore = create((set, get) => ({
   outbox: [], // messages written offline, waiting to be sent (see offline.js)
   netWeak: false, // slow connection detected (socket.js): low-data mode turns on by itself
   async loadChats() {
+    // Opened offline (server unreachable): show the saved list at once, refresh in the background.
+    if (get().offlineBoot && !Object.keys(get().chats).length) {
+      const saved = await cachedChats().catch(() => null);
+      if (saved) {
+        set({ chats: Object.fromEntries(saved.map((c) => [c.id, c])) });
+        get()
+          .loadChatsFromServer()
+          .catch(() => {});
+        return;
+      }
+    }
+    return get().loadChatsFromServer();
+  },
+  async loadChatsFromServer() {
     let chats;
     try {
       ({ chats } = await api('GET', '/chats'));

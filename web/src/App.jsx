@@ -28,7 +28,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const config = await api('GET', '/config');
+        const config = await api('GET', '/config', null, { timeout: 8000 });
         document.title = config.siteName;
         useStore.setState({ config });
         // Server was updated but this device still runs the cached old app: update first.
@@ -38,7 +38,7 @@ export default function App() {
           return;
         }
         try {
-          const { user } = await api('GET', '/auth/me');
+          const { user } = await api('GET', '/auth/me', null, { timeout: 8000 });
           useStore.setState({ me: user });
           saveBoot(config, user);
         } catch (e) {

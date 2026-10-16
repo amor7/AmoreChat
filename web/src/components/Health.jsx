@@ -185,6 +185,20 @@ export default function Health() {
         </>
       )}
 
+      {data.dns && (
+        <>
+          <h4>DNS دامنه (در زمان قطعی)</h4>
+          {data.dns.foreign || data.dns.notIr ? (
+            <p className="health-alert bad">
+              {data.dns.notIr ? 'دامنه زیر .ir نیست' : `DNS روی سرورهای خارجی است (${data.dns.ns.join('، ')})`} — در قطعی اینترنت بین‌الملل، آدرس سرور پیدا نمی‌شود و برنامه باز
+              نمی‌شود. DNS را به یک سرویس داخلی (مثل ابر آروان) منتقل کنید.
+            </p>
+          ) : (
+            <p className="muted">{data.dns.ns.length ? `داخلی (${data.dns.ns.join('، ')}) — در قطعی هم پیدا می‌شود` : 'بررسی نشد'}</p>
+          )}
+        </>
+      )}
+
       <h4>بکاپ دوم</h4>
       {data.mirror.enabled ? (
         <p className="muted">
