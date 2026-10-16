@@ -97,16 +97,21 @@ async function devtools() {
   let conn = await connectPage();
   return {
     async evaluate(expr) {
-      try {
-        return await conn.evaluate(expr);
-      } catch (e) {
+      // A slow emulator sometimes drops the DevTools connection: reconnect and try once more
+      // (navigations and in-flight reloads are the usual cause, not the app).
+      for (let attempt = 1; ; attempt++) {
         try {
-          conn.close();
-        } catch {
-          /* ignore */
+          return await conn.evaluate(expr);
+        } catch (e) {
+          try {
+            conn.close();
+          } catch {
+            /* ignore */
+          }
+          await sleep(1500);
+          conn = await connectPage().catch(() => conn);
+          if (attempt >= 2 || !/devtools timeout|closed|not open|ECONN/i.test(e.message)) throw e;
         }
-        conn = await connectPage().catch(() => conn);
-        throw e;
       }
     },
     close: () => conn.close(),
