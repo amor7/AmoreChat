@@ -249,16 +249,18 @@ await sleep(1500);
 await page.setBypassServiceWorker(true);
 await page.setRequestInterception(true);
 const stalled = [];
-page.on('request', (req) => {
+const onRequest = (req) => {
   if (req.isInterceptResolutionHandled()) return;
   if (new URL(req.url()).pathname.startsWith('/api/') || req.url().includes('/socket.io/')) stalled.push(req); // never answered
-  else req.continue();
-});
+  else req.continue().catch(() => {});
+};
+page.on('request', onRequest);
 const t0 = Date.now();
 await page.reload({ waitUntil: 'domcontentloaded' });
 await waitFor(() => document.querySelectorAll('.sidebar .chat-item').length >= 2, null, 'offline mode with the saved chats', 20000);
 console.log(`   opened offline after ${Math.round((Date.now() - t0) / 1000)}s`);
-for (const r of stalled) r.abort().catch(() => {});
+page.off('request', onRequest);
+await Promise.all(stalled.map((r) => r.abort().catch(() => {})));
 await page.setRequestInterception(false);
 await page.setBypassServiceWorker(false);
 

@@ -74,6 +74,18 @@ const cookieOf = async (p) => (await p.cookies(BASE)).find((c) => c.name === 'ac
 
 async function startShare(p, i) {
   for (let attempt = 1; attempt <= 3; attempt++) {
+    // What happens to a tap that doesn't open the dialog: what was under the finger, and did the
+    // dialog flash open and close again?
+    const probe = await p.evaluate(() => {
+      window.__modalEvents = [];
+      const mo = new MutationObserver(() => window.__modalEvents.push(document.querySelector('.modal') ? 'open' : 'closed'));
+      mo.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => mo.disconnect(), 5000);
+      const b = document.querySelector('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
+      const r = b.getBoundingClientRect();
+      const at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return { onButton: b.contains(at), at: at ? `${at.tagName}.${at.className}`.slice(0, 80) : null };
+    });
     await p.click('.room-view .ctl[title="اشتراک صفحه (استریم)"]');
     const opened = await p.waitForFunction(() => !!document.querySelector('.modal .btn.primary'), { timeout: 5000 }).then(
       () => true,
@@ -84,6 +96,8 @@ async function startShare(p, i) {
       await p.click('.modal .btn.primary');
       return;
     }
+    const events = await p.evaluate(() => [...new Set(window.__modalEvents)].join('→'));
+    notes.push(`${USERS[i]} tap ${attempt} missed: under the finger ${probe.onButton ? 'the button' : probe.at}; dialog ${events || 'never appeared'}`);
     await p.screenshot({ path: `crowd-share-miss-${USERS[i]}-${attempt}.png` }).catch(() => {});
   }
   throw new Error(`${USERS[i]}: the stream dialog never opened`);
