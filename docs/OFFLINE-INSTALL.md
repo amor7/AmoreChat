@@ -12,7 +12,7 @@
 1. [آنچه لازم دارید](#۱-آنچه-لازم-دارید)
 2. [دانلود فایل‌ها (روی کامپیوتری که اینترنت دارد)](#۲-دانلود-فایلها)
 3. [انتقال فایل‌ها به سرور](#۳-انتقال-فایلها-به-سرور)
-4. [نصب Docker روی سرور](#۴-نصب-docker)
+4. [Docker نصب است یا نه؟](#۴-docker-نصب-است-یا-نه)
 5. [نصب AmoreChat](#۵-نصب-amorechat)
 6. [باز کردن پورت‌ها](#۶-باز-کردن-پورتها)
 7. [ساخت حساب مدیر](#۷-ساخت-حساب-مدیر)
@@ -50,18 +50,26 @@
 
 ## ۳. انتقال فایل‌ها به سرور
 
+**همه فایل‌ها در یک پوشه روی سرور: `/root/amorechat`**
+
+اول روی سرور پوشه را بسازید:
+```bash
+mkdir -p /root/amorechat
+```
+
 ### از ویندوز (PowerShell یا CMD)
 در پوشه‌ای که فایل‌ها را دانلود کرده‌اید (به جای `185.1.2.3` IP سرور خودتان):
 
 ```
-scp amorechat-source.tar.gz amorechat-offline-amd64.tar.gz root@185.1.2.3:/root/
+scp amorechat-source.tar.gz amorechat-offline-amd64.tar.gz docker-offline-ubuntu-24.04-amd64.tar.gz root@185.1.2.3:/root/amorechat/
 ```
 
-یا با برنامه گرافیکی **WinSCP**: وصل شوید و دو فایل را به پوشه `/root` بکشید.
+(فایل `docker-offline-…` فقط اگر Docker روی سرور نصب نیست — مرحله ۴.)
+یا با برنامه گرافیکی **WinSCP**: وصل شوید و فایل‌ها را به پوشه `/root/amorechat` بکشید.
 
 ### از لینوکس یا مک
 ```bash
-scp amorechat-source.tar.gz amorechat-offline-amd64.tar.gz root@185.1.2.3:/root/
+scp amorechat-source.tar.gz amorechat-offline-amd64.tar.gz docker-offline-ubuntu-24.04-amd64.tar.gz root@185.1.2.3:/root/amorechat/
 ```
 
 بعد وارد سرور شوید:
@@ -71,84 +79,79 @@ ssh root@185.1.2.3
 
 ---
 
-## ۴. نصب Docker
+## ۴. Docker نصب است یا نه؟
 
-اول ببینید Docker از قبل نصب است یا نه:
 ```bash
 docker --version && docker compose version
 ```
-اگر هر دو نسخه چاپ کردند، به **مرحله ۵** بروید.
 
-### راه الف: از مخزن داخلی اوبونتو (بیشتر سرورهای ایرانی)
-سرورهای داخلی معمولاً در قطعی هم به **آینه (mirror) داخلی اوبونتو** دسترسی دارند. اسکریپت نصب خودش Docker را از مخزن اوبونتو نصب می‌کند. اگر `apt` خطا داد، مخزن را روی آینه داخلی بگذارید:
-
-**Ubuntu 24.04:**
-```bash
-sudo sed -i 's#http://[a-z.]*archive.ubuntu.com#http://mirror.arvancloud.ir#; s#http://security.ubuntu.com#http://mirror.arvancloud.ir#' /etc/apt/sources.list.d/ubuntu.sources
-sudo apt-get update
-```
-
-**Ubuntu 22.04:**
-```bash
-sudo sed -i 's#http://[a-z.]*archive.ubuntu.com#http://mirror.arvancloud.ir#; s#http://security.ubuntu.com#http://mirror.arvancloud.ir#' /etc/apt/sources.list
-sudo apt-get update
-```
-
-بعد:
-```bash
-sudo apt-get install -y docker.io docker-compose-v2
-sudo systemctl enable --now docker
-```
-
-### راه ب: کاملاً آفلاین (بدون هیچ مخزنی) — با فایل آماده
-از صفحه نسخه‌ها فایل Docker مخصوص نسخه اوبونتوی سرور را بگیرید (`docker-offline-ubuntu-24.04-amd64.tar.gz` یا `docker-offline-ubuntu-22.04-amd64.tar.gz`). نسخه اوبونتوی سرور را این‌طور ببینید:
-```bash
-grep VERSION_ID /etc/os-release
-```
-**ساده‌ترین:** فایل را کنار بقیه فایل‌ها در پوشه `amorechat` بگذارید؛ اسکریپت نصب (مرحله ۵) خودش Docker را از آن نصب می‌کند.
-
-**یا جدا:**
-```bash
-tar xzf docker-offline-ubuntu-24.04-amd64.tar.gz
-cd docker-offline-ubuntu-24.04-amd64
-sudo bash install-docker.sh
-```
-بسته‌هایی که از قبل روی سرور هستند (با همان نسخه یا جدیدتر) دست نمی‌خورند. اگر فایل برای نسخه دیگری از اوبونتو باشد، اسکریپت قبل از هر کاری می‌گوید.
+- **هر دو نسخه چاپ شد** ← Docker نصب است. فایل `docker-offline-…` لازم نیست؛ برو به مرحله ۵، **حالت ب**.
+- **خطا داد (command not found)** ← Docker نصب نیست. فایل Docker مخصوص نسخه اوبونتوی سرور را هم در پوشه `/root/amorechat` بگذارید و برو به مرحله ۵، **حالت الف**. نسخه اوبونتو را این‌طور ببینید:
+  ```bash
+  grep VERSION_ID /etc/os-release
+  ```
+  `24.04` ← فایل `docker-offline-ubuntu-24.04-amd64.tar.gz` | `22.04` ← فایل `docker-offline-ubuntu-22.04-amd64.tar.gz`
 
 ---
 
 ## ۵. نصب AmoreChat
 
-روی سرور، در پوشه‌ای که فایل‌ها هستند (`/root`):
-
-```bash
-cd /root
-tar xzf amorechat-source.tar.gz
-mv amorechat-offline-amd64.tar.gz amorechat/
-cd amorechat
+### حالت الف: Docker نصب نیست (سه فایل)
+در پوشه `/root/amorechat` باید این سه فایل باشد:
 ```
-
-حالا نصب، با **گواهی خود سرور** (حالت آفلاین). به جای آدرس، دامنه یا IP خودتان را بنویسید:
-
-**با دامنه:**
+amorechat-source.tar.gz
+amorechat-offline-amd64.tar.gz
+docker-offline-ubuntu-24.04-amd64.tar.gz     (یا 22.04)
+```
+بعد:
 ```bash
+cd /root/amorechat
+tar xzf amorechat-source.tar.gz --strip-components=1
+sudo DOMAIN=chat.example.ir TLS_MODE=internal ALSO_IP=1 bash deploy/install.sh
+```
+اسکریپت اول **Docker را از فایل نصب می‌کند** (بدون اینترنت)، بعد AmoreChat را.
+
+### حالت ب: Docker نصب است (دو فایل)
+در پوشه `/root/amorechat` این دو فایل کافی است:
+```
+amorechat-source.tar.gz
+amorechat-offline-amd64.tar.gz
+```
+بعد همان دستورها:
+```bash
+cd /root/amorechat
+tar xzf amorechat-source.tar.gz --strip-components=1
 sudo DOMAIN=chat.example.ir TLS_MODE=internal ALSO_IP=1 bash deploy/install.sh
 ```
 
-**فقط با IP:**
-```bash
-sudo DOMAIN=185.1.2.3 TLS_MODE=internal bash deploy/install.sh
-```
+### دستور نصب برای آدرس شما
+به جای `chat.example.ir` دامنه خودتان را بنویسید:
+
+| می‌خواهید | دستور |
+|---|---|
+| دامنه + SSL خود سرور (آفلاین) + جواب روی آی‌پی | `sudo DOMAIN=chat.example.ir TLS_MODE=internal ALSO_IP=1 bash deploy/install.sh` |
+| فقط آی‌پی (SSL خود سرور) | `sudo DOMAIN=185.1.2.3 TLS_MODE=internal bash deploy/install.sh` |
+| دامنه + گواهی خریداری‌شده | اول مثل بالا با `internal` نصب کنید، بعد «سؤالات رایج» سؤال ۱ |
+| بدون SSL (فقط پیام؛ تماس کار نمی‌کند) | `sudo DOMAIN=185.1.2.3 TLS_MODE=off bash deploy/install.sh` |
+
+اگر `DOMAIN` یا `TLS_MODE` را ننویسید، اسکریپت می‌پرسد.
 
 اسکریپت:
-- اگر Docker نباشد از مخزن اوبونتو نصبش می‌کند (مرحله ۴)
+- Docker را اگر نباشد نصب می‌کند (از فایل `docker-offline-…`، یا اگر نبود از مخزن اوبونتو)
 - ایمیج‌ها را **از فایل آفلاین** بارگذاری می‌کند (بدون Docker Hub)
 - فایل تنظیمات `.env` را می‌سازد (رمز سرور صدا و IP عمومی خودکار)
 - برنامه را اجرا می‌کند و دستور `amorechat-update` را برای آپدیت‌های بعدی نصب می‌کند
 
-در پایان **کد راه‌اندازی (SETUP CODE)** و آدرس صفحه نصب گواهی را چاپ می‌کند.
+در پایان **آدرس‌ها**، **کد راه‌اندازی (SETUP CODE)** و آدرس صفحه نصب گواهی را چاپ می‌کند.
 
-> اگر `DOMAIN` و `TLS_MODE` را ننویسید، اسکریپت می‌پرسد. برای آفلاین گزینه **۲** (Server's own) را انتخاب کنید.
+> **Docker فایل ندارید ولی سرور به آینه داخلی اوبونتو دسترسی دارد؟** اسکریپت خودش Docker را از مخزن اوبونتو نصب می‌کند. اگر `apt` خطا داد، مخزن را روی آینه داخلی بگذارید و دوباره نصب را بزنید:
+> ```bash
+> # Ubuntu 24.04
+> sudo sed -i 's#http://[a-z.]*archive.ubuntu.com#http://mirror.arvancloud.ir#; s#http://security.ubuntu.com#http://mirror.arvancloud.ir#' /etc/apt/sources.list.d/ubuntu.sources
+> # Ubuntu 22.04
+> sudo sed -i 's#http://[a-z.]*archive.ubuntu.com#http://mirror.arvancloud.ir#; s#http://security.ubuntu.com#http://mirror.arvancloud.ir#' /etc/apt/sources.list
+> sudo apt-get update
+> ```
 
 ### آدرس‌ها: دامنه، آی‌پی، با SSL یا بدون SSL
 همه در فایل `.env` (پوشه برنامه) تنظیم می‌شوند؛ بعد از تغییر `sudo amorechat-update` بزنید:
@@ -312,8 +315,9 @@ sudo update-ca-certificates
 | مرورگر می‌گوید «اتصال امن نیست» | گواهی نصب نشده یا در آیفون مرحله «Certificate Trust Settings» انجام نشده. مرورگر را کامل ببندید و باز کنید. |
 | صفحه `/ca` باز نمی‌شود | پورت `80` بسته است (هم سرور و هم فایروال پنل). آدرس را با **http** باز کنید. |
 | سایت باز می‌شود ولی تماس وصل نمی‌شود | پورت‌های `7881/tcp`، `7882/udp` و `3478/udp` را باز کنید. اگر سرور پشت NAT است، `PUBLIC_IP` را در `.env` درست کنید و `sudo docker compose up -d` بزنید. |
-| `apt` خطای دسترسی می‌دهد | آینه داخلی را تنظیم کنید (مرحله ۴ راه الف) یا از راه ب استفاده کنید. |
-| «No prebuilt image… building from source» | فایل `amorechat-offline-amd64.tar.gz` کنار برنامه نیست؛ آن را در پوشه `amorechat` (نصب) یا پوشه آپدیت بگذارید. |
+| `apt` خطای دسترسی می‌دهد (موقع نصب Docker) | فایل `docker-offline-ubuntu-…` را در پوشه `amorechat` بگذارید (مرحله ۴) یا آینه داخلی اوبونتو را تنظیم کنید (پایین مرحله ۵). |
+| «No prebuilt image… building from source» | فایل `amorechat-offline-amd64.tar.gz` در پوشه `/root/amorechat` نیست؛ آن را کنار بقیه فایل‌ها بگذارید. |
+| `tar: …: Cannot open: No such file or directory` | دستور را در پوشه‌ای می‌زنید که فایل آنجا نیست؛ اول `cd /root/amorechat` و با `ls` ببینید فایل‌ها هستند. |
 | تغییر دامنه یا IP | بخش «سؤالات رایج» پایین (سؤال ۴) |
 | دیدن خطاها | `cd /root/amorechat && sudo docker compose logs --tail 100` |
 
