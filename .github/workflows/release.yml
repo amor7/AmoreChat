@@ -39,6 +39,9 @@ jobs:
         run: |
           bash deploy/make-release.sh .
           git archive --format=tar.gz --prefix=amorechat/ -o amorechat-source.tar.gz HEAD
+          # Docker itself, for servers that cannot reach any package repository
+          bash deploy/make-docker-bundle.sh 24.04 .
+          bash deploy/make-docker-bundle.sh 22.04 .
           ls -lh *.tar.gz manifest.json
       - uses: actions/upload-artifact@v4
         with:

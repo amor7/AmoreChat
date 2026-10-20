@@ -13,10 +13,19 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo ">> Installing Docker from Ubuntu repositories..."
-  apt-get update
-  apt-get install -y docker.io docker-compose-v2
-  systemctl enable --now docker
+  # Offline: the docker-offline-ubuntu-<version>-amd64.tar.gz release file next to this folder.
+  . /etc/os-release
+  DOCKER_BUNDLE=$(ls -t docker-offline-ubuntu-"${VERSION_ID:-}"-amd64.tar.gz ../docker-offline-ubuntu-"${VERSION_ID:-}"-amd64.tar.gz 2>/dev/null | head -n1 || true)
+  if [ -n "$DOCKER_BUNDLE" ]; then
+    echo ">> Installing Docker from ${DOCKER_BUNDLE} (no internet needed)..."
+    bash deploy/install-docker.sh "$DOCKER_BUNDLE"
+  else
+    echo ">> Installing Docker from Ubuntu repositories..."
+    echo "   (no internet/mirror? put docker-offline-ubuntu-${VERSION_ID:-<version>}-amd64.tar.gz from the release in this folder)"
+    apt-get update
+    apt-get install -y docker.io docker-compose-v2
+    systemctl enable --now docker
+  fi
 fi
 
 # ask "question" default: asks on the terminal (the question always shows, also when the script

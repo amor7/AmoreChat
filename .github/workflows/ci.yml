@@ -189,6 +189,26 @@ jobs:
 
   # Six people at once in real Chromes against a real LiveKit: sign-up, group/DM/channel chat,
   # reactions, edits, pictures, offline queue, a voice channel with several screen streams.
+  # Docker itself for servers without any package repository: the release file installs in a
+  # fresh Ubuntu that has no network at all.
+  docker-offline:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ubuntu: ['22.04', '24.04']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build docker-offline-ubuntu-${{ matrix.ubuntu }}-amd64.tar.gz
+        run: bash deploy/make-docker-bundle.sh ${{ matrix.ubuntu }} /tmp
+      - name: Install it in a fresh Ubuntu ${{ matrix.ubuntu }} with no network
+        run: |
+          docker run --rm --network none -v /tmp:/b -v "$PWD/deploy":/d ubuntu:${{ matrix.ubuntu }} bash -c '
+            set -e
+            bash /d/install-docker.sh /b/docker-offline-ubuntu-${{ matrix.ubuntu }}-amd64.tar.gz
+            docker --version && docker compose version
+            # a second run changes nothing
+            bash /d/install-docker.sh /b/docker-offline-ubuntu-${{ matrix.ubuntu }}-amd64.tar.gz | grep -q "already installed"'
+
   # Updates download only what changed: release A installed from its parts, then release B
   # (code change only) must not download the runtime or Caddy/LiveKit again.
   small-updates:
