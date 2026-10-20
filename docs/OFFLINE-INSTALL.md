@@ -40,10 +40,11 @@
 | فایل | چیست | لازم؟ |
 |---|---|---|
 | `amorechat-source.tar.gz` | کد برنامه و اسکریپت‌های نصب | ✅ |
-| `amorechat-offline-amd64.tar.gz` | همه ایمیج‌های Docker (برنامه، Caddy، سرور صدا) — حدود ۲۰۰ مگابایت | ✅ |
+| `amorechat-offline-amd64.tar.gz` | همه ایمیج‌های Docker (برنامه، Caddy، سرور صدا) — حدود ۱۸۵ مگابایت | ✅ |
+| `docker-offline-ubuntu-24.04-amd64.tar.gz` یا `…-22.04-…` | **خود Docker و Docker Compose** برای سروری که به هیچ مخزنی دسترسی ندارد (همان نسخه اوبونتوی سرور؛ با `cat /etc/os-release` ببینید) | اگر Docker نصب نیست |
 | `amorechat-android-vX.Y.Z.apk` | اپ اندروید (خود سرور هم آن را در `/app` می‌دهد) | اختیاری |
 
-> 💡 هر سه را در یک پوشه نگه دارید؛ برای آپدیت‌های بعدی هم همین سه فایل از نسخه جدید لازم است.
+> 💡 همه را در یک پوشه کنار هم بگذارید؛ اسکریپت نصب خودش از فایل Docker (اگر Docker نصب نباشد) و فایل برنامه استفاده می‌کند. برای آپدیت‌های بعدی فایل‌های کم‌حجم کافی است (بخش ۱۰).
 
 ---
 
@@ -99,18 +100,20 @@ sudo apt-get install -y docker.io docker-compose-v2
 sudo systemctl enable --now docker
 ```
 
-### راه ب: کاملاً آفلاین (بدون هیچ مخزنی)
-روی یک سیستم **با همان نسخه اوبونتو** که اینترنت دارد (مثلاً یک ماشین مجازی تازه):
+### راه ب: کاملاً آفلاین (بدون هیچ مخزنی) — با فایل آماده
+از صفحه نسخه‌ها فایل Docker مخصوص نسخه اوبونتوی سرور را بگیرید (`docker-offline-ubuntu-24.04-amd64.tar.gz` یا `docker-offline-ubuntu-22.04-amd64.tar.gz`). نسخه اوبونتوی سرور را این‌طور ببینید:
 ```bash
-mkdir docker-debs && cd docker-debs
-sudo apt-get update
-sudo apt-get install --download-only -y docker.io docker-compose-v2
-cp /var/cache/apt/archives/*.deb .
+grep VERSION_ID /etc/os-release
 ```
-پوشه `docker-debs` را به سرور منتقل کنید و روی سرور:
+**ساده‌ترین:** فایل را کنار بقیه فایل‌ها در پوشه `amorechat` بگذارید؛ اسکریپت نصب (مرحله ۵) خودش Docker را از آن نصب می‌کند.
+
+**یا جدا:**
 ```bash
-cd docker-debs && sudo dpkg -i *.deb && sudo systemctl enable --now docker
+tar xzf docker-offline-ubuntu-24.04-amd64.tar.gz
+cd docker-offline-ubuntu-24.04-amd64
+sudo bash install-docker.sh
 ```
+بسته‌هایی که از قبل روی سرور هستند (با همان نسخه یا جدیدتر) دست نمی‌خورند. اگر فایل برای نسخه دیگری از اوبونتو باشد، اسکریپت قبل از هر کاری می‌گوید.
 
 ---
 
