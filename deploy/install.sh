@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install or update AmoreChat on Ubuntu (22.04/24.04).
 # Usage: sudo bash deploy/install.sh
-#   Optional: sudo DOMAIN=chat.example.ir TLS_MODE=internal bash deploy/install.sh   (no questions)
+#   Optional: sudo DOMAIN=chat.example.ir TLS_MODE=internal ALSO_IP=1 bash deploy/install.sh   (no questions)
 # If an amorechat-offline-*.tar.gz bundle sits in the project folder, images are
 # loaded from it, so no access to Docker Hub or npm is needed.
 set -euo pipefail
@@ -19,9 +19,20 @@ if ! command -v docker >/dev/null 2>&1; then
   systemctl enable --now docker
 fi
 
+# ask "question" default: asks on the terminal (the question always shows, also when the script
+# is piped or its output redirected); no terminal = the default answer.
+ask() {
+  local ans=""
+  if { : </dev/tty; } 2>/dev/null; then
+    printf '%s' "$1" >/dev/tty
+    read -r ans </dev/tty || ans=""
+  fi
+  echo "${ans:-$2}"
+}
+
 if [ ! -f .env ]; then
   DOMAIN="${DOMAIN:-}"
-  [ -n "$DOMAIN" ] || read -rp "Domain or IP of this server (e.g. chat.example.ir or 185.1.2.3): " DOMAIN </dev/tty
+  [ -n "$DOMAIN" ] || DOMAIN=$(ask "Domain or IP of this server (e.g. chat.example.ir or 185.1.2.3): " "")
   sed "s/^DOMAIN=.*/DOMAIN=${DOMAIN}/" .env.example > .env
   echo ">> Wrote .env"
 fi
@@ -39,15 +50,13 @@ if ! grep -q '^TLS_MODE=' .env; then
     if [ "$IS_IP" = 1 ]; then
       echo "  1) Server's own SSL - works fully offline; each device installs it once from http://${DOMAIN_VAL}/ca"
       echo "  2) No SSL (http)    - chat only: calls and voice chats need SSL"
-      m=1
-      read -rp "Choose 1 or 2 [1]: " m </dev/tty 2>/dev/null || m=1
+      m=$(ask "Choose 1 or 2 [1]: " 1)
       if [ "$m" = "2" ]; then TLS_MODE=off; else TLS_MODE=internal; fi
     else
       echo "  1) Let's Encrypt    - needs international internet now and every ~60 days"
       echo "  2) Server's own SSL - works fully offline; each device installs it once from http://${DOMAIN_VAL}/ca"
       echo "  3) No SSL (http)    - chat only: calls and voice chats need SSL"
-      m=1
-      read -rp "Choose 1, 2 or 3 [1]: " m </dev/tty 2>/dev/null || m=1
+      m=$(ask "Choose 1, 2 or 3 [1]: " 1)
       case "$m" in 2) TLS_MODE=internal ;; 3) TLS_MODE=off ;; *) TLS_MODE=auto ;; esac
     fi
   fi
@@ -59,8 +68,7 @@ fi
 # resolved (its DNS hosted abroad during a shutdown) and when someone only knows the IP.
 if [ "$IS_IP" = 0 ] && ! grep -q '^ALSO_IP=' .env; then
   if [ -z "${ALSO_IP:-}" ]; then
-    a=y
-    read -rp "Also answer on this server's IP address (works even when the domain can't be found)? [Y/n]: " a </dev/tty 2>/dev/null || a=y
+    a=$(ask "Also answer on this server's IP address (works even when the domain can't be found)? [Y/n]: " y)
     case "$a" in n | N) ALSO_IP=0 ;; *) ALSO_IP=1 ;; esac
   fi
   echo "ALSO_IP=${ALSO_IP}" >> .env

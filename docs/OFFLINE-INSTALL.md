@@ -128,7 +128,7 @@ cd amorechat
 
 **با دامنه:**
 ```bash
-sudo DOMAIN=chat.example.ir TLS_MODE=internal bash deploy/install.sh
+sudo DOMAIN=chat.example.ir TLS_MODE=internal ALSO_IP=1 bash deploy/install.sh
 ```
 
 **فقط با IP:**
