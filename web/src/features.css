@@ -971,3 +971,28 @@ body:has(.room-view, .call-view) .toast {
     bottom: calc(84px + env(safe-area-inset-bottom));
   }
 }
+
+/* Android app, sign-in page: the other servers, one tap away */
+.auth-page {
+  flex-direction: column;
+  gap: 12px;
+}
+.app-servers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.app-servers .btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.app-servers small.ok {
+  color: var(--success, #16a34a);
+}
+.app-servers small.bad {
+  color: var(--muted);
+}
+.danger-text {
+  color: var(--danger);
+}

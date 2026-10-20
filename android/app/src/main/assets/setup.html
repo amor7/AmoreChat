@@ -45,16 +45,17 @@
       <div class="fp" id="fp"></div>
     </div>
     <button id="accept">یکسان است، اعتماد می‌کنم</button>
-    <button class="alt" id="back1">بازگشت</button>
+    <button class="alt hidden" id="plain">بدون SSL وصل شو (فقط پیام؛ تماس کار نمی‌کند)</button>
+    <button class="alt" id="back1">آدرس دیگری وارد می‌کنم</button>
   </div>
 
   <div id="insecure" class="hidden">
     <div class="msg warn">این سرور <b>SSL ندارد</b>. پیام‌ها کار می‌کنند ولی تماس، میکروفون و دوربین کار نمی‌کنند. از مدیر بخواهید SSL را فعال کند.</div>
     <button id="anyway">با این حال ادامه</button>
-    <button class="alt" id="back2">بازگشت</button>
+    <button class="alt" id="back2">آدرس دیگری وارد می‌کنم</button>
   </div>
 
-  <button class="alt hidden" id="cancelAdd">بازگشت</button>
+  <button class="alt hidden" id="cancelAdd">انصراف و برگشت به سرور فعلی</button>
   <div id="status" class="msg"></div>
 </div>
 <script>
@@ -86,6 +87,7 @@
       $('status').textContent = r.error;
     } else if (r.trust) {
       $('fp').textContent = r.fingerprint;
+      $('plain').classList.toggle('hidden', !r.http);
       show('trust');
     } else if (r.ok && !r.secure) {
       show('insecure');
@@ -96,6 +98,7 @@
   };
   $('accept').onclick = () => AmoreAndroid.useServer(found.url, true);
   $('anyway').onclick = () => AmoreAndroid.useServer(found.url, false);
+  $('plain').onclick = () => AmoreAndroid.useServer(found.http, false);
   $('back1').onclick = $('back2').onclick = () => show('form');
 </script>
 </body>

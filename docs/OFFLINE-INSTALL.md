@@ -20,6 +20,7 @@
 9. [اپ اندروید (بدون نصب گواهی)](#۹-اپ-اندروید)
 10. [به‌روزرسانی آفلاین](#۱۰-بهروزرسانی-آفلاین)
 11. [عیب‌یابی](#۱۱-عیبیابی)
+12. [سؤالات رایج](#۱۲-سؤالات-رایج) ← SSL خودتان، تغییر آدرس، رمز فراموش‌شده، انتقال سرور و…
 
 ---
 
@@ -310,7 +311,7 @@ sudo update-ca-certificates
 | سایت باز می‌شود ولی تماس وصل نمی‌شود | پورت‌های `7881/tcp`، `7882/udp` و `3478/udp` را باز کنید. اگر سرور پشت NAT است، `PUBLIC_IP` را در `.env` درست کنید و `sudo docker compose up -d` بزنید. |
 | `apt` خطای دسترسی می‌دهد | آینه داخلی را تنظیم کنید (مرحله ۴ راه الف) یا از راه ب استفاده کنید. |
 | «No prebuilt image… building from source» | فایل `amorechat-offline-amd64.tar.gz` کنار برنامه نیست؛ آن را در پوشه `amorechat` (نصب) یا پوشه آپدیت بگذارید. |
-| تغییر دامنه یا IP | در `.env` مقدار `DOMAIN` را عوض کنید و `sudo docker compose up -d` بزنید. گواهی جدید برای آدرس جدید خودکار صادر می‌شود (خود CA همان می‌ماند). |
+| تغییر دامنه یا IP | بخش «سؤالات رایج» پایین (سؤال ۴) |
 | دیدن خطاها | `cd /root/amorechat && sudo docker compose logs --tail 100` |
 
 ### دستورهای مفید
@@ -328,5 +329,125 @@ sudo docker compose down && sudo docker compose up -d   # خاموش و روشن
 | `amorechat/data/` | دیتابیس، فایل‌ها و بکاپ‌ها (`data/backups/`) — **از این پوشه بکاپ بگیرید** |
 | `amorechat/.env` | تنظیمات (دامنه، حالت SSL، رمز سرور صدا) |
 | حجم Docker به نام `amorechat_caddy_data` | گواهی‌ها و CA داخلی سرور (با `docker compose down -v` پاک نکنید!) |
+
+---
+
+## ۱۲. سؤالات رایج
+
+> همه دستورها را **داخل پوشه برنامه** بزنید. اگر نمی‌دانید کجاست:
+> ```bash
+> sudo docker inspect amorechat-app-1 --format '{{ index .Config.Labels "com.docker.compose.project.working_dir" }}'
+> ```
+> بعد از هر تغییر در فایل `.env` یا پوشه `certs/` این دستور تغییرات را اعمال می‌کند (بدون عوض شدن نسخه):
+> ```bash
+> sudo bash deploy/apply-settings.sh
+> ```
+
+### ۱. گواهی SSL خریده‌ام (یا از جای دیگری گرفته‌ام). چطور بگذارمش؟
+دو فایل لازم است: **fullchain** (گواهی دامنه + گواهی‌های واسط) و **کلید خصوصی** (private key).
+```bash
+cp /root/fullchain.pem certs/cert.pem
+cp /root/privkey.pem   certs/key.pem
+sudo sed -i 's/^TLS_MODE=.*/TLS_MODE=custom/' .env
+sudo bash deploy/apply-settings.sh
+```
+- اسم فایل‌های شما مهم نیست (`.crt`، `.key`)؛ مقصد باید دقیقاً `certs/cert.pem` و `certs/key.pem` باشد.
+- اگر گواهی و زنجیره جدا هستند (مثلاً `domain.crt` و `ca-bundle.crt`)، یکی‌شان کنید — **اول گواهی دامنه**:
+  `cat domain.crt ca-bundle.crt > certs/cert.pem`
+- اگر فایل `.pfx` یا `.p12` دارید:
+  ```bash
+  openssl pkcs12 -in cert.pfx -nokeys -out certs/cert.pem
+  openssl pkcs12 -in cert.pfx -nocerts -nodes -out certs/key.pem
+  ```
+- بررسی (باید `SSL certificate verify ok` و تاریخ انقضای گواهی شما را ببینید):
+  ```bash
+  curl -sv https://دامنه-شما/healthz --resolve دامنه-شما:443:127.0.0.1 -o /dev/null 2>&1 | grep -E "subject:|issuer:|expire date:|verify"
+  ```
+- با گواهی معتبر، دستگاه‌ها **دیگر لازم نیست** گواهی را از صفحه `/ca` نصب کنند.
+
+### ۲. گواهی‌ام دارد منقضی می‌شود. چطور تمدیدش کنم؟
+گواهی خریداری‌شده خودکار تمدید نمی‌شود: فایل‌های جدید را جای `certs/cert.pem` و `certs/key.pem` بگذارید و `sudo bash deploy/apply-settings.sh`. داشبورد سلامت (پنل مدیریت) ۲۰ روز مانده به انقضا هشدار می‌دهد.
+گواهی **Let's Encrypt** و **خود سرور** خودکار تمدید می‌شوند (Let's Encrypt برای تمدید به اینترنت بین‌الملل نیاز دارد).
+
+### ۳. نوع SSL را عوض کنم (مثلاً از «خود سرور» به Let's Encrypt یا برعکس، یا بدون SSL)
+در `.env` مقدار `TLS_MODE` را عوض کنید و `sudo bash deploy/apply-settings.sh`:
+
+| مقدار | یعنی | نیاز به اینترنت خارج | تماس و ویس‌چت |
+|---|---|---|---|
+| `auto` | Let's Encrypt (رایگان، فقط دامنه) | بله (صدور و هر تمدید) | ✅ |
+| `internal` | SSL خود سرور؛ هر دستگاه یک بار گواهی را از `/ca` نصب می‌کند | نه | ✅ |
+| `custom` | گواهی خودتان (سؤال ۱) | نه | ✅ |
+| `off` | بدون SSL (http) | نه | ❌ (مرورگرها میکروفون را فقط روی اتصال امن می‌دهند) |
+
+### ۴. دامنه یا آی‌پی سرور عوض شده
+```bash
+sudo sed -i 's/^DOMAIN=.*/DOMAIN=chat.new-domain.ir/' .env
+sudo sed -i 's/^PUBLIC_IP=.*/PUBLIC_IP=185.1.2.3/' .env     # آی‌پی عمومی جدید (برای تماس)
+sudo bash deploy/apply-settings.sh
+```
+با SSL خود سرور، گواهی آدرس جدید خودکار ساخته می‌شود و **لازم نیست** دستگاه‌ها گواهی را دوباره نصب کنند (CA همان می‌ماند). در اپ اندروید سرور را با آدرس جدید دوباره اضافه کنید.
+
+### ۵. هم با دامنه، هم با آی‌پی، هم بدون SSL وصل شوم
+```bash
+echo "ALSO_IP=1" | sudo tee -a .env      # https://آی‌پی (SSL خود سرور) و http://آی‌پی
+echo "ALLOW_HTTP=1" | sudo tee -a .env   # http://دامنه هم کار کند (به‌جای انتقال به https)
+sudo bash deploy/apply-settings.sh
+```
+در **اپ اندروید** برای اتصال بدون SSL آدرس را **با `http://`** وارد کنید (مثلاً `http://185.1.2.3`)؛ اگر فقط آی‌پی را بنویسید، اپ اول SSL را امتحان می‌کند و در صفحه گواهی، گزینه «بدون SSL وصل شو» را هم نشان می‌دهد.
+
+### ۶. در قطعی اینترنت بین‌الملل سایت/اپ باز نمی‌شود ولی سرور روشن است
+تقریباً همیشه **DNS دامنه خارج از ایران است** (مثلاً Cloudflare، حتی با پروکسی خاموش). داشبورد سلامت این را تشخیص می‌دهد و هشدار می‌دهد. راه‌حل‌ها:
+- DNS را به سرویس داخلی منتقل کنید (مثلاً DNS ابر آروان، بدون روشن کردن CDN) — بهترین راه.
+- یا `ALSO_IP=1` (سؤال ۵) و در قطعی با آی‌پی وصل شوید.
+
+### ۷. رمز مالک (یا هر کاربری) را فراموش کرده‌ام / گوشی ورود دومرحله‌ای گم شده
+```bash
+sudo docker compose exec app node server/src/reset-password-cli.js نام_کاربری
+```
+یک رمز جدید چاپ می‌کند و همه دستگاه‌های آن حساب خارج می‌شوند. اگر ورود دومرحله‌ای هم مانع است، آخرش `--no-2fa` بگذارید. نام کاربری مالک را یادتان نیست؟ دستور را بدون نام کاربری بزنید تا نشانش دهد.
+(برای کاربران عادی، مدیر از پنل مدیریت ← کاربران هم می‌تواند رمز را عوض کند.)
+
+### ۸. کد راه‌اندازی (SETUP CODE) را گم کردم
+```bash
+sudo docker compose logs app | grep "SETUP CODE"
+```
+این کد فقط تا وقتی اولین حساب (مالک) ساخته نشده کار می‌کند.
+
+### ۹. تماس یا ویس‌چت وصل نمی‌شود (پیام‌ها کار می‌کنند)
+- اگر بدون SSL (`http`) وصل شده‌اید: تماس فقط با SSL کار می‌کند.
+- پورت‌های `7881/tcp`، `7882/udp` و `3478/udp` را در فایروال سرور **و** پنل دیتاسنتر باز کنید.
+- `PUBLIC_IP` در `.env` باید آی‌پی **عمومی** سرور باشد (نه `10.x` یا `192.168.x`)؛ بعد `sudo bash deploy/apply-settings.sh`.
+
+### ۱۰. سرور را خاموش/روشن کنم
+```bash
+sudo docker compose stop      # خاموش (اطلاعات می‌ماند)
+sudo docker compose start     # روشن
+sudo docker compose restart   # ری‌استارت
+```
+⚠️ `docker compose down -v` نزنید: گواهی‌های SSL خود سرور پاک می‌شوند و همه دستگاه‌ها باید دوباره گواهی نصب کنند.
+
+### ۱۱. بکاپ بگیرم / به سرور دیگری منتقل کنم
+- بکاپ روزانه خودکار در `data/backups/` است؛ بکاپ همین حالا:
+  `sudo docker compose exec app node server/src/backup-cli.js`
+- **انتقال کامل به سرور جدید:** روی سرور قبلی `sudo docker compose stop`، بعد کل پوشه برنامه را (با `data/`، `.env` و `certs/`) کپی کنید:
+  ```bash
+  sudo tar czf amorechat-move.tar.gz amorechat
+  scp amorechat-move.tar.gz root@سرور-جدید:/root/
+  ```
+  روی سرور جدید Docker را نصب کنید (مرحله ۴)، `tar xzf amorechat-move.tar.gz`، فایل کامل `amorechat-offline-amd64.tar.gz` همان نسخه را داخل پوشه `amorechat` بگذارید (اگر سرور جدید اینترنت ندارد) و داخل پوشه `sudo bash deploy/install.sh`. تنظیمات `.env` قبلی استفاده می‌شود و سؤالی پرسیده نمی‌شود. اگر آی‌پی عوض شده، سؤال ۴.
+  گواهی SSL خود سرور در حجم Docker است؛ برای اینکه دستگاه‌ها لازم نباشد دوباره نصب کنند، آن را هم منتقل کنید:
+  ```bash
+  # سرور قبلی
+  sudo docker run --rm -v amorechat_caddy_data:/d -v "$PWD":/b alpine tar czf /b/caddy-data.tar.gz -C /d .
+  # سرور جدید (قبل از install.sh)
+  sudo docker volume create amorechat_caddy_data
+  sudo docker run --rm -v amorechat_caddy_data:/d -v "$PWD":/b alpine tar xzf /b/caddy-data.tar.gz -C /d
+  ```
+
+### ۱۲. آپدیت آفلاین چه فایل‌هایی لازم دارد؟
+بخش ۱۰. معمولاً فقط `amorechat-source.tar.gz`، `manifest.json` و `amorechat-app.tar.gz` (حدود ۴ مگابایت)؛ اگر فایلی کم باشد، دستور آپدیت دقیقاً می‌گوید کدام.
+
+### ۱۳. در اپ اندروید سروری خاموش شده و نمی‌توانم سرور دیگری اضافه کنم
+روی صفحه «به سرور وصل نشد» دکمه‌های **سرورهای دیگر**، **افزودن سرور دیگر** و **خروج کامل از این سرور** هست. از داخل برنامه هم: پروفایل و تنظیمات ← اپ اندروید ← آیکون سطل زباله کنار سرور.
 
 </div>

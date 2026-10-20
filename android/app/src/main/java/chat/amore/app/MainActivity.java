@@ -869,7 +869,18 @@ public class MainActivity extends Activity {
                 if (ca == null || !Trust.chainTrusted(chain, ca)) return r.put("error", "گواهی امنیتی این سرور معتبر نیست");
                 String site = siteName(url, ca);
                 setupCa = ca;
-                return r.put("trust", true).put("url", url).put("site", site).put("fingerprint", Trust.sha256(ca));
+                r.put("trust", true).put("url", url).put("site", site).put("fingerprint", Trust.sha256(ca));
+                // The same server may also answer on plain http: offer it as an option.
+                if (!explicit) {
+                    String http = "http://" + u.getHost() + (u.getPort() > 0 ? ":" + u.getPort() : "");
+                    try {
+                        siteName(http, null);
+                        r.put("http", http);
+                    } catch (Exception ignored) {
+                        // https only
+                    }
+                }
+                return r;
             } catch (Exception e) {
                 if (!explicit) {
                     String http = "http://" + u.getHost() + (u.getPort() > 0 ? ":" + u.getPort() : "");

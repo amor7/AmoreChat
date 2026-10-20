@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { useStore } from '../store';
+import { Server, Plus, Trash2 } from 'lucide-react';
+import { multiServer, appServers, switchServer, addServer, removeServer } from '../native';
 
 export default function Auth({ invite: initialInvite }) {
   const config = useStore((s) => s.config);
@@ -134,6 +136,47 @@ export default function Auth({ invite: initialInvite }) {
         </button>
         {!canRegister && <p className="hint">ثبت‌نام بسته است. برای ساخت حساب با مدیر تماس بگیرید.</p>}
       </form>
+      <AppServers />
+    </div>
+  );
+}
+
+// Android app with several servers: signed out here (or not signed in yet), the others are one
+// tap away - instead of a sign-in page that looks like the only way forward.
+function AppServers() {
+  if (!multiServer) return null;
+  const servers = appServers();
+  const cur = servers.find((s) => s.current);
+  const others = servers.filter((s) => !s.current);
+  return (
+    <div className="auth-card app-servers">
+      {others.length > 0 && (
+        <>
+          <b>سرورهای دیگر شما</b>
+          {others.map((s) => (
+            <button key={s.url} type="button" className="btn wide" onClick={() => switchServer(s.url)}>
+              <Server size={16} />
+              <span className="grow" dir="ltr">
+                {s.name}
+              </span>
+              {s.unread > 0 && <span className="badge">{s.unread}</span>}
+              <small className={s.connected ? 'ok' : 'bad'}>{s.connected ? 'متصل' : 'قطع'}</small>
+            </button>
+          ))}
+        </>
+      )}
+      <button type="button" className="btn wide" onClick={addServer}>
+        <Plus size={16} /> افزودن سرور دیگر
+      </button>
+      {cur && (
+        <button
+          type="button"
+          className="btn wide danger-text"
+          onClick={() => confirm(`«${cur.name}» از اپ حذف شود؟`) && removeServer(cur.url)}
+        >
+          <Trash2 size={16} /> حذف این سرور از اپ
+        </button>
+      )}
     </div>
   );
 }

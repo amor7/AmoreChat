@@ -322,6 +322,13 @@ try {
     await dt.evaluate("document.getElementById('cancelAdd').click(), true");
     await waitUntil(() => dt.evaluate("location.host === '10.0.2.2:3100' && !!document.querySelector('.sidebar .chat-item')"), 'back on the first server');
 
+    step('signed out on one server: the sign-in page also offers the other server');
+    await dt.evaluate("fetch('/api/auth/logout', { method: 'POST', headers: { 'x-requested-with': 'amorechat' } }).then(() => location.reload()), true");
+    await waitUntil(() => dt.evaluate("!!document.querySelector('.auth-card') && [...document.querySelectorAll('.app-servers button')].some((b) => b.textContent.includes('localhost'))"), 'other server offered on the sign-in page');
+    screenshot('signed-out-servers');
+    await dt.evaluate(`fetch('/api/auth/login', { method: 'POST', headers: { 'x-requested-with': 'amorechat', 'content-type': 'application/json' }, body: JSON.stringify({ username: 'bob', password: 'Str0ng-Pass-77' }) }).then(() => location.reload()), true`);
+    await waitUntil(() => dt.evaluate("location.host === '10.0.2.2:3100' && !!document.querySelector('.sidebar .chat-item')"), 'signed in again on the first server');
+
     step('leave the second server completely: removed, signed out there, notifications stop');
     const sessionsBefore = (await bob2('GET', '/api/me/sessions')).sessions.length;
     await dt.evaluate("AmoreAndroid.removeServer('http://localhost:3101'), true");
