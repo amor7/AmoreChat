@@ -199,7 +199,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build docker-offline-ubuntu-${{ matrix.ubuntu }}-amd64.tar.gz
-        run: bash deploy/make-docker-bundle.sh ${{ matrix.ubuntu }} /tmp
+        run: |
+          bash deploy/make-docker-bundle.sh ${{ matrix.ubuntu }} /tmp
+          # Only what Docker needs: optional extras (git, perl...) clashed with a server's own versions.
+          ! tar tzf /tmp/docker-offline-ubuntu-${{ matrix.ubuntu }}-amd64.tar.gz | grep -E '/(git|perl|perl-base|git-man)_'
+          echo "packages: $(tar tzf /tmp/docker-offline-ubuntu-${{ matrix.ubuntu }}-amd64.tar.gz | grep -c '\.deb$')"
       - name: Install it in a fresh Ubuntu ${{ matrix.ubuntu }} with no network
         run: |
           docker run --rm --network none -v /tmp:/b -v "$PWD/deploy":/d ubuntu:${{ matrix.ubuntu }} bash -c '

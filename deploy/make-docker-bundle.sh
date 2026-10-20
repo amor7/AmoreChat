@@ -13,7 +13,7 @@ docker run --rm -v "$WORK/$NAME/debs":/out "ubuntu:$V" bash -c '
   set -e
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
-  apt-get install --download-only -y -qq docker.io docker-compose-v2 >/dev/null
+  apt-get install --download-only --no-install-recommends -y -qq docker.io docker-compose-v2 >/dev/null
   cp /var/cache/apt/archives/*.deb /out/
   chmod a+r /out/*.deb'
 cp deploy/install-docker.sh "$WORK/$NAME/"

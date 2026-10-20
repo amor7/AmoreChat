@@ -41,7 +41,17 @@ done
 
 if [ ${#todo[@]} -gt 0 ]; then
   echo ">> Installing ${#todo[@]} packages..."
-  dpkg -i "${todo[@]}"
+  if ! dpkg -i "${todo[@]}"; then
+    # Something that doesn't fit this server's other packages: Docker doesn't need it, so take
+    # it back out instead of leaving dpkg (and apt) with half-installed packages.
+    dpkg --configure -a || true
+    broken=$(dpkg -l | awk '/^i[UF]/{print $2}' | grep -vE '^(docker|containerd|runc)' || true)
+    if [ -n "$broken" ]; then
+      echo ">> Not needed by Docker and could not be installed, removed again: $broken"
+      # shellcheck disable=SC2086
+      dpkg --remove $broken || true
+    fi
+  fi
 else
   echo ">> All packages already installed"
 fi

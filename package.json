@@ -1,7 +1,7 @@
 {
   "name": "amorechat",
   "private": true,
-  "version": "0.9.12",
+  "version": "0.9.13",
   "description": "پیام‌رسان self-hosted فارسی برای شبکه داخلی",
   "workspaces": [
     "server",
