@@ -234,8 +234,12 @@ export function chatSummary(chatId, userId) {
   return c ? formatSummary(c, userId) : null;
 }
 
+// A private chat appears in lists (for both people) only once it has a message, like Telegram:
+// opening someone's chat without writing leaves no trace on their side.
 export function listChats(userId) {
-  return all(SUMMARY_SELECT, userId).map((c) => formatSummary(c, userId));
+  return all(SUMMARY_SELECT, userId)
+    .filter((c) => c.type !== 'dm' || c.last_msg_id)
+    .map((c) => formatSummary(c, userId));
 }
 
 export function postMessage({ chatId, senderId = null, type = 'text', text = '', fileId = null, replyTo = null, forwardedFrom = null }) {

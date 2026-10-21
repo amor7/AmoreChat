@@ -18,6 +18,7 @@ import { fail, addMember, ensureEmergencyChannel, ensureSavedChat, systemMessage
 import { checkTotp, useRecoveryCode, passwordProblem, deviceName } from '../security.js';
 import { isOnline } from '../realtime.js';
 import { mediaReady } from '../media.js';
+import { spendLookup, isUserStaff, searchAcquaintances, knowsUser } from '../lookup.js';
 import { rtcEnabled } from '../livekit.js';
 
 const VERSION = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')).version;
@@ -203,22 +204,32 @@ export default async function authRoutes(app) {
     return { user: selfUser(get('SELECT * FROM users WHERE id = ?', u.id)) };
   });
 
+  // People you share a chat with: by part of the name. Anyone else: only by the exact username.
   app.get('/api/users/search', async (req) => {
     const q = String(req.query.q || '').trim();
     if (!q) return { users: [] };
+    spendLookup(req.user, 'search');
     const like = `%${q.replace(/[%_\\]/g, (c) => '\\' + c)}%`;
-    const users = all(
-      `SELECT * FROM users WHERE banned = 0 AND (username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\')
-       ORDER BY username LIMIT 20`,
-      like,
-      like,
-    );
+    let users;
+    if (isUserStaff(req.user)) {
+      users = all(
+        `SELECT * FROM users WHERE banned = 0 AND (username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\')
+         ORDER BY username LIMIT 20`,
+        like,
+        like,
+      );
+    } else {
+      users = searchAcquaintances(req.user.id, like);
+      const exact = get('SELECT * FROM users WHERE banned = 0 AND lower(username) = lower(?) AND id != ?', q.replace(/^@/, ''), req.user.id);
+      if (exact && !users.some((u) => u.id === exact.id)) users.unshift(exact);
+    }
     return { users: users.map((u) => ({ ...publicUser(u), online: isOnline(u.id) })) };
   });
 
   app.get('/api/users/:id', async (req) => {
     const u = get('SELECT * FROM users WHERE id = ?', Number(req.params.id));
-    if (!u) fail(404, 'کاربر پیدا نشد');
+    // A profile by its number only for people you share a chat with (no walking through ids).
+    if (!u || (u.id !== req.user.id && !isUserStaff(req.user) && !knowsUser(req.user.id, u.id))) fail(404, 'کاربر پیدا نشد');
     return { user: { ...publicUser(u), online: isOnline(u.id), banned: !!u.banned } };
   });
 }

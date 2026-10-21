@@ -482,6 +482,10 @@ function Settings() {
         <input type="checkbox" checked={f.allow_user_groups === '1'} onChange={(e) => setF({ ...f, allow_user_groups: e.target.checked ? '1' : '0' })} />
         کاربران عادی بتوانند گروه و کانال بسازند
       </label>
+      <label className="check">
+        <input type="checkbox" checked={f.discover_list !== '0'} onChange={(e) => setF({ ...f, discover_list: e.target.checked ? '1' : '0' })} />
+        «کاوش» فهرست کامل گروه‌ها و کانال‌های عمومی را نشان دهد (خاموش: فقط با جستجوی نام، حداقل ۳ حرف، یا لینک دعوت)
+      </label>
       <label>
         حداکثر حجم هر فایل (مگابایت)
         <input type="number" min="1" value={f.max_upload_mb} onChange={(e) => setF({ ...f, max_upload_mb: e.target.value })} />

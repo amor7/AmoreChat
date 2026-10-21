@@ -68,10 +68,12 @@ export default function Sidebar() {
   const list = useMemo(() => {
     const q = query.trim().toLowerCase();
     return Object.values(chats)
+      // A private chat with no message yet is listed only while it is open (like Telegram).
+      .filter((c) => c.type !== 'dm' || c.lastMessage || c.id === activeChatId)
       .filter((c) => (q ? true : inFolder(folder, c)))
       .filter((c) => !q || c.title.toLowerCase().includes(q) || c.peer?.username?.toLowerCase().includes(q))
       .sort(sortChats);
-  }, [chats, query, folder]);
+  }, [chats, query, folder, activeChatId]);
 
   // Long-press (phones) or right-click (desktop) on a chat: pin, mute, read, folders.
   const itemProps = (c) => ({

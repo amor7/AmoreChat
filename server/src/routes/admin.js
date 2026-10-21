@@ -157,7 +157,7 @@ export default async function adminRoutes(app) {
       if (!(key in DEFAULTS)) continue;
       let v = String(b[key]);
       if (key === 'registration_mode' && !['open', 'invite', 'closed'].includes(v)) fail(400, 'حالت ثبت‌نام نامعتبر');
-      if (key === 'allow_user_groups') v = v === '1' || v === 'true' ? '1' : '0';
+      if (key === 'allow_user_groups' || key === 'discover_list') v = v === '1' || v === 'true' ? '1' : '0';
       if (['default_can_call', 'default_can_stream'].includes(key)) v = v === '1' || v === 'true' ? '1' : '0';
       if (key === 'max_stream_quality' && !['480', '720', '1080'].includes(v)) fail(400, 'کیفیت نامعتبر');
       if (key === 'max_stream_fps' && !['30', '60'].includes(v)) fail(400, 'نرخ فریم نامعتبر');

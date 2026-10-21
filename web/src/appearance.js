@@ -42,7 +42,7 @@ export function applyAppearance(prefs = getPrefs()) {
   const dark = mode === 'dark' || (mode === 'auto' && !!media?.matches);
   root.dataset.mode = dark ? 'dark' : 'light';
   root.dataset.theme = theme.id;
-  root.dataset.wall = prefs.wallpaper || 'plain';
+  root.dataset.wall = prefs.wallpaper || 'dots';
   root.style.setProperty('--msg-size', `${prefs.textSize || 15}px`);
   // Browser / phone bars follow the theme.
   const bar = getComputedStyle(root).getPropertyValue('--panel').trim() || (dark ? '#121729' : '#ffffff');

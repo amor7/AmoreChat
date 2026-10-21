@@ -328,12 +328,11 @@ select:focus {
 
 /* ---------- Chat ---------- */
 .chat-pane {
-  /* soft dotted wallpaper + gentle colour wash */
+  /* gentle colour wash; the pattern on top is the chosen wallpaper (data-wall on <html>) */
   background-color: var(--chat-bg);
-  background-image: radial-gradient(color-mix(in srgb, var(--accent) 14%, transparent) 1px, transparent 1.2px),
-    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 45%),
+  background-image: radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 45%),
     radial-gradient(circle at 85% 90%, color-mix(in srgb, var(--accent-2) 12%, transparent), transparent 45%);
-  background-size: 22px 22px, 100% 100%, 100% 100%;
+  background-size: 100% 100%, 100% 100%;
 }
 .chat-head,
 .composer-wrap,

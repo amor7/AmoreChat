@@ -48,8 +48,8 @@ export function UserSearch({ onPick, exclude = [], placeholder = 'جستجوی �
     const t = setTimeout(() => {
       api('GET', `/users/search?q=${encodeURIComponent(q.trim())}`)
         .then((r) => setUsers(r.users))
-        .catch(() => {});
-    }, 250);
+        .catch((e) => e.status === 429 && useStore.getState().showToast(e.message));
+    }, 400);
     return () => clearTimeout(t);
   }, [q]);
 
@@ -69,7 +69,9 @@ export function UserSearch({ onPick, exclude = [], placeholder = 'جستجوی �
             </button>
           </li>
         ))}
-        {q.trim() && !shown.length && <li className="muted pad">کاربری پیدا نشد</li>}
+        {q.trim() && !shown.length && (
+          <li className="muted pad">کاربری پیدا نشد. کسانی که با شما گروه یا گفتگوی مشترکی ندارند فقط با <b>نام کاربری کامل</b> پیدا می‌شوند (مثلاً ali_rezaei).</li>
+        )}
       </ul>
     </div>
   );
@@ -77,12 +79,24 @@ export function UserSearch({ onPick, exclude = [], placeholder = 'جستجوی �
 
 function Discover({ onClose }) {
   const [chats, setChats] = useState(null);
+  const [listAll, setListAll] = useState(true);
+  const [q, setQ] = useState('');
   const st = useStore.getState;
+  // The full list (if the admin allows it), or a search by at least 3 letters of the name.
   useEffect(() => {
-    api('GET', '/chats/discover')
-      .then((r) => setChats(r.chats))
-      .catch((e) => st().showToast(e.message));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    const term = q.trim();
+    if (term && term.length < 3) return;
+    const t = setTimeout(() => {
+      api('GET', `/chats/discover${term ? `?q=${encodeURIComponent(term)}` : ''}`)
+        .then((r) => {
+          setChats(r.chats);
+          setListAll(r.listAll !== false);
+        })
+        .catch((e) => st().showToast(e.message));
+    }, term ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
+  const short = q.trim() && q.trim().length < 3;
 
   async function join(id) {
     try {
@@ -97,10 +111,14 @@ function Discover({ onClose }) {
 
   return (
     <Modal title="کاوش گروه‌ها و کانال‌های عمومی" onClose={onClose}>
-      {!chats && <p className="muted">…</p>}
-      {chats?.length === 0 && <p className="muted">گروه یا کانال عمومی دیگری وجود ندارد.</p>}
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجوی نام گروه یا کانال (حداقل ۳ حرف)" autoFocus />
+      {short && <p className="muted">حداقل ۳ حرف بنویسید.</p>}
+      {!short && !chats && <p className="muted">…</p>}
+      {!short && chats?.length === 0 && (
+        <p className="muted">{q.trim() ? 'گروه یا کانال عمومی با این نام پیدا نشد.' : listAll ? 'گروه یا کانال عمومی دیگری وجود ندارد.' : 'نام گروه یا کانالی را که دنبالش هستید جستجو کنید، یا با لینک دعوت عضو شوید.'}</p>
+      )}
       <ul className="user-list">
-        {chats?.map((c) => (
+        {!short && chats?.map((c) => (
           <li key={c.id} className="row-item">
             <Avatar id={c.id} name={c.title} file={c.avatar} size={40} />
             <span className="grow">

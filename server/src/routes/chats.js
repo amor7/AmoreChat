@@ -2,6 +2,7 @@ import { get, all, run, now, parseJSON } from '../db.js';
 import { getSetting } from '../settings.js';
 import { hasSitePerm, hasChatPerm, cleanPerms, CHAT_PERMS } from '../perms.js';
 import { randomCode, publicUser } from '../auth.js';
+import { spendLookup, knowsUser } from '../lookup.js';
 import { isOnline, toChat, toUser, toAll } from '../realtime.js';
 import {
   fail,
@@ -82,17 +83,32 @@ function joinAllowed(chatId, userId) {
 export default async function chatRoutes(app) {
   app.get('/api/chats', async (req) => ({ chats: listChats(req.user.id) }));
 
-  app.get('/api/chats/discover', async (req) => ({
-    chats: all(
-      `SELECT c.id, c.type, c.title, c.description, c.avatar_file_id AS avatar,
-         (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id = c.id) AS memberCount
-       FROM chats c
-       WHERE c.is_public = 1 AND c.type IN ('group', 'channel', 'voice')
-         AND NOT EXISTS (SELECT 1 FROM chat_members m WHERE m.chat_id = c.id AND m.user_id = ?)
-       ORDER BY memberCount DESC LIMIT 100`,
-      req.user.id,
-    ),
-  }));
+  // Public groups and channels: searched by at least 3 letters of the name; the full list only
+  // when the admin allows it (setting discover_list).
+  app.get('/api/chats/discover', async (req) => {
+    const q = String(req.query.q || '').trim();
+    const listAll = getSetting('discover_list') !== '0';
+    if (q && q.length < 3) return { chats: [], listAll, minLength: 3 };
+    if (!q && !listAll) return { chats: [], listAll, minLength: 3 };
+    if (q) spendLookup(req.user, 'discover');
+    const like = `%${q.replace(/[%_\\]/g, (c) => '\\' + c)}%`;
+    return {
+      listAll,
+      minLength: 3,
+      chats: all(
+        `SELECT c.id, c.type, c.title, c.description, c.avatar_file_id AS avatar,
+           (SELECT COUNT(*) FROM chat_members x WHERE x.chat_id = c.id) AS memberCount
+         FROM chats c
+         WHERE c.is_public = 1 AND c.type IN ('group', 'channel', 'voice')
+           AND NOT EXISTS (SELECT 1 FROM chat_members m WHERE m.chat_id = c.id AND m.user_id = ?)
+           AND (? = '' OR c.title LIKE ? ESCAPE '\\')
+         ORDER BY memberCount DESC LIMIT 100`,
+        req.user.id,
+        q,
+        like,
+      ),
+    };
+  });
 
   app.post('/api/chats', async (req) => {
     const { type, title, description = '', memberIds = [], isPublic = false } = req.body || {};
@@ -126,6 +142,9 @@ export default async function chatRoutes(app) {
     const otherId = Number(req.body?.userId);
     if (otherId === req.user.id) fail(400, 'برای پیام به خودتان از «پیام‌های ذخیره‌شده» استفاده کنید');
     if (!get('SELECT 1 FROM users WHERE id = ? AND banned = 0', otherId)) fail(404, 'کاربر پیدا نشد');
+    // A new private chat with someone you don't know yet counts as a lookup (no id walking).
+    if (!knowsUser(req.user.id, otherId)) spendLookup(req.user, 'dm');
+    // Not shown to the other person (or in lists) until the first message: see listChats.
     return { chat: chatSummary(getOrCreateDm(req.user.id, otherId), req.user.id) };
   });
 

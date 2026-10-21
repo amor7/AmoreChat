@@ -43,7 +43,7 @@ export default function Appearance() {
       <h5>پس‌زمینه گفتگو</h5>
       <div className="wall-grid">
         {WALLPAPERS.map(([k, label]) => (
-          <button key={k} className={`wall-swatch ${k} ${(prefs.wallpaper || 'plain') === k ? 'active' : ''}`} onClick={() => change({ wallpaper: k })}>
+          <button key={k} className={`wall-swatch ${k} ${(prefs.wallpaper || 'dots') === k ? 'active' : ''}`} onClick={() => change({ wallpaper: k })}>
             {label}
           </button>
         ))}

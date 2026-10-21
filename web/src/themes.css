@@ -138,7 +138,7 @@
 
 /* Chat wallpapers (drawn with CSS: nothing to download). */
 :root[data-wall='dots'] .messages {
-  background-image: radial-gradient(color-mix(in srgb, var(--accent) 22%, transparent) 1.2px, transparent 1.4px);
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 16%, transparent) 1px, transparent 1.2px);
   background-size: 22px 22px;
 }
 :root[data-wall='grid'] .messages {

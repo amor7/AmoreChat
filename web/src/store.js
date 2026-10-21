@@ -95,7 +95,11 @@ export const useStore = create((set, get) => ({
       chats = await cachedChats();
       if (!chats) throw e;
     }
-    set({ chats: Object.fromEntries(chats.map((c) => [c.id, c])) });
+    const next = Object.fromEntries(chats.map((c) => [c.id, c]));
+    // A private chat opened but not written in yet isn't listed by the server: keep the open one.
+    const open = get().chats[get().activeChatId];
+    if (open?.type === 'dm' && !next[open.id]) next[open.id] = open;
+    set({ chats: next });
     cacheChats(get().chats);
   },
   upsertChat(c) {

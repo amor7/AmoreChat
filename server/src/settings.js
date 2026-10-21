@@ -6,6 +6,8 @@ export const DEFAULTS = {
   registration_mode: 'invite',
   // Can regular users create groups and channels?
   allow_user_groups: '1',
+  // "Explore" shows the full list of public groups/channels (0 = only by searching a name).
+  discover_list: '1',
   max_upload_mb: '100',
   // Total upload quota per user in MB; 0 = unlimited.
   user_quota_mb: '0',

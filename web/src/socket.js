@@ -46,7 +46,12 @@ export function connectSocket() {
     if (err.message === 'unauthorized') checkSession();
   });
 
-  socket.on('message:new', (m) => {
+  socket.on('message:new', async (m) => {
+    // First message of a private chat the other person just started: it isn't in the list yet.
+    if (!st().chats[m.chatId]) {
+      const r = await api('GET', `/chats/${m.chatId}`).catch(() => null);
+      if (r?.chat?.myRole || r?.chat?.type === 'dm') st().upsertChat(r.chat);
+    }
     st().addMessage(m);
     notify(m);
   });

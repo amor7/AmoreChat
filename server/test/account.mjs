@@ -390,6 +390,52 @@ assert.deepEqual(await seen(reader, lounge), [ids.chowner, ids.reader].sort(), '
 // The site admin can still delete the channel from the panel.
 assert.equal((await siteMod.call('DELETE', `/api/chats/${chan}`)).status, 200, 'site admin deletes the channel');
 
+// ---- Finding people: strangers only by the exact username; profiles/DMs not by walking ids ----
+const pa = client();
+const pb = client();
+const pc = client();
+const pid = {};
+for (const [c, n] of [[pa, 'priv_alpha'], [pb, 'priv_beta'], [pc, 'priv_gamma']]) {
+  r = await c.call('POST', '/api/auth/register', { username: n, password: PASS, displayName: `Name ${n}` });
+  assert.equal(r.status, 200, JSON.stringify(r));
+  pid[n] = r.user.id;
+}
+const found = async (c, q) => (await c.call('GET', `/api/users/search?q=${encodeURIComponent(q)}`)).users?.map((u) => u.username) || [];
+assert.deepEqual(await found(pa, 'priv'), [], 'strangers are not found by part of the name');
+assert.deepEqual(await found(pa, 'Name'), [], 'nor by display name');
+assert.deepEqual(await found(pa, 'priv_beta'), ['priv_beta'], 'found by the exact username');
+assert.deepEqual(await found(pa, '@PRIV_BETA'), ['priv_beta'], 'exact username, any case, with @');
+assert.equal((await pa.call('GET', `/api/users/${pid.priv_beta}`)).status, 404, 'a stranger\'s profile is not open by id');
+// Opening a private chat leaves no trace for the other person until a message is sent.
+const pdm = (await pa.call('POST', '/api/chats/dm', { userId: pid.priv_beta })).chat.id;
+assert.ok(!(await pb.call('GET', '/api/chats')).chats.some((c) => c.id === pdm), 'empty private chat not listed for the other person');
+assert.ok(!(await pa.call('GET', '/api/chats')).chats.some((c) => c.id === pdm), 'nor for the one who opened it');
+assert.deepEqual(await found(pa, 'priv'), [], 'an empty private chat does not make them acquaintances');
+await pa.call('POST', `/api/chats/${pdm}/messages`, { text: 'hi beta' });
+assert.ok((await pb.call('GET', '/api/chats')).chats.some((c) => c.id === pdm), 'listed after the first message');
+assert.deepEqual(await found(pa, 'priv'), ['priv_beta'], 'people you talked to are found by part of the name');
+assert.equal((await pa.call('GET', `/api/users/${pid.priv_beta}`)).status, 200);
+// A shared group makes people findable by name too.
+await owner.call('PATCH', '/api/admin/settings', { allow_user_groups: '1' });
+await pc.call('POST', '/api/chats', { type: 'group', title: 'Privacy group', memberIds: [pid.priv_alpha] });
+assert.ok((await found(pa, 'Name priv_g')).includes('priv_gamma'), 'group members found by display name');
+// Too many lookups in a minute: refused and logged.
+let refused = 0;
+for (let i = 0; i < 25; i++) if ((await pc.call('GET', `/api/users/search?q=x${i}`)).status === 429) refused++;
+assert.ok(refused >= 4, `lookups limited (${refused} refused)`);
+const auditRows = (await owner.call('GET', '/api/admin/audit?limit=50')).entries || (await owner.call('GET', '/api/admin/audit')).entries || [];
+assert.ok(JSON.stringify(auditRows).includes('lookup.flood'), 'flood written to the activity log');
+// Public groups/channels: by at least 3 letters; the full list can be turned off.
+await chOwner.call('POST', '/api/chats', { type: 'group', title: 'Searchable Club', isPublic: true });
+const disc = async (q) => await pa.call('GET', `/api/chats/discover${q ? `?q=${encodeURIComponent(q)}` : ''}`);
+assert.deepEqual((await disc('Se')).chats, [], 'two letters are not enough');
+assert.ok((await disc('Searchable')).chats.some((c) => c.title === 'Searchable Club'));
+assert.ok((await disc('')).chats.some((c) => c.title === 'Searchable Club'), 'full list while allowed');
+await owner.call('PATCH', '/api/admin/settings', { discover_list: '0' });
+assert.deepEqual((await disc('')).chats, [], 'no full list when turned off');
+assert.ok((await disc('Searchable')).chats.length >= 1, 'still found by name');
+await owner.call('PATCH', '/api/admin/settings', { discover_list: '1' });
+
 // ---- Stream frame rate: owner 60, others the site default (30) unless raised ----
 const fpsOf = async (c) => (await c.call('GET', '/api/auth/me')).user?.limits?.streamFps;
 assert.equal(await fpsOf(owner), 60, 'owner: 60 fps');
